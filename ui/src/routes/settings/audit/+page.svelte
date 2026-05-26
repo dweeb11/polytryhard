@@ -17,7 +17,7 @@
 	}
 </script>
 
-<h1 class="mb-4 text-lg font-semibold text-slate-100">Audit log</h1>
+<h2 class="mb-4 text-sm font-medium text-slate-300">Audit log</h2>
 
 <div class="overflow-x-auto rounded border border-[var(--color-border)] text-sm">
 	<table class="w-full text-left">
@@ -32,7 +32,7 @@
 			</tr>
 		</thead>
 		<tbody>
-			{#each slice as ev}
+			{#each slice as ev (ev.id)}
 				<tr class="border-t border-[var(--color-border)] align-top">
 					<td class="px-3 py-2 text-xs text-slate-400 whitespace-nowrap"
 						>{new Date(ev.occurredAt).toLocaleString()}</td

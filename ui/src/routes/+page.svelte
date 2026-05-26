@@ -15,6 +15,7 @@
 		RESUMABLE_STATES,
 		formatAge
 	} from '$lib/utils';
+	import { isDeveloperMode } from '$lib/stores/uiMode';
 	import { pauseStrategy, resumeStrategy, probeSource } from '$lib/actions';
 
 	const recentSignals = $derived($signals.slice(0, 12));
@@ -37,7 +38,7 @@
 				</tr>
 			</thead>
 			<tbody>
-				{#each $strategies as s}
+				{#each $strategies as s (s.name)}
 					{@const blocked = $strategyBlockedBy.get(s.name)}
 					<tr class="border-t border-[var(--color-border)] hover:bg-slate-800/40">
 						<td class="px-3 py-2">
@@ -94,7 +95,7 @@
 	<div>
 		<h2 class="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">Source health</h2>
 		<ul class="space-y-2 rounded border border-[var(--color-border)] p-3 text-sm">
-			{#each $sources as src}
+			{#each $sources as src (src.name)}
 				<li class="flex items-center justify-between gap-2">
 					<div>
 						<span class="font-medium text-slate-200">{src.displayName}</span>
@@ -109,13 +110,15 @@
 						</span>
 						<span class="ml-2 text-xs text-slate-500">{formatAge(src.lastSuccessfulFetch)}</span>
 					</div>
-					<button
-						type="button"
-						class="shrink-0 rounded border border-[var(--color-border)] px-2 py-0.5 text-xs hover:bg-slate-800"
-						onclick={() => probeSource(src.name)}
-					>
-						Probe
-					</button>
+					{#if $isDeveloperMode}
+						<button
+							type="button"
+							class="shrink-0 rounded border border-[var(--color-border)] px-2 py-0.5 text-xs hover:bg-slate-800"
+							onclick={() => probeSource(src.name)}
+						>
+							Probe
+						</button>
+					{/if}
 				</li>
 			{/each}
 		</ul>
@@ -124,7 +127,7 @@
 	<div>
 		<h2 class="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">Recent signals</h2>
 		<ul class="max-h-64 space-y-1 overflow-y-auto rounded border border-[var(--color-border)] p-2 text-xs">
-			{#each recentSignals as sig}
+			{#each recentSignals as sig (sig.id)}
 				<li class="flex justify-between gap-2 border-b border-slate-800/80 py-1 last:border-0">
 					<span class="text-slate-300">{sig.strategyName} · {sig.ticker}</span>
 					<span class={outcomeColor(sig.outcome)}>{sig.outcome.replace(/_/g, ' ')}</span>

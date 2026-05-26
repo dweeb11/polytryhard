@@ -1,5 +1,6 @@
 <script lang="ts">
 	import '../app.css';
+	import { get } from 'svelte/store';
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import {
@@ -10,6 +11,7 @@
 		subscribePersistence
 	} from '$lib/stores';
 	import { toasts, dismissToast } from '$lib/stores/toasts';
+	import { isDeveloperMode, uiMode } from '$lib/stores/uiMode';
 	import { tickSimulatorEnabled } from '$lib/stores/tick';
 	import { initTickFromStore, setTickEnabled } from '$lib/mocks/tick';
 	import {
@@ -29,15 +31,13 @@
 	let killReason = $state('');
 	let resumeReason = $state('');
 
-	const nav = [
-		{ href: '/', label: 'Overview' },
-		{ href: '/sources', label: 'Sources' },
-		{ href: '/plugins', label: 'Plugins' },
-		{ href: '/audit', label: 'Audit' }
-	];
+	const overviewNav = [{ href: '/', label: 'Overview' }];
 
 	onMount(() => {
 		const unsub = subscribePersistence();
+		if (get(uiMode) === 'release') {
+			setTickEnabled(false);
+		}
 		initTickFromStore();
 		return unsub;
 	});
@@ -65,24 +65,26 @@
 	}
 </script>
 
-<div class="flex min-h-full flex-col">
+<div class="flex h-dvh flex-col overflow-hidden">
 	<header
-		class="flex flex-wrap items-center gap-3 border-b border-[var(--color-border)] bg-[var(--color-panel)] px-4 py-2 text-sm"
+		class="flex shrink-0 flex-wrap items-center gap-3 border-b border-[var(--color-border)] bg-[var(--color-panel)] px-4 py-2 text-sm"
 	>
 		<span class="font-semibold tracking-tight text-slate-100">polytryhard</span>
-		<span class="rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-400">prototype</span>
+		{#if $isDeveloperMode}
+			<span class="rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-400">prototype</span>
 
-		<label class="flex items-center gap-1 text-slate-400">
-			Env
-			<select
-				class="rounded border border-[var(--color-border)] bg-slate-900 px-2 py-1 text-slate-200"
-				value={$currentEnv}
-				onchange={handleEnvChange}
-			>
-				<option value="main">main</option>
-				<option value="staging">staging</option>
-			</select>
-		</label>
+			<label class="flex items-center gap-1 text-slate-400">
+				Env
+				<select
+					class="rounded border border-[var(--color-border)] bg-slate-900 px-2 py-1 text-slate-200"
+					value={$currentEnv}
+					onchange={handleEnvChange}
+				>
+					<option value="main">main</option>
+					<option value="staging">staging</option>
+				</select>
+			</label>
+		{/if}
 
 		<span
 			class="rounded px-2 py-0.5 text-xs font-medium {$system.state === 'active'
@@ -110,30 +112,32 @@
 			</button>
 		{/if}
 
-		<label class="ml-auto flex items-center gap-2 text-slate-400">
-			<input
-				type="checkbox"
-				checked={$tickSimulatorEnabled}
-				onchange={(e) => setTickEnabled((e.target as HTMLInputElement).checked)}
-			/>
-			Tick sim (~3s)
-		</label>
+		{#if $isDeveloperMode}
+			<label class="ml-auto flex items-center gap-2 text-slate-400">
+				<input
+					type="checkbox"
+					checked={$tickSimulatorEnabled}
+					onchange={(e) => setTickEnabled((e.target as HTMLInputElement).checked)}
+				/>
+				Tick sim (~3s)
+			</label>
 
-		<button
-			type="button"
-			class="rounded border border-[var(--color-border)] px-2 py-1 text-slate-400 hover:text-slate-200"
-			onclick={() => (resetModal = true)}
-		>
-			Reset env
-		</button>
+			<button
+				type="button"
+				class="rounded border border-[var(--color-border)] px-2 py-1 text-slate-400 hover:text-slate-200"
+				onclick={() => (resetModal = true)}
+			>
+				Reset env
+			</button>
+		{/if}
 	</header>
 
-	<div class="flex flex-1">
+	<div class="flex min-h-0 flex-1 overflow-hidden">
 		<nav
-			class="w-44 shrink-0 border-r border-[var(--color-border)] bg-[var(--color-panel)] p-3 text-sm"
+			class="flex h-full w-44 shrink-0 flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-panel)] p-3 text-sm"
 		>
 			<ul class="space-y-1">
-				{#each nav as item}
+				{#each overviewNav as item (item.href)}
 					<li>
 						<a
 							href={item.href}
@@ -147,8 +151,8 @@
 				{/each}
 			</ul>
 			<p class="mt-4 px-2 text-xs uppercase tracking-wide text-slate-500">Strategies</p>
-			<ul class="mt-1 space-y-0.5">
-				{#each $strategies as s}
+			<ul class="mt-1 min-h-0 flex-1 space-y-0.5 overflow-y-auto">
+				{#each $strategies as s (s.name)}
 					<li>
 						<a
 							href="/strategies/{s.name}"
@@ -162,8 +166,18 @@
 					</li>
 				{/each}
 			</ul>
+			<div class="mt-auto border-t border-[var(--color-border)] pt-3">
+				<a
+					href="/settings"
+					class="block rounded px-2 py-1.5 {$page.url.pathname.startsWith('/settings')
+						? 'bg-slate-700 text-white'
+						: 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}"
+				>
+					Settings
+				</a>
+			</div>
 		</nav>
-		<main class="flex-1 overflow-auto p-4">
+		<main class="min-h-0 flex-1 overflow-y-auto p-4">
 			{@render children()}
 		</main>
 	</div>

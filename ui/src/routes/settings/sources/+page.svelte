@@ -1,16 +1,17 @@
 <script lang="ts">
 	import { sources } from '$lib/stores';
+	import { isDeveloperMode } from '$lib/stores/uiMode';
 	import { probeSource, resetCircuitBreaker } from '$lib/actions';
 	import { formatAge } from '$lib/utils';
 </script>
 
-<h1 class="mb-4 text-lg font-semibold text-slate-100">Sources</h1>
+<h2 class="mb-4 text-sm font-medium text-slate-300">Sources</h2>
 
 <div class="grid gap-4 md:grid-cols-2">
-	{#each $sources as src}
+	{#each $sources as src (src.name)}
 		<article class="rounded border border-[var(--color-border)] p-4 text-sm">
 			<div class="mb-2 flex items-start justify-between">
-				<h2 class="font-medium text-slate-100">{src.displayName}</h2>
+				<h3 class="font-medium text-slate-100">{src.displayName}</h3>
 				<span
 					class="rounded px-2 py-0.5 text-xs capitalize {src.state === 'healthy'
 						? 'bg-emerald-900/40 text-emerald-300'
@@ -41,24 +42,26 @@
 					</div>
 				{/if}
 			</dl>
-			<div class="mt-4 flex gap-2">
-				<button
-					type="button"
-					class="rounded bg-blue-800 px-3 py-1 text-xs text-white hover:bg-blue-700"
-					onclick={() => probeSource(src.name)}
-				>
-					Probe now
-				</button>
-				<button
-					type="button"
-					class="rounded border border-[var(--color-border)] px-3 py-1 text-xs disabled:opacity-40"
-					disabled={src.circuitBreaker === 'closed'}
-					title={src.circuitBreaker === 'closed' ? 'Breaker already closed' : 'Reset breaker'}
-					onclick={() => resetCircuitBreaker(src.name)}
-				>
-					Reset breaker
-				</button>
-			</div>
+			{#if $isDeveloperMode}
+				<div class="mt-4 flex gap-2">
+					<button
+						type="button"
+						class="rounded bg-blue-800 px-3 py-1 text-xs text-white hover:bg-blue-700"
+						onclick={() => probeSource(src.name)}
+					>
+						Probe now
+					</button>
+					<button
+						type="button"
+						class="rounded border border-[var(--color-border)] px-3 py-1 text-xs disabled:opacity-40"
+						disabled={src.circuitBreaker === 'closed'}
+						title={src.circuitBreaker === 'closed' ? 'Breaker already closed' : 'Reset breaker'}
+						onclick={() => resetCircuitBreaker(src.name)}
+					>
+						Reset breaker
+					</button>
+				</div>
+			{/if}
 		</article>
 	{/each}
 </div>

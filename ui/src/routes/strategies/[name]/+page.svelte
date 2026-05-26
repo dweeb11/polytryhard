@@ -22,6 +22,7 @@
 		forceCloseAndWithdraw,
 		decommission
 	} from '$lib/actions';
+	import { isDeveloperMode } from '$lib/stores/uiMode';
 	import {
 		drawdownPct,
 		formatCents,
@@ -79,7 +80,47 @@
 		</div>
 		<div class="rounded border border-[var(--color-border)] p-3">
 			<h2 class="mb-2 text-xs uppercase text-slate-500">Calibration (10 buckets)</h2>
-			<CalibrationChart buckets={calibration} />
+			<CalibrationChart buckets={calibration} legendId="strategy-calibration-legend" />
+			<details id="strategy-calibration-legend-desc" class="group mt-2 text-xs text-slate-500">
+				<summary
+					class="cursor-pointer list-none font-medium text-slate-400 marker:content-none hover:text-slate-300 [&::-webkit-details-marker]:hidden"
+				>
+					<span class="inline-flex items-center gap-1">
+						<span
+							class="inline-block text-[10px] text-slate-500 transition group-open:rotate-90"
+							aria-hidden="true">▶</span
+						>
+						How to read
+					</span>
+				</summary>
+				<div class="mt-1.5 space-y-1.5 pl-3">
+					<p>
+						Each dot groups past signals by predicted probability (10 bins). Horizontal position
+						is what the strategy predicted; vertical position is how often the contract actually
+						resolved yes.
+					</p>
+					<ul class="list-inside list-disc space-y-0.5 pl-0.5">
+						<li>
+							<span class="text-slate-400">On the dashed line</span> — well calibrated (predicted
+							matches outcomes).
+						</li>
+						<li>
+							<span class="text-slate-400">Above the line</span> — more yes than predicted
+							(under-confident).
+						</li>
+						<li>
+							<span class="text-slate-400">Below the line</span> — fewer yes than predicted
+							(over-confident).
+						</li>
+					</ul>
+					{#if $isDeveloperMode}
+						<p class="text-[10px] text-slate-600">
+							Prototype: buckets are simulated fixture data, not computed from live Kalshi
+							resolutions.
+						</p>
+					{/if}
+				</div>
+			</details>
 		</div>
 	</div>
 
@@ -190,7 +231,7 @@
 						</tr>
 					</thead>
 					<tbody>
-						{#each filteredSignals.slice(0, 40) as sig}
+						{#each filteredSignals.slice(0, 40) as sig (sig.id)}
 							<tr class="border-t border-slate-800">
 								<td class="py-1 text-slate-400">{new Date(sig.evaluatedAt).toLocaleString()}</td>
 								<td>{sig.ticker}</td>
@@ -207,7 +248,7 @@
 	<div class="rounded border border-[var(--color-border)] p-3">
 		<h2 class="mb-2 text-xs uppercase text-slate-500">Recent cash events</h2>
 		<ul class="text-xs text-slate-300">
-			{#each stratCash as c}
+			{#each stratCash as c (c.id)}
 				<li class="py-0.5">
 					{c.kind} {formatCents(c.amountCents)} → balance {formatCents(c.balanceAfterCents)} — {c.reason}
 				</li>
