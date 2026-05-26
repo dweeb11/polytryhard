@@ -2,9 +2,9 @@
 
 > A statistical research lab for prediction markets. Paper-trades Kalshi via pluggable strategies, evaluates them honestly, graduates winners to live execution. AI is used as a feature extractor, never as a decision maker.
 
-**Status:** Design — pre-implementation. Reviewed 2026-05-25.
+**Status:** Frontend prototype (mock data, live UI). Reviewed 2026-05-25.
 **Owner:** Dave (designer + assistant producer); Claude (producer + engineer).
-**Repo home:** `~/projects/apps/polytryhard/` (gitea: `gitea:homelab/polytryhard.git`, planned).
+**Repo home:** `~/projects/apps/polytryhard/` (GitHub: `git@github.com:dweeb11/polytryhard.git`, canonical).
 **Deployment:** Coolify on lxc-107, mirroring TradeBrain's pattern. `main` and `staging` branches deployed as separate Coolify apps.
 
 ---
@@ -548,7 +548,7 @@ UI gets manual acceptance criteria, not automated tests. Per-PR checklist:
 - Single user (Dave) at MVP; simple bearer-token auth on the control plane.
 - One Coolify service per environment; staging and main never share a Postgres database (per-env DB enforced), only the shared Postgres.
 - Branch convention: feature branches → PR to `staging` → merge to `main` after staging soak. Each merge to either branch redeploys the corresponding Coolify service.
-- Repo lives at `gitea:homelab/polytryhard.git`. Standard conventional commit + AI co-author line.
+- Repo is canonical on GitHub (`git@github.com:dweeb11/polytryhard.git`). Standard conventional commit + AI co-author line.
 
 ---
 

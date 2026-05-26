@@ -1,0 +1,187 @@
+export type EnvName = 'main' | 'staging';
+
+export type SystemState = 'active' | 'paused';
+
+export type StrategyState =
+	| 'seeded'
+	| 'active'
+	| 'low_bankroll_paused'
+	| 'drawdown_paused'
+	| 'operator_paused'
+	| 'graduated'
+	| 'graduated_under_review'
+	| 'decommissioned';
+
+export type SignalOutcome =
+	| 'order_placed'
+	| 'rejected_kelly_zero'
+	| 'rejected_exposure_cap'
+	| 'rejected_correlation_cap'
+	| 'rejected_below_threshold'
+	| 'rejected_below_min_position'
+	| 'rejected_market_closed'
+	| 'rejected_stale_inputs'
+	| 'rejected_system_paused';
+
+export type FeatureValue =
+	| { kind: 'present'; value: number; asOf: string; provider: string; version: string }
+	| { kind: 'missing'; reason: string }
+	| { kind: 'stale'; value: number; asOf: string };
+
+export type CashEventKind =
+	| 'deposit'
+	| 'withdraw'
+	| 'realized_pnl'
+	| 'fee'
+	| 'transfer_in'
+	| 'transfer_out';
+
+export type PluginType =
+	| 'source'
+	| 'feature_provider'
+	| 'strategy'
+	| 'executor'
+	| 'rubric';
+
+export type SourceState = 'healthy' | 'degraded' | 'down';
+export type CircuitBreakerState = 'closed' | 'open' | 'half_open';
+export type PositionStatus = 'open' | 'closed' | 'resolved';
+export type PositionSide = 'yes' | 'no';
+
+export interface StrategyConfig {
+	minBankrollCents: number;
+	minTradeableBankrollCents: number;
+	maxDrawdownPctFromHwm: number;
+	autoResumeOnDeposit: boolean;
+	maxInputAgeSeconds: number;
+	graduatedMaxDrawdownPctFromHwm?: number;
+}
+
+export interface StrategyInstance {
+	name: string;
+	enabled: boolean;
+	state: StrategyState;
+	bankrollCents: number;
+	bankrollHwmCents: number;
+	initialDepositCents: number;
+	kellyFraction: number;
+	config: StrategyConfig;
+	lastStateChangeAt: string;
+	graduatedAt: string | null;
+	todayPnlCents: number;
+	prePauseState: StrategyState | null;
+}
+
+export interface Signal {
+	id: string;
+	strategyName: string;
+	ticker: string;
+	evaluatedAt: string;
+	probYes: number;
+	confidence: number;
+	outcome: SignalOutcome;
+	rejectionReason: string | null;
+	featuresSnapshot: Record<string, FeatureValue>;
+}
+
+export interface SourceHealth {
+	name: string;
+	displayName: string;
+	state: SourceState;
+	lastSuccessfulFetch: string;
+	circuitBreaker: CircuitBreakerState;
+	consecutiveFailures: number;
+	lastError: string | null;
+}
+
+export interface Plugin {
+	id: string;
+	type: PluginType;
+	name: string;
+	version: string;
+	enabled: boolean;
+	requires: string[];
+	provides: string[];
+	lastToggledAt: string;
+}
+
+export interface CashEvent {
+	id: string;
+	strategyName: string;
+	occurredAt: string;
+	kind: CashEventKind;
+	amountCents: number;
+	balanceAfterCents: number;
+	reason: string;
+	refPositionId: string | null;
+}
+
+export interface PaperPosition {
+	id: string;
+	strategyName: string;
+	ticker: string;
+	side: PositionSide;
+	openedAt: string;
+	closedAt: string | null;
+	openAvgPrice: number;
+	qty: number;
+	costBasisCents: number;
+	realizedPnlCents: number | null;
+	unrealizedPnlCents: number;
+	status: PositionStatus;
+}
+
+export interface AuditEvent {
+	id: string;
+	occurredAt: string;
+	actor: 'user' | 'system' | 'scheduler';
+	action: string;
+	targetType: string;
+	targetId: string;
+	beforeState: Record<string, unknown>;
+	afterState: Record<string, unknown>;
+	reason: string;
+	requestId: string;
+}
+
+export interface SystemEnvState {
+	state: SystemState;
+	killSwitchReason: string | null;
+	killSwitchTrippedAt: string | null;
+}
+
+export interface CalibrationBucket {
+	bucket: number;
+	predicted: number;
+	actual: number;
+	count: number;
+}
+
+export interface BankrollPoint {
+	at: string;
+	bankrollCents: number;
+}
+
+export interface EnvSnapshot {
+	strategies: StrategyInstance[];
+	signals: Signal[];
+	sources: SourceHealth[];
+	plugins: Plugin[];
+	audit: AuditEvent[];
+	cashEvents: CashEvent[];
+	positions: PaperPosition[];
+	system: SystemEnvState;
+	calibration: Record<string, CalibrationBucket[]>;
+	bankrollHistory: Record<string, BankrollPoint[]>;
+}
+
+export type ActionResult<T = Record<string, unknown>> =
+	| { ok: true; data?: T }
+	| { ok: false; reason: string };
+
+export interface Toast {
+	id: string;
+	type: 'success' | 'error' | 'info';
+	message: string;
+	createdAt: number;
+}

@@ -1,0 +1,19 @@
+@import 'tailwindcss';
+
+@theme {
+	--font-sans: ui-sans-serif, system-ui, sans-serif;
+	--color-surface: #0f1419;
+	--color-panel: #1a2332;
+	--color-border: #2d3a4f;
+	--color-muted: #8b9cb3;
+	--color-accent: #3b82f6;
+	--color-danger: #ef4444;
+	--color-warn: #f59e0b;
+	--color-ok: #22c55e;
+}
+
+html,
+body {
+	@apply h-full bg-[var(--color-surface)] text-slate-100 antialiased;
+	font-family: var(--font-sans);
+}
