@@ -4,7 +4,7 @@
 	let { buckets, size = 220 }: { buckets: CalibrationBucket[]; size?: number } = $props();
 
 	const pad = 28;
-	const inner = size - pad * 2;
+	const inner = $derived(size - pad * 2);
 </script>
 
 <svg width={size} height={size} class="text-slate-400" role="img" aria-label="Calibration plot">

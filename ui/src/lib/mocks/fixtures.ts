@@ -1,5 +1,5 @@
 import type { EnvName, EnvSnapshot } from '$lib/types';
-import { uuid, nowIso } from '$lib/utils';
+import { uuid } from '$lib/utils';
 
 const defaultConfig = {
 	minBankrollCents: 10_000,
@@ -69,13 +69,16 @@ function makeSignals(
 					provider: 'ensemble_mean_temp',
 					version: '1.0.0'
 				},
-				forecast_disagreement: {
-					kind: i % 9 === 0 ? 'missing' : 'present',
-					value: 2.1,
-					asOf: hoursAgo(0.3),
-					provider: 'forecast_disagreement',
-					version: '1.0.0'
-				}
+				forecast_disagreement:
+					i % 9 === 0
+						? { kind: 'missing' as const, reason: 'GFS source degraded' }
+						: {
+								kind: 'present' as const,
+								value: 2.1,
+								asOf: hoursAgo(0.3),
+								provider: 'forecast_disagreement',
+								version: '1.0.0'
+							}
 			}
 		});
 	}

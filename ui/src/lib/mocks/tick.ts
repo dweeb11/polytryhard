@@ -6,7 +6,7 @@ import {
 } from '../actions';
 import { positions, sources, strategies } from '../stores';
 import { tickSimulatorEnabled } from '../stores/tick';
-import { nowIso, uuid } from '../utils';
+import { nowIso } from '../utils';
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
 

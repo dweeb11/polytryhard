@@ -6,8 +6,8 @@
 		$props();
 
 	const pad = { t: 8, r: 8, b: 24, l: 48 };
-	const innerW = width - pad.l - pad.r;
-	const innerH = height - pad.t - pad.b;
+	const innerW = $derived(width - pad.l - pad.r);
+	const innerH = $derived(height - pad.t - pad.b);
 
 	const sorted = $derived([...points].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime()));
 	const minY = $derived(Math.min(...sorted.map((p) => p.bankrollCents)) * 0.98);

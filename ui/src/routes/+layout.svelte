@@ -4,6 +4,7 @@
 	import { page } from '$app/stores';
 	import {
 		currentEnv,
+		strategies,
 		system,
 		systemPaused,
 		subscribePersistence
@@ -147,7 +148,19 @@
 			</ul>
 			<p class="mt-4 px-2 text-xs uppercase tracking-wide text-slate-500">Strategies</p>
 			<ul class="mt-1 space-y-0.5">
-				<!-- populated on overview; link pattern -->
+				{#each $strategies as s}
+					<li>
+						<a
+							href="/strategies/{s.name}"
+							class="block truncate rounded px-2 py-1 text-xs {$page.url.pathname ===
+							`/strategies/${s.name}`
+								? 'bg-slate-700 text-white'
+								: 'text-slate-400 hover:bg-slate-800'}"
+						>
+							{s.name}
+						</a>
+					</li>
+				{/each}
 			</ul>
 		</nav>
 		<main class="flex-1 overflow-auto p-4">

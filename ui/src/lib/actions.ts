@@ -303,7 +303,7 @@ export function tripKillSwitch(reason: string): ActionResult {
 		killSwitchReason: reason,
 		killSwitchTrippedAt: nowIso()
 	});
-	appendAudit('trip_kill_switch', 'system', 'global', before, get(system), reason);
+	appendAudit('trip_kill_switch', 'system', 'global', before, { ...get(system) }, reason);
 	return toastResult({ ok: true }, 'Kill switch tripped — executors blocked');
 }
 
@@ -315,7 +315,7 @@ export function resumeKillSwitch(reason: string): ActionResult {
 		killSwitchReason: null,
 		killSwitchTrippedAt: null
 	});
-	appendAudit('resume_kill_switch', 'system', 'global', before, get(system), reason);
+	appendAudit('resume_kill_switch', 'system', 'global', before, { ...get(system) }, reason);
 	return toastResult({ ok: true }, 'Kill switch cleared — system active');
 }
 
@@ -355,7 +355,8 @@ export function probeSource(sourceName: string): ActionResult {
 					: s
 			)
 		);
-		appendAudit('probe_source', 'source', sourceName, before, get(sources).find((s) => s.name === sourceName)!, 'probe success');
+		const after = get(sources).find((s) => s.name === sourceName)!;
+		appendAudit('probe_source', 'source', sourceName, { ...before }, { ...after }, 'probe success');
 		return toastResult({ ok: true }, `${src.displayName}: probe succeeded`);
 	}
 	const failures = src.consecutiveFailures + 1;
@@ -373,7 +374,8 @@ export function probeSource(sourceName: string): ActionResult {
 				: s
 		)
 	);
-	appendAudit('probe_source', 'source', sourceName, before, get(sources).find((s) => s.name === sourceName)!, 'probe failed');
+	const afterFail = get(sources).find((s) => s.name === sourceName)!;
+	appendAudit('probe_source', 'source', sourceName, { ...before }, { ...afterFail }, 'probe failed');
 	return toastResult({ ok: false, reason: `${src.displayName}: probe failed (${failures} consecutive)` }, '');
 }
 
@@ -407,6 +409,7 @@ export function resetEnv(env: EnvName): ActionResult {
 	resetEnvToFixtures(env);
 	if (get(currentEnv) === env) {
 		pushToast('info', `${env} reset to fixtures`);
+		persistCurrent();
 	}
 	return { ok: true };
 }
