@@ -66,7 +66,11 @@ jobs:
           set -euo pipefail
           BRANCH="${GITHUB_REF_NAME}"
           REMOTE="gitea-polytryhard:homelab/polytryhard.git"
-          git remote add gitea "$REMOTE"
+          if git remote get-url gitea >/dev/null 2>&1; then
+            git remote set-url gitea "$REMOTE"
+          else
+            git remote add gitea "$REMOTE"
+          fi
 
           if git ls-remote --exit-code --heads gitea "$BRANCH" >/dev/null 2>&1; then
             git fetch gitea "refs/heads/${BRANCH}:refs/remotes/gitea/${BRANCH}"
