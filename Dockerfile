@@ -5,7 +5,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-COPY pyproject.toml requirements-dev.txt ./
+COPY pyproject.toml ./
 COPY core ./core
 COPY migrations ./migrations
 COPY scripts ./scripts

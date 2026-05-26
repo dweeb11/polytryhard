@@ -1,0 +1,12 @@
+.git
+.github
+node_modules
+ui/node_modules
+ui/.svelte-kit
+ui/build
+ui/dist
+ui/.npm-cache
+.env
+.env.*
+!.env.example
+.DS_Store
