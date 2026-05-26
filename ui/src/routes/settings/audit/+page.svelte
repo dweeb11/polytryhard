@@ -17,7 +17,7 @@
 	}
 </script>
 
-<h1 class="mb-4 text-lg font-semibold text-slate-100">Audit log</h1>
+<h2 class="mb-4 text-sm font-medium text-slate-300">Audit log</h2>
 
 <div class="overflow-x-auto rounded border border-[var(--color-border)] text-sm">
 	<table class="w-full text-left">

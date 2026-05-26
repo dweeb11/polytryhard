@@ -30,11 +30,11 @@
 	}
 </script>
 
-<h1 class="mb-4 text-lg font-semibold text-slate-100">Plugins</h1>
+<h2 class="mb-4 text-sm font-medium text-slate-300">Plugins</h2>
 
 {#each [...grouped.entries()] as [type, list]}
 	<section class="mb-6">
-		<h2 class="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">{type}</h2>
+		<h3 class="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">{type}</h3>
 		<ul class="space-y-2">
 			{#each list as plugin}
 				{@const blocked = $strategyBlockedBy}

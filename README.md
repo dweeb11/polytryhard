@@ -26,6 +26,8 @@ npm run lint
 
 Canonical remote: `git@github.com:dweeb11/polytryhard.git`
 
+**Branches:** `staging` (integration / user-test) ← feature PRs; `main` (production) ← promote via PR after staging soak. See [.cursor/rules/git-workflow.mdc](.cursor/rules/git-workflow.mdc).
+
 ## What works in the prototype
 
 - Environments `main` / `staging` with separate `localStorage` namespaces

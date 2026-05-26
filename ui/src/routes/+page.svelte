@@ -15,6 +15,7 @@
 		RESUMABLE_STATES,
 		formatAge
 	} from '$lib/utils';
+	import { isDeveloperMode } from '$lib/stores/uiMode';
 	import { pauseStrategy, resumeStrategy, probeSource } from '$lib/actions';
 
 	const recentSignals = $derived($signals.slice(0, 12));
@@ -109,13 +110,15 @@
 						</span>
 						<span class="ml-2 text-xs text-slate-500">{formatAge(src.lastSuccessfulFetch)}</span>
 					</div>
-					<button
-						type="button"
-						class="shrink-0 rounded border border-[var(--color-border)] px-2 py-0.5 text-xs hover:bg-slate-800"
-						onclick={() => probeSource(src.name)}
-					>
-						Probe
-					</button>
+					{#if $isDeveloperMode}
+						<button
+							type="button"
+							class="shrink-0 rounded border border-[var(--color-border)] px-2 py-0.5 text-xs hover:bg-slate-800"
+							onclick={() => probeSource(src.name)}
+						>
+							Probe
+						</button>
+					{/if}
 				</li>
 			{/each}
 		</ul>
