@@ -1,0 +1,6 @@
+{
+	"skipReview": "AUTOMATIC",
+	"triggerOnUpdates": false,
+	"triggerOnDrafts": false,
+	"comment": "Greptile reviews are manual-only for this repo (skipReview: AUTOMATIC). Trigger via Cursor Greptile MCP or @greptileai on the PR when you want a review."
+}
