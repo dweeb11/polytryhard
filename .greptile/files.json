@@ -1,0 +1,20 @@
+{
+	"files": [
+		{
+			"path": "instructions.md",
+			"description": "Code review rulebook — blocking invariants and UI conventions"
+		},
+		{
+			"path": "context/pdd-invariants.md",
+			"description": "PDD §2, §5.3, §6, §7.1 excerpts — why the rulebook rules exist"
+		},
+		{
+			"path": "context/glossary.md",
+			"description": "Domain vocabulary for prediction-market / ledger terms"
+		},
+		{
+			"path": "context/state-machine.md",
+			"description": "StrategyState machine and legal transition gates"
+		}
+	]
+}
