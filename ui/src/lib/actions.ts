@@ -2,7 +2,6 @@ import { get } from 'svelte/store';
 import {
 	audit,
 	bankrollHistoryByStrategy,
-	calibrationByStrategy,
 	cashEvents,
 	loadEnv,
 	persistCurrent,
@@ -21,7 +20,6 @@ import type {
 	AuditEvent,
 	CashEvent,
 	EnvName,
-	PaperPosition,
 	Signal,
 	SignalOutcome,
 	StrategyInstance,

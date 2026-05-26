@@ -1,15 +1,18 @@
-# syntax=docker/dockerfile:1
+FROM python:3.11-slim AS runtime
 
-FROM node:24-alpine AS build
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
 WORKDIR /app
 
-COPY ui/package*.json ./
-RUN npm ci
+COPY pyproject.toml ./
+COPY core ./core
+COPY migrations ./migrations
+COPY scripts ./scripts
+COPY alembic.ini ./
 
-COPY ui/ ./
-RUN npm run build
+RUN pip install --no-cache-dir .
 
-FROM nginx:1.27-alpine
-COPY ui/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/build /usr/share/nginx/html
-EXPOSE 80
+EXPOSE 8080
+
+CMD ["sh", "scripts/start-api.sh"]
