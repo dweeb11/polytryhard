@@ -26,6 +26,8 @@ export default ts.config(
 	{
 		rules: {
 			'@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+			// Prototype pages intentionally render short static lists; add keys as data mutability increases.
+			'svelte/require-each-key': 'off',
 			// Prototype uses plain hrefs; adopt $app/paths resolve() when routing hardens.
 			'svelte/no-navigation-without-resolve': 'off',
 			// Map/Set in $derived.by and local UI state are intentional here.

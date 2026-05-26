@@ -39,6 +39,18 @@ jobs:
       - name: Build
         run: npm run build
 
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    needs: [ui]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t polytryhard:ci .
+
   ledger-discipline:
     name: Ledger discipline (bankroll mutations)
     runs-on: ubuntu-latest
