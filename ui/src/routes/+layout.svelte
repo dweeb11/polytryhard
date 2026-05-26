@@ -22,6 +22,7 @@
 	} from '$lib/actions';
 	import type { EnvName } from '$lib/types';
 	import Modal from '$lib/components/Modal.svelte';
+	import BackendStatusBadge from '$lib/components/BackendStatusBadge.svelte';
 
 	let { children } = $props();
 
@@ -70,6 +71,7 @@
 		class="flex shrink-0 flex-wrap items-center gap-3 border-b border-[var(--color-border)] bg-[var(--color-panel)] px-4 py-2 text-sm"
 	>
 		<span class="font-semibold tracking-tight text-slate-100">polytryhard</span>
+		<BackendStatusBadge />
 		{#if $isDeveloperMode}
 			<span class="rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-400">prototype</span>
 
