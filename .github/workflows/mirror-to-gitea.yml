@@ -31,34 +31,35 @@ jobs:
           GITEA_MIRROR_SSH_KEY: ${{ secrets.GITEA_MIRROR_SSH_KEY }}
         run: |
           set -euo pipefail
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          ssh-keyscan -p 2222 git.critterhaus.net >> ~/.ssh/known_hosts
+          install -m 700 -d ~/.ssh "$RUNNER_TEMP/gitea-ssh"
+
+          cat > "$RUNNER_TEMP/gitea-ssh/known_hosts" <<'EOF'
+          [git.critterhaus.net]:2222 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEBqtvB3T+xpddn7tP7lZn1ZJJjA/uVSGEw0UXO3yQOH
+          EOF
 
           if [ -n "${GITEA_MIRROR_SSH_KEY:-}" ]; then
-            printf '%s\n' "$GITEA_MIRROR_SSH_KEY" > ~/.ssh/gitea_mirror
-            chmod 600 ~/.ssh/gitea_mirror
-            cat >> ~/.ssh/config <<'EOF'
-          Host gitea-polytryhard
-            HostName git.critterhaus.net
-            Port 2222
-            User git
-            IdentityFile ~/.ssh/gitea_mirror
-            IdentitiesOnly yes
-          EOF
-          elif [ ! -f ~/.ssh/polytryhard-github-mirror ]; then
+            KEY_PATH="$RUNNER_TEMP/gitea-ssh/gitea_mirror"
+            printf '%s\n' "$GITEA_MIRROR_SSH_KEY" > "$KEY_PATH"
+            chmod 600 "$KEY_PATH"
+          elif [ -f ~/.ssh/polytryhard-github-mirror ]; then
+            KEY_PATH="$HOME/.ssh/polytryhard-github-mirror"
+          else
             echo "No GITEA_MIRROR_SSH_KEY secret and no ~/.ssh/polytryhard-github-mirror key on runner." >&2
             exit 1
-          else
-            cat >> ~/.ssh/config <<'EOF'
+          fi
+
+          cat > "$RUNNER_TEMP/gitea-ssh/config" <<EOF
           Host gitea-polytryhard
             HostName git.critterhaus.net
             Port 2222
             User git
-            IdentityFile ~/.ssh/polytryhard-github-mirror
+            IdentityFile $KEY_PATH
             IdentitiesOnly yes
+            UserKnownHostsFile $RUNNER_TEMP/gitea-ssh/known_hosts
+            StrictHostKeyChecking yes
           EOF
-          fi
+          chmod 600 "$RUNNER_TEMP/gitea-ssh/config"
+          echo "GIT_SSH_COMMAND=ssh -F $RUNNER_TEMP/gitea-ssh/config" >> "$GITHUB_ENV"
 
       - name: Mirror branch to Gitea
         shell: bash
@@ -83,3 +84,8 @@ jobs:
           GITEA_SHA="$(git ls-remote gitea "refs/heads/${BRANCH}" | awk '{print $1}')"
           test "$GITEA_SHA" = "$GITHUB_SHA"
           echo "Mirrored ${BRANCH} to Gitea at ${GITEA_SHA}."
+
+      - name: Clean up temporary SSH material
+        if: always()
+        shell: bash
+        run: rm -rf "$RUNNER_TEMP/gitea-ssh"
