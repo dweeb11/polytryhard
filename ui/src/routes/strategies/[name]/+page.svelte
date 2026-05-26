@@ -231,7 +231,7 @@
 						</tr>
 					</thead>
 					<tbody>
-						{#each filteredSignals.slice(0, 40) as sig}
+						{#each filteredSignals.slice(0, 40) as sig (sig.id)}
 							<tr class="border-t border-slate-800">
 								<td class="py-1 text-slate-400">{new Date(sig.evaluatedAt).toLocaleString()}</td>
 								<td>{sig.ticker}</td>
@@ -248,7 +248,7 @@
 	<div class="rounded border border-[var(--color-border)] p-3">
 		<h2 class="mb-2 text-xs uppercase text-slate-500">Recent cash events</h2>
 		<ul class="text-xs text-slate-300">
-			{#each stratCash as c}
+			{#each stratCash as c (c.id)}
 				<li class="py-0.5">
 					{c.kind} {formatCents(c.amountCents)} → balance {formatCents(c.balanceAfterCents)} — {c.reason}
 				</li>

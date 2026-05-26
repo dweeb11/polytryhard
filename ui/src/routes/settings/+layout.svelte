@@ -75,7 +75,7 @@
 </section>
 
 <nav class="mb-6 flex flex-wrap gap-1 border-b border-[var(--color-border)] pb-3" aria-label="Settings sections">
-	{#each sections as section}
+	{#each sections as section (section.href)}
 		<a
 			href={section.href}
 			class="rounded px-3 py-1.5 text-sm {isActive(section.href, $page.url.pathname)

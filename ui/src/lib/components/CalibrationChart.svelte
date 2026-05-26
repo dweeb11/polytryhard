@@ -35,7 +35,7 @@
 			stroke="#475569"
 			stroke-dasharray="4 3"
 		/>
-		{#each buckets as b}
+		{#each buckets as b (b.predicted)}
 			{@const px = pad.left + b.predicted * inner.w}
 			{@const py = pad.top + inner.h - b.actual * inner.h}
 			<circle

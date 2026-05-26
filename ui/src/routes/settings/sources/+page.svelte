@@ -8,7 +8,7 @@
 <h2 class="mb-4 text-sm font-medium text-slate-300">Sources</h2>
 
 <div class="grid gap-4 md:grid-cols-2">
-	{#each $sources as src}
+	{#each $sources as src (src.name)}
 		<article class="rounded border border-[var(--color-border)] p-4 text-sm">
 			<div class="mb-2 flex items-start justify-between">
 				<h3 class="font-medium text-slate-100">{src.displayName}</h3>

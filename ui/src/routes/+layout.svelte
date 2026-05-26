@@ -137,7 +137,7 @@
 			class="flex h-full w-44 shrink-0 flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-panel)] p-3 text-sm"
 		>
 			<ul class="space-y-1">
-				{#each overviewNav as item}
+				{#each overviewNav as item (item.href)}
 					<li>
 						<a
 							href={item.href}
@@ -152,7 +152,7 @@
 			</ul>
 			<p class="mt-4 px-2 text-xs uppercase tracking-wide text-slate-500">Strategies</p>
 			<ul class="mt-1 min-h-0 flex-1 space-y-0.5 overflow-y-auto">
-				{#each $strategies as s}
+				{#each $strategies as s (s.name)}
 					<li>
 						<a
 							href="/strategies/{s.name}"

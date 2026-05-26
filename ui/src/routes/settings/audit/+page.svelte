@@ -32,7 +32,7 @@
 			</tr>
 		</thead>
 		<tbody>
-			{#each slice as ev}
+			{#each slice as ev (ev.id)}
 				<tr class="border-t border-[var(--color-border)] align-top">
 					<td class="px-3 py-2 text-xs text-slate-400 whitespace-nowrap"
 						>{new Date(ev.occurredAt).toLocaleString()}</td
