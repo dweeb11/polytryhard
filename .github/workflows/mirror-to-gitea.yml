@@ -1,0 +1,81 @@
+name: Mirror protected branches to Gitea
+
+on:
+  push:
+    branches:
+      - main
+      - staging
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mirror-to-gitea-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    name: Mirror ${{ github.ref_name }} to Gitea
+    runs-on: [self-hosted, polytryhard-mirror]
+
+    steps:
+      - name: Checkout exact GitHub commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Configure SSH for Gitea
+        shell: bash
+        env:
+          GITEA_MIRROR_SSH_KEY: ${{ secrets.GITEA_MIRROR_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          ssh-keyscan -p 2222 git.critterhaus.net >> ~/.ssh/known_hosts
+
+          if [ -n "${GITEA_MIRROR_SSH_KEY:-}" ]; then
+            printf '%s\n' "$GITEA_MIRROR_SSH_KEY" > ~/.ssh/gitea_mirror
+            chmod 600 ~/.ssh/gitea_mirror
+            cat >> ~/.ssh/config <<'EOF'
+          Host gitea-polytryhard
+            HostName git.critterhaus.net
+            Port 2222
+            User git
+            IdentityFile ~/.ssh/gitea_mirror
+            IdentitiesOnly yes
+          EOF
+          elif [ ! -f ~/.ssh/polytryhard-github-mirror ]; then
+            echo "No GITEA_MIRROR_SSH_KEY secret and no ~/.ssh/polytryhard-github-mirror key on runner." >&2
+            exit 1
+          else
+            cat >> ~/.ssh/config <<'EOF'
+          Host gitea-polytryhard
+            HostName git.critterhaus.net
+            Port 2222
+            User git
+            IdentityFile ~/.ssh/polytryhard-github-mirror
+            IdentitiesOnly yes
+          EOF
+          fi
+
+      - name: Mirror branch to Gitea
+        shell: bash
+        run: |
+          set -euo pipefail
+          BRANCH="${GITHUB_REF_NAME}"
+          REMOTE="gitea-polytryhard:homelab/polytryhard.git"
+          git remote add gitea "$REMOTE"
+
+          if git ls-remote --exit-code --heads gitea "$BRANCH" >/dev/null 2>&1; then
+            git fetch gitea "refs/heads/${BRANCH}:refs/remotes/gitea/${BRANCH}"
+            EXPECTED="$(git rev-parse "refs/remotes/gitea/${BRANCH}")"
+            git push --force-with-lease="refs/heads/${BRANCH}:${EXPECTED}" gitea "${GITHUB_SHA}:refs/heads/${BRANCH}"
+          else
+            git push gitea "${GITHUB_SHA}:refs/heads/${BRANCH}"
+          fi
+
+          GITEA_SHA="$(git ls-remote gitea "refs/heads/${BRANCH}" | awk '{print $1}')"
+          test "$GITEA_SHA" = "$GITHUB_SHA"
+          echo "Mirrored ${BRANCH} to Gitea at ${GITEA_SHA}."
