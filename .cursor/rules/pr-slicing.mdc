@@ -1,0 +1,52 @@
+---
+description: One concern per PR — how to slice work for reviewable pull requests
+alwaysApply: true
+---
+
+# One concern per PR
+
+Every PR into `staging` should change **one reviewable concern**. If a milestone or Linear issue is large, split it into multiple PRs (e.g. `M1.5.1`, `M1.5.2`) that merge in order — do not batch unrelated refactors into a single PR.
+
+## What counts as one concern
+
+| Concern | Examples |
+|---------|----------|
+| Backend / infra | health checks, settings, DB session, migrations |
+| CI / tooling | workflow job add/remove, lint gates, test wiring |
+| UI routing / shell | redirect stubs, nav links, layout wiring |
+| UI state / persistence | store shape, localStorage, env switcher |
+| UI domain / behavior | types, fixtures, actions, page logic |
+| Tests only | vitest/pytest suite that locks prior behavior |
+| Docs only | milestone doc, PDD section |
+
+Mixing rows in one PR is a smell. **Tests that lock behavior belong in the PR after (or with) the behavior change they assert** — not bundled with unrelated deletions.
+
+## Size guidance
+
+- Target **&lt; ~300 lines** of meaningful diff per PR (deletions are cheaper to review).
+- Prefer **deletions before refactors** in separate PRs when possible.
+- **Stack PRs** when there is a real dependency (base branch = parent feature branch); after the parent merges, rebase onto `staging` and retarget.
+
+## Agent workflow
+
+1. Before coding, list PR slices (titles + files) and confirm with the user if scope is ambiguous.
+2. Branch from `staging` per slice: `feat/<id>-<slug>` or `feat/<id>-<slug>-02-ci`.
+3. Stage **only** files for the current slice — no `git add -A` across slices.
+4. Open the PR before starting the next slice; note merge order in the PR body (`N of M`).
+5. One Linear issue **may** map to several PRs; link all PR URLs in the issue.
+
+## PR title pattern
+
+```
+M2.3: ledger writer — deposit/withdraw only
+```
+
+Prefix with milestone or issue id; subtitle names the single concern.
+
+## Do not
+
+- Ship “milestone complete” as one PR when slices are independently reviewable.
+- Combine backend + UI + CI + tests unless the change is truly tiny (&lt;50 lines, one file).
+- Add drive-by refactors in a PR focused on something else.
+
+See `.cursor/rules/git-workflow.mdc` for branch targets and promotion to `main`.
