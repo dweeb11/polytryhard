@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from collections.abc import Iterator
 from contextlib import contextmanager
 
@@ -8,9 +9,21 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from core.settings import Settings, get_settings
 
+_MAX_ENGINE_CACHE = 8
+_engines: OrderedDict[str, Engine] = OrderedDict()
+
 
 def make_engine(database_url: str) -> Engine:
-    return create_engine(database_url, pool_pre_ping=True)
+    cached = _engines.get(database_url)
+    if cached is not None:
+        _engines.move_to_end(database_url)
+        return cached
+    engine = create_engine(database_url, pool_pre_ping=True)
+    _engines[database_url] = engine
+    while len(_engines) > _MAX_ENGINE_CACHE:
+        _, evicted = _engines.popitem(last=False)
+        evicted.dispose()
+    return engine
 
 
 def _session_factory(database_url: str) -> sessionmaker[Session]:
@@ -36,14 +49,11 @@ def per_env_session(settings: Settings | None = None) -> Iterator[Session]:
 
 
 def check_database(database_url: str | None) -> str:
-    if database_url is None:
+    if database_url is None or not database_url.strip():
         return "unconfigured"
-    engine = make_engine(database_url)
     try:
-        with engine.connect() as conn:
+        with make_engine(database_url).connect() as conn:
             conn.execute(text("SELECT 1"))
     except SQLAlchemyError:
         return "down"
-    finally:
-        engine.dispose()
     return "ok"
