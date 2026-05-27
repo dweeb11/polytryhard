@@ -1,11 +1,10 @@
 import { derived, get, writable } from 'svelte/store';
-import { FIXTURES } from '../mocks/fixtures';
+import { FIXTURE } from '../mocks/fixtures';
 import type {
 	AuditEvent,
 	BankrollPoint,
 	CalibrationBucket,
 	CashEvent,
-	EnvName,
 	EnvSnapshot,
 	PaperPosition,
 	Plugin,
@@ -15,17 +14,12 @@ import type {
 	SystemEnvState
 } from '../types';
 
-export const currentEnv = writable<EnvName>('main');
+const STORAGE_KEY = 'polytryhard';
 
-
-function storageKey(env: EnvName): string {
-	return `polytryhard:${env}`;
-}
-
-function loadPersisted(env: EnvName): EnvSnapshot | null {
+function loadPersisted(): EnvSnapshot | null {
 	if (typeof localStorage === 'undefined') return null;
 	try {
-		const raw = localStorage.getItem(storageKey(env));
+		const raw = localStorage.getItem(STORAGE_KEY);
 		if (!raw) return null;
 		return JSON.parse(raw) as EnvSnapshot;
 	} catch {
@@ -33,17 +27,16 @@ function loadPersisted(env: EnvName): EnvSnapshot | null {
 	}
 }
 
-function persist(env: EnvName, snap: EnvSnapshot): void {
+function persist(snap: EnvSnapshot): void {
 	if (typeof localStorage === 'undefined') return;
-	localStorage.setItem(storageKey(env), JSON.stringify(snap));
+	localStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
 }
 
-function hydrate(env: EnvName): EnvSnapshot {
-	return loadPersisted(env) ?? structuredClone(FIXTURES[env]);
+function hydrate(): EnvSnapshot {
+	return loadPersisted() ?? structuredClone(FIXTURE);
 }
 
-let activeEnv: EnvName = 'main';
-let snapshot: EnvSnapshot = hydrate('main');
+let snapshot: EnvSnapshot = hydrate();
 
 export const strategies = writable<StrategyInstance[]>(snapshot.strategies);
 export const signals = writable<Signal[]>(snapshot.signals);
@@ -90,56 +83,21 @@ function pullSnapshot(): EnvSnapshot {
 
 export function persistCurrent(): void {
 	snapshot = pullSnapshot();
-	persist(activeEnv, snapshot);
+	persist(snapshot);
 }
 
-export function subscribePersistence(): () => void {
-	const stores = [
-		strategies,
-		signals,
-		sources,
-		plugins,
-		audit,
-		cashEvents,
-		positions,
-		system,
-		calibrationByStrategy,
-		bankrollHistoryByStrategy
-	];
-	const unsubs = stores.map((s) => s.subscribe(() => persistCurrent()));
-	return () => unsubs.forEach((u) => u());
-}
-
-export function loadEnv(env: EnvName): void {
-	activeEnv = env;
-	snapshot = hydrate(env);
-	syncFromSnapshot();
-	currentEnv.set(env);
-}
-
-export function resetEnvToFixtures(env: EnvName): void {
+export function resetToFixtures(): void {
 	if (typeof localStorage !== 'undefined') {
-		localStorage.removeItem(storageKey(env));
+		localStorage.removeItem(STORAGE_KEY);
 	}
-	if (env === activeEnv) {
-		snapshot = structuredClone(FIXTURES[env]);
-		syncFromSnapshot();
-	}
+	snapshot = structuredClone(FIXTURE);
+	syncFromSnapshot();
+}
+
+/** Reload in-memory stores from localStorage (or fixtures if empty). */
+export function rehydrateFromStorage(): void {
+	snapshot = hydrate();
+	syncFromSnapshot();
 }
 
 export const systemPaused = derived(system, ($s) => $s.state === 'paused');
-
-/** strategy name -> missing requirement labels when a required plugin capability is off */
-export const strategyBlockedBy = derived([plugins, strategies], ([$plugins, $strategies]) => {
-	const enabledProvides = new Set($plugins.filter((p) => p.enabled).flatMap((p) => p.provides));
-	const map = new Map<string, string[]>();
-	for (const strat of $strategies) {
-		const sp = $plugins.find(
-			(p) => p.type === 'strategy' && (p.id === `strategy-${strat.name}` || p.name === strat.name)
-		);
-		if (!sp) continue;
-		const missing = sp.requires.filter((r) => !enabledProvides.has(r));
-		if (missing.length) map.set(strat.name, missing);
-	}
-	return map;
-});

@@ -31,18 +31,16 @@ export function setTickEnabled(enabled: boolean): void {
 function tickOnce(): void {
 	if (!get(tickSimulatorEnabled)) return;
 
-	// Age source freshness
 	sources.update((list) =>
 		list.map((s) => {
 			const age = Date.now() - new Date(s.lastSuccessfulFetch).getTime();
 			let state = s.state;
-			if (age > 600000 && s.circuitBreaker === 'closed') state = 'degraded';
+			if (age > 600000 && s.state === 'healthy') state = 'degraded';
 			if (age > 3600000) state = 'down';
 			return { ...s, state };
 		})
 	);
 
-	// Nudge open position P&L
 	positions.update((list) =>
 		list.map((p) => {
 			if (p.status !== 'open') return p;
@@ -51,7 +49,6 @@ function tickOnce(): void {
 		})
 	);
 
-	// Today P&L drift
 	strategies.update((list) =>
 		list.map((s) => ({
 			...s,
@@ -59,7 +56,6 @@ function tickOnce(): void {
 		}))
 	);
 
-	// Occasional signal
 	if (Math.random() > 0.55) return;
 	const strats = get(strategies).filter((s) => s.enabled && s.state !== 'decommissioned');
 	if (!strats.length) return;
@@ -75,16 +71,7 @@ function tickOnce(): void {
 		probYes: 0.4 + Math.random() * 0.2,
 		confidence: 0.5 + Math.random() * 0.3,
 		outcome,
-		rejectionReason: outcome === 'order_placed' ? null : `tick: ${outcome}`,
-		featuresSnapshot: {
-			forecast_delta: {
-				kind: 'present',
-				value: -1.5,
-				asOf: nowIso(),
-				provider: 'gfs_delta',
-				version: '1.0.0'
-			}
-		}
+		rejectionReason: outcome === 'order_placed' ? null : `tick: ${outcome}`
 	});
 }
 

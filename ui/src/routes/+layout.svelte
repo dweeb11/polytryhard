@@ -3,24 +3,12 @@
 	import { get } from 'svelte/store';
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
-	import {
-		currentEnv,
-		strategies,
-		system,
-		systemPaused,
-		subscribePersistence
-	} from '$lib/stores';
+	import { strategies, system, systemPaused } from '$lib/stores';
 	import { toasts, dismissToast } from '$lib/stores/toasts';
 	import { isDeveloperMode, uiMode } from '$lib/stores/uiMode';
 	import { tickSimulatorEnabled } from '$lib/stores/tick';
 	import { initTickFromStore, setTickEnabled } from '$lib/mocks/tick';
-	import {
-		tripKillSwitch,
-		resumeKillSwitch,
-		switchEnv,
-		resetEnv
-	} from '$lib/actions';
-	import type { EnvName } from '$lib/types';
+	import { tripKillSwitch, resumeKillSwitch, resetPrototype } from '$lib/actions';
 	import Modal from '$lib/components/Modal.svelte';
 	import BackendStatusBadge from '$lib/components/BackendStatusBadge.svelte';
 
@@ -35,18 +23,11 @@
 	const overviewNav = [{ href: '/', label: 'Overview' }];
 
 	onMount(() => {
-		const unsub = subscribePersistence();
 		if (get(uiMode) === 'release') {
 			setTickEnabled(false);
 		}
 		initTickFromStore();
-		return unsub;
 	});
-
-	function handleEnvChange(e: Event) {
-		const v = (e.target as HTMLSelectElement).value as EnvName;
-		switchEnv(v);
-	}
 
 	function confirmKill() {
 		tripKillSwitch(killReason);
@@ -61,7 +42,7 @@
 	}
 
 	function confirmReset() {
-		resetEnv($currentEnv);
+		resetPrototype('reset to fixtures');
 		resetModal = false;
 	}
 </script>
@@ -74,18 +55,6 @@
 		<BackendStatusBadge />
 		{#if $isDeveloperMode}
 			<span class="rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-400">prototype</span>
-
-			<label class="flex items-center gap-1 text-slate-400">
-				Env
-				<select
-					class="rounded border border-[var(--color-border)] bg-slate-900 px-2 py-1 text-slate-200"
-					value={$currentEnv}
-					onchange={handleEnvChange}
-				>
-					<option value="main">main</option>
-					<option value="staging">staging</option>
-				</select>
-			</label>
 		{/if}
 
 		<span
@@ -129,7 +98,7 @@
 				class="rounded border border-[var(--color-border)] px-2 py-1 text-slate-400 hover:text-slate-200"
 				onclick={() => (resetModal = true)}
 			>
-				Reset env
+				Reset to fixtures
 			</button>
 		{/if}
 	</header>
@@ -170,7 +139,7 @@
 			</ul>
 			<div class="mt-auto border-t border-[var(--color-border)] pt-3">
 				<a
-					href="/settings"
+					href="/settings/sources"
 					class="block rounded px-2 py-1.5 {$page.url.pathname.startsWith('/settings')
 						? 'bg-slate-700 text-white'
 						: 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}"
@@ -237,15 +206,15 @@
 	</button>
 </Modal>
 
-<Modal open={resetModal} title="Reset environment" onclose={() => (resetModal = false)}>
+<Modal open={resetModal} title="Reset prototype" onclose={() => (resetModal = false)}>
 	<p class="mb-3 text-sm text-slate-400">
-		Wipe localStorage for <strong>{$currentEnv}</strong> and reload fixture seed data.
+		Wipe localStorage and reload fixture seed data. This cannot be undone.
 	</p>
 	<button
 		type="button"
 		class="w-full rounded bg-slate-600 py-2 text-sm text-white hover:bg-slate-500"
 		onclick={confirmReset}
 	>
-		Reset {$currentEnv}
+		Reset to fixtures
 	</button>
 </Modal>

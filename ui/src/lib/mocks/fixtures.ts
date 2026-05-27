@@ -1,4 +1,4 @@
-import type { EnvName, EnvSnapshot } from '$lib/types';
+import type { EnvSnapshot } from '$lib/types';
 import { uuid } from '$lib/utils';
 
 const defaultConfig = {
@@ -60,26 +60,7 @@ function makeSignals(
 			probYes: 0.35 + (i % 7) * 0.08,
 			confidence: 0.55 + (i % 5) * 0.07,
 			outcome,
-			rejectionReason: outcome === 'order_placed' ? null : `simulated ${outcome}`,
-			featuresSnapshot: {
-				ensemble_mean_temp: {
-					kind: 'present',
-					value: 71.2 + i * 0.1,
-					asOf: hoursAgo(0.2),
-					provider: 'ensemble_mean_temp',
-					version: '1.0.0'
-				},
-				forecast_disagreement:
-					i % 9 === 0
-						? { kind: 'missing' as const, reason: 'GFS source degraded' }
-						: {
-								kind: 'present' as const,
-								value: 2.1,
-								asOf: hoursAgo(0.3),
-								provider: 'forecast_disagreement',
-								version: '1.0.0'
-							}
-			}
+			rejectionReason: outcome === 'order_placed' ? null : `simulated ${outcome}`
 		});
 	}
 	return signals.sort(
@@ -96,8 +77,6 @@ function basePlugins(): EnvSnapshot['plugins'] {
 			name: 'kalshi_markets',
 			version: '1.0.0',
 			enabled: true,
-			requires: [],
-			provides: ['raw_market_snapshot'],
 			lastToggledAt: ts
 		},
 		{
@@ -106,8 +85,6 @@ function basePlugins(): EnvSnapshot['plugins'] {
 			name: 'nws_forecast',
 			version: '1.0.0',
 			enabled: true,
-			requires: [],
-			provides: ['raw_forecast_run'],
 			lastToggledAt: ts
 		},
 		{
@@ -116,8 +93,6 @@ function basePlugins(): EnvSnapshot['plugins'] {
 			name: 'gfs_ensemble',
 			version: '1.0.0',
 			enabled: true,
-			requires: [],
-			provides: ['raw_forecast_run'],
 			lastToggledAt: ts
 		},
 		{
@@ -126,8 +101,6 @@ function basePlugins(): EnvSnapshot['plugins'] {
 			name: 'ecmwf_open_meteo',
 			version: '1.0.0',
 			enabled: true,
-			requires: [],
-			provides: ['raw_forecast_run'],
 			lastToggledAt: ts
 		},
 		{
@@ -136,8 +109,6 @@ function basePlugins(): EnvSnapshot['plugins'] {
 			name: 'ensemble_mean_temp',
 			version: '1.0.0',
 			enabled: true,
-			requires: ['gfs_ensemble', 'ecmwf_open_meteo'],
-			provides: ['ensemble_mean_temp'],
 			lastToggledAt: ts
 		},
 		{
@@ -146,8 +117,6 @@ function basePlugins(): EnvSnapshot['plugins'] {
 			name: 'forecast_disagreement',
 			version: '1.0.0',
 			enabled: true,
-			requires: ['gfs_ensemble', 'nws_forecast'],
-			provides: ['forecast_disagreement'],
 			lastToggledAt: ts
 		},
 		{
@@ -156,8 +125,6 @@ function basePlugins(): EnvSnapshot['plugins'] {
 			name: 'weather_ensemble_disagreement',
 			version: '1.0.0',
 			enabled: true,
-			requires: ['ensemble_mean_temp', 'forecast_disagreement', 'kalshi_markets'],
-			provides: ['signals'],
 			lastToggledAt: ts
 		},
 		{
@@ -166,8 +133,6 @@ function basePlugins(): EnvSnapshot['plugins'] {
 			name: 'weather_stale_quote',
 			version: '1.0.0',
 			enabled: true,
-			requires: ['kalshi_markets', 'forecast_disagreement'],
-			provides: ['signals'],
 			lastToggledAt: ts
 		},
 		{
@@ -176,8 +141,6 @@ function basePlugins(): EnvSnapshot['plugins'] {
 			name: 'weather_baseline_v2',
 			version: '2.0.0',
 			enabled: true,
-			requires: ['ensemble_mean_temp', 'kalshi_markets'],
-			provides: ['signals'],
 			lastToggledAt: ts
 		},
 		{
@@ -186,14 +149,12 @@ function basePlugins(): EnvSnapshot['plugins'] {
 			name: 'paper',
 			version: '1.0.0',
 			enabled: true,
-			requires: [],
-			provides: ['paper_fills'],
 			lastToggledAt: ts
 		}
 	];
 }
 
-function seedMain(): EnvSnapshot {
+function seedFixture(): EnvSnapshot {
 	const strategies = [
 		{
 			name: 'weather_ensemble_disagreement',
@@ -205,9 +166,7 @@ function seedMain(): EnvSnapshot {
 			kellyFraction: 0.25,
 			config: defaultConfig,
 			lastStateChangeAt: hoursAgo(72),
-			graduatedAt: null,
-			todayPnlCents: 2_400,
-			prePauseState: null
+			todayPnlCents: 2_400
 		},
 		{
 			name: 'weather_stale_quote',
@@ -219,26 +178,19 @@ function seedMain(): EnvSnapshot {
 			kellyFraction: 0.2,
 			config: defaultConfig,
 			lastStateChangeAt: hoursAgo(12),
-			graduatedAt: null,
-			todayPnlCents: -1_100,
-			prePauseState: null
+			todayPnlCents: -1_100
 		},
 		{
 			name: 'weather_baseline_v2',
 			enabled: true,
-			state: 'graduated_under_review' as const,
+			state: 'operator_paused' as const,
 			bankrollCents: 210_000,
 			bankrollHwmCents: 220_000,
 			initialDepositCents: 150_000,
 			kellyFraction: 0.15,
-			config: {
-				...defaultConfig,
-				graduatedMaxDrawdownPctFromHwm: 20
-			},
+			config: defaultConfig,
 			lastStateChangeAt: hoursAgo(6),
-			graduatedAt: hoursAgo(30 * 24),
-			todayPnlCents: 800,
-			prePauseState: 'graduated' as const
+			todayPnlCents: 800
 		}
 	];
 
@@ -253,8 +205,6 @@ function seedMain(): EnvSnapshot {
 				displayName: 'Kalshi Markets (WS)',
 				state: 'healthy',
 				lastSuccessfulFetch: hoursAgo(0.01),
-				circuitBreaker: 'closed',
-				consecutiveFailures: 0,
 				lastError: null
 			},
 			{
@@ -262,8 +212,6 @@ function seedMain(): EnvSnapshot {
 				displayName: 'NOAA NWS',
 				state: 'healthy',
 				lastSuccessfulFetch: hoursAgo(0.5),
-				circuitBreaker: 'closed',
-				consecutiveFailures: 0,
 				lastError: null
 			},
 			{
@@ -271,8 +219,6 @@ function seedMain(): EnvSnapshot {
 				displayName: 'GFS Ensemble',
 				state: 'degraded',
 				lastSuccessfulFetch: hoursAgo(2.5),
-				circuitBreaker: 'closed',
-				consecutiveFailures: 1,
 				lastError: 'HTTP 503 from Open-Meteo'
 			},
 			{
@@ -280,8 +226,6 @@ function seedMain(): EnvSnapshot {
 				displayName: 'ECMWF (Open-Meteo)',
 				state: 'down',
 				lastSuccessfulFetch: hoursAgo(6),
-				circuitBreaker: 'open',
-				consecutiveFailures: 3,
 				lastError: 'Connection timeout after 30s'
 			}
 		],
@@ -358,31 +302,12 @@ function seedMain(): EnvSnapshot {
 	};
 }
 
-function seedStaging(): EnvSnapshot {
-	const snap = structuredClone(seedMain());
-	snap.strategies = snap.strategies.map((s) => ({
-		...s,
-		bankrollCents: Math.round(s.bankrollCents * 0.85),
-		todayPnlCents: Math.round(s.todayPnlCents * 0.5)
-	}));
-	snap.system = { state: 'active', killSwitchReason: null, killSwitchTrippedAt: null };
-	return snap;
-}
-
-const seeds: Record<EnvName, () => EnvSnapshot> = {
-	main: seedMain,
-	staging: seedStaging
-};
-
-export function createFixtureSnapshot(env: EnvName): EnvSnapshot {
-	return structuredClone(seeds[env]());
+export function createFixtureSnapshot(): EnvSnapshot {
+	return structuredClone(seedFixture());
 }
 
 export function strategyEntries(): string[] {
-	return seedMain().strategies.map((s) => s.name);
+	return seedFixture().strategies.map((s) => s.name);
 }
 
-export const FIXTURES: Record<EnvName, EnvSnapshot> = {
-	main: createFixtureSnapshot('main'),
-	staging: createFixtureSnapshot('staging')
-};
+export const FIXTURE: EnvSnapshot = createFixtureSnapshot();
