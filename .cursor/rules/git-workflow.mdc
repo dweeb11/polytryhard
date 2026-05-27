@@ -19,7 +19,7 @@ alwaysApply: true
 
 1. **All feature work** branches from `staging`, not `main`.
 2. **Open PRs** (never merge locally without a PR unless the user explicitly asks otherwise).
-3. **Feature PR base:** `staging`. One completed **Linear issue → one PR** into `staging`.
+3. **Feature PR base:** `staging`. **One concern per PR** (see `.cursor/rules/pr-slicing.mdc`); a Linear issue may ship as several ordered PRs.
 4. **Release PR:** after staging soak / user testing, open a PR **`staging` → `main`**. Do not cherry-pick feature commits onto `main`.
 5. **Commits:** conventional prefixes (`feat/`, `fix/`, …); include AI co-author line when assisted.
 
