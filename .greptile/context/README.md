@@ -1,6 +1,10 @@
 # Greptile custom context
 
-Pinned excerpts to paste into Greptile's **custom context** slot (dashboard). Distinct from `.greptile/instructions.md`, which is the rulebook.
+Pinned excerpts for code review. Distinct from `.greptile/instructions.md`, which is the rulebook.
+
+**Automatic reviews are off** for this repo (`skipReview: "AUTOMATIC"` in `.greptile/config.json`). Greptile runs only when you trigger it (Cursor Greptile MCP `trigger_code_review`, `@greptileai` on the PR, or dashboard).
+
+These files are wired into every review via `.greptile/files.json` — you do **not** need to paste them into the Greptile dashboard unless you are testing without repo config.
 
 | File | What it gives the reviewer |
 |---|---|
@@ -10,12 +14,9 @@ Pinned excerpts to paste into Greptile's **custom context** slot (dashboard). Di
 
 ## How to wire it
 
-Greptile (dashboard) supports a single "custom context" payload. Two options:
+**In-repo (preferred):** `.greptile/files.json` lists `instructions.md` plus these three files. Edit here in PRs; no dashboard paste.
 
-1. **Concatenate** these three files and paste the result into Greptile. Simplest; one place to update.
-2. **Add separately** if Greptile's UI accepts multiple context entries. Lets you toggle pieces.
-
-Either way, **keep the source of truth here in the repo** — edit these files in PRs, then re-paste into Greptile when invariants meaningfully change. Don't edit straight in the dashboard; it diverges silently.
+**Dashboard fallback:** If org settings ignore repo config, concatenate these three files into Greptile's custom context slot. Don't edit only in the dashboard — it diverges silently.
 
 ## Update cadence
 

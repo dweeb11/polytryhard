@@ -1,0 +1,15 @@
+# syntax=docker/dockerfile:1
+
+FROM node:24-alpine AS build
+WORKDIR /app
+
+COPY ui/package*.json ./
+RUN npm ci
+
+COPY ui/ ./
+RUN npm run build
+
+FROM nginx:1.27-alpine
+COPY ui/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/build /usr/share/nginx/html
+EXPOSE 80

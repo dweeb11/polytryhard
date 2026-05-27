@@ -6,4 +6,10 @@ dist/
 .env.*
 !.env.example
 ui/.npm-cache/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+__pycache__/
+*.egg-info/
 .DS_Store
