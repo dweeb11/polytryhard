@@ -4,16 +4,6 @@ from typing import Any
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-_TRUTHY = frozenset({"1", "true", "yes"})
-
-
-def _parse_bool_flag(value: object, *, default: bool) -> bool:
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        return value
-    return str(value).strip().lower() in _TRUTHY
-
 
 def _empty_to_none(value: object) -> object:
     if value is None:
@@ -32,11 +22,6 @@ class Settings(BaseSettings):
     database_url_per_env: str | None = Field(default=None, alias="DATABASE_URL_PER_ENV")
     cors_allow_origins: str = Field(default="*", alias="CORS_ALLOW_ORIGINS")
     require_dbs: bool = Field(default=True, alias="REQUIRE_DBS")
-
-    @field_validator("require_dbs", mode="before")
-    @classmethod
-    def parse_require_dbs(cls, value: Any) -> bool:
-        return _parse_bool_flag(value, default=True)
 
     @field_validator("database_url_shared", "database_url_per_env", mode="before")
     @classmethod

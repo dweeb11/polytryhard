@@ -1,6 +1,6 @@
+from collections import OrderedDict
 from collections.abc import Iterator
 from contextlib import contextmanager
-from functools import lru_cache
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
@@ -10,9 +10,21 @@ from sqlalchemy.orm import Session, sessionmaker
 from core.settings import Settings, get_settings
 
 
-@lru_cache(maxsize=8)
+_MAX_ENGINE_CACHE = 8
+_engines: OrderedDict[str, Engine] = OrderedDict()
+
+
 def make_engine(database_url: str) -> Engine:
-    return create_engine(database_url, pool_pre_ping=True)
+    cached = _engines.get(database_url)
+    if cached is not None:
+        _engines.move_to_end(database_url)
+        return cached
+    engine = create_engine(database_url, pool_pre_ping=True)
+    _engines[database_url] = engine
+    while len(_engines) > _MAX_ENGINE_CACHE:
+        _, evicted = _engines.popitem(last=False)
+        evicted.dispose()
+    return engine
 
 
 def _session_factory(database_url: str) -> sessionmaker[Session]:

@@ -35,3 +35,12 @@ def test_settings_rejects_blank_database_urls_when_require_dbs_enabled() -> None
 def test_require_dbs_parses_string_zero() -> None:
     settings = Settings(REQUIRE_DBS="0")
     assert settings.require_dbs is False
+
+
+def test_require_dbs_parses_common_truthy_env_values() -> None:
+    settings = Settings(
+        REQUIRE_DBS="on",
+        DATABASE_URL_SHARED="postgresql+psycopg://localhost/shared",
+        DATABASE_URL_PER_ENV="postgresql+psycopg://localhost/per_env",
+    )
+    assert settings.require_dbs is True

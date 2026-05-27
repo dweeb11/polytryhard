@@ -25,6 +25,7 @@ def test_healthz_reports_version_request_id_and_database_status() -> None:
 def test_healthz_returns_json_and_request_id_when_database_is_down(tmp_path: Path) -> None:
     missing_parent = tmp_path / "missing" / "shared.db"
     settings = Settings(
+        REQUIRE_DBS=False,
         DATABASE_URL_SHARED=f"sqlite:///{missing_parent}",
         DATABASE_URL_PER_ENV=None,
     )
