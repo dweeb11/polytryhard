@@ -93,23 +93,6 @@ export function persistCurrent(): void {
 	persist(activeEnv, snapshot);
 }
 
-export function subscribePersistence(): () => void {
-	const stores = [
-		strategies,
-		signals,
-		sources,
-		plugins,
-		audit,
-		cashEvents,
-		positions,
-		system,
-		calibrationByStrategy,
-		bankrollHistoryByStrategy
-	];
-	const unsubs = stores.map((s) => s.subscribe(() => persistCurrent()));
-	return () => unsubs.forEach((u) => u());
-}
-
 export function loadEnv(env: EnvName): void {
 	activeEnv = env;
 	snapshot = hydrate(env);

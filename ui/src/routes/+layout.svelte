@@ -3,13 +3,7 @@
 	import { get } from 'svelte/store';
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
-	import {
-		currentEnv,
-		strategies,
-		system,
-		systemPaused,
-		subscribePersistence
-	} from '$lib/stores';
+	import { currentEnv, strategies, system, systemPaused } from '$lib/stores';
 	import { toasts, dismissToast } from '$lib/stores/toasts';
 	import { isDeveloperMode, uiMode } from '$lib/stores/uiMode';
 	import { tickSimulatorEnabled } from '$lib/stores/tick';
@@ -35,12 +29,10 @@
 	const overviewNav = [{ href: '/', label: 'Overview' }];
 
 	onMount(() => {
-		const unsub = subscribePersistence();
 		if (get(uiMode) === 'release') {
 			setTickEnabled(false);
 		}
 		initTickFromStore();
-		return unsub;
 	});
 
 	function handleEnvChange(e: Event) {
@@ -170,7 +162,7 @@
 			</ul>
 			<div class="mt-auto border-t border-[var(--color-border)] pt-3">
 				<a
-					href="/settings"
+					href="/settings/sources"
 					class="block rounded px-2 py-1.5 {$page.url.pathname.startsWith('/settings')
 						? 'bg-slate-700 text-white'
 						: 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}"
