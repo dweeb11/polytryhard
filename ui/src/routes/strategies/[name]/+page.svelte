@@ -45,9 +45,20 @@
 	let forceModal = $state(false);
 	let decomModal = $state(false);
 	let amountDollars = $state('100');
+	let amountError = $state('');
 	let reason = $state('');
 	let kellyPct = $state(25);
 	let outcomeFilter = $state('all');
+
+	function parseAmountCents(): number | null {
+		const parsed = Math.round(Number(amountDollars) * 100);
+		if (!Number.isFinite(parsed) || parsed <= 0) {
+			amountError = 'Enter a positive dollar amount';
+			return null;
+		}
+		amountError = '';
+		return parsed;
+	}
 
 	const filteredSignals = $derived(
 		outcomeFilter === 'all'
@@ -259,13 +270,23 @@
 	</div>
 {/if}
 
-<Modal open={depositModal} title="Deposit" onclose={() => (depositModal = false)}>
+<Modal
+	open={depositModal}
+	title="Deposit"
+	onclose={() => {
+		depositModal = false;
+		amountError = '';
+	}}
+>
 	<input
 		class="mb-2 w-full rounded border border-[var(--color-border)] bg-slate-900 p-2 text-sm"
 		type="number"
 		bind:value={amountDollars}
 		min="1"
 	/>
+	{#if amountError}
+		<p class="mb-2 text-xs text-red-400">{amountError}</p>
+	{/if}
 	<input
 		class="mb-3 w-full rounded border border-[var(--color-border)] bg-slate-900 p-2 text-sm"
 		placeholder="Reason"
@@ -275,24 +296,40 @@
 		type="button"
 		class="w-full rounded bg-blue-700 py-2 text-sm text-white"
 		onclick={() => {
-			deposit(name, Math.round(Number(amountDollars) * 100), reason || 'deposit');
+			const cents = parseAmountCents();
+			if (cents === null) return;
+			deposit(name, cents, reason || 'deposit');
 			depositModal = false;
+			amountError = '';
 		}}
 	>
 		Confirm deposit
 	</button>
 </Modal>
 
-<Modal open={withdrawModal} title="Withdraw" onclose={() => (withdrawModal = false)}>
+<Modal
+	open={withdrawModal}
+	title="Withdraw"
+	onclose={() => {
+		withdrawModal = false;
+		amountError = '';
+	}}
+>
 	<p class="mb-2 text-xs text-slate-400">Free cash: {formatCents(freeCash)}</p>
 	<input class="mb-2 w-full rounded border bg-slate-900 p-2 text-sm" type="number" bind:value={amountDollars} />
+	{#if amountError}
+		<p class="mb-2 text-xs text-red-400">{amountError}</p>
+	{/if}
 	<input class="mb-3 w-full rounded border bg-slate-900 p-2 text-sm" placeholder="Reason" bind:value={reason} />
 	<button
 		type="button"
 		class="w-full rounded bg-slate-600 py-2 text-sm text-white"
 		onclick={() => {
-			withdraw(name, Math.round(Number(amountDollars) * 100), reason || 'withdraw');
+			const cents = parseAmountCents();
+			if (cents === null) return;
+			withdraw(name, cents, reason || 'withdraw');
 			withdrawModal = false;
+			amountError = '';
 		}}
 	>
 		Confirm withdraw

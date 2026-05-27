@@ -43,7 +43,7 @@ export function clamp(n: number, min: number, max: number): number {
 	return Math.min(max, Math.max(min, n));
 }
 
-export const PAUSABLE_STATES = ['active', 'graduated', 'graduated_under_review'] as const;
+export const PAUSABLE_STATES = ['active'] as const;
 export const RESUMABLE_STATES = [
 	'low_bankroll_paused',
 	'drawdown_paused',

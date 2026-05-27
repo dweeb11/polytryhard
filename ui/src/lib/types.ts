@@ -1,4 +1,5 @@
-export type EnvName = 'main' | 'staging';
+// Hand-written prototype types. From M2 these will be generated from the FastAPI OpenAPI schema;
+// do not add fields here that should originate in Pydantic.
 
 export type SystemState = 'active' | 'paused';
 
@@ -8,8 +9,6 @@ export type StrategyState =
 	| 'low_bankroll_paused'
 	| 'drawdown_paused'
 	| 'operator_paused'
-	| 'graduated'
-	| 'graduated_under_review'
 	| 'decommissioned';
 
 export type SignalOutcome =
@@ -22,11 +21,6 @@ export type SignalOutcome =
 	| 'rejected_market_closed'
 	| 'rejected_stale_inputs'
 	| 'rejected_system_paused';
-
-export type FeatureValue =
-	| { kind: 'present'; value: number; asOf: string; provider: string; version: string }
-	| { kind: 'missing'; reason: string }
-	| { kind: 'stale'; value: number; asOf: string };
 
 export type CashEventKind =
 	| 'deposit'
@@ -44,7 +38,6 @@ export type PluginType =
 	| 'rubric';
 
 export type SourceState = 'healthy' | 'degraded' | 'down';
-export type CircuitBreakerState = 'closed' | 'open' | 'half_open';
 export type PositionStatus = 'open' | 'closed' | 'resolved';
 export type PositionSide = 'yes' | 'no';
 
@@ -54,7 +47,6 @@ export interface StrategyConfig {
 	maxDrawdownPctFromHwm: number;
 	autoResumeOnDeposit: boolean;
 	maxInputAgeSeconds: number;
-	graduatedMaxDrawdownPctFromHwm?: number;
 }
 
 export interface StrategyInstance {
@@ -67,9 +59,7 @@ export interface StrategyInstance {
 	kellyFraction: number;
 	config: StrategyConfig;
 	lastStateChangeAt: string;
-	graduatedAt: string | null;
 	todayPnlCents: number;
-	prePauseState: StrategyState | null;
 }
 
 export interface Signal {
@@ -81,7 +71,6 @@ export interface Signal {
 	confidence: number;
 	outcome: SignalOutcome;
 	rejectionReason: string | null;
-	featuresSnapshot: Record<string, FeatureValue>;
 }
 
 export interface SourceHealth {
@@ -89,8 +78,6 @@ export interface SourceHealth {
 	displayName: string;
 	state: SourceState;
 	lastSuccessfulFetch: string;
-	circuitBreaker: CircuitBreakerState;
-	consecutiveFailures: number;
 	lastError: string | null;
 }
 
@@ -100,8 +87,6 @@ export interface Plugin {
 	name: string;
 	version: string;
 	enabled: boolean;
-	requires: string[];
-	provides: string[];
 	lastToggledAt: string;
 }
 

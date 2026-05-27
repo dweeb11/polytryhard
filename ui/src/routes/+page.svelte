@@ -1,11 +1,5 @@
 <script lang="ts">
-	import {
-		strategies,
-		signals,
-		sources,
-		systemPaused,
-		strategyBlockedBy
-	} from '$lib/stores';
+	import { strategies, signals, sources, systemPaused } from '$lib/stores';
 	import StateBadge from '$lib/components/StateBadge.svelte';
 	import {
 		drawdownPct,
@@ -39,18 +33,9 @@
 			</thead>
 			<tbody>
 				{#each $strategies as s (s.name)}
-					{@const blocked = $strategyBlockedBy.get(s.name)}
 					<tr class="border-t border-[var(--color-border)] hover:bg-slate-800/40">
 						<td class="px-3 py-2">
 							<a href="/strategies/{s.name}" class="font-medium text-blue-400 hover:underline">{s.name}</a>
-							{#if blocked?.length}
-								<span
-									class="ml-2 rounded bg-red-900/40 px-1.5 py-0.5 text-[10px] text-red-300"
-									title="Missing: {blocked.join(', ')}"
-								>
-									blocked
-								</span>
-							{/if}
 						</td>
 						<td class="px-3 py-2"><StateBadge state={s.state} /></td>
 						<td class="px-3 py-2 tabular-nums">{formatCents(s.bankrollCents)}</td>
