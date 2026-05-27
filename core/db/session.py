@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from core.settings import Settings, get_settings
 
-
 _MAX_ENGINE_CACHE = 8
 _engines: OrderedDict[str, Engine] = OrderedDict()
 
