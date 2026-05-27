@@ -1,5 +1,6 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
+from functools import lru_cache
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
@@ -9,6 +10,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from core.settings import Settings, get_settings
 
 
+@lru_cache(maxsize=8)
 def make_engine(database_url: str) -> Engine:
     return create_engine(database_url, pool_pre_ping=True)
 
@@ -38,12 +40,9 @@ def per_env_session(settings: Settings | None = None) -> Iterator[Session]:
 def check_database(database_url: str | None) -> str:
     if database_url is None:
         return "unconfigured"
-    engine = make_engine(database_url)
     try:
-        with engine.connect() as conn:
+        with make_engine(database_url).connect() as conn:
             conn.execute(text("SELECT 1"))
     except SQLAlchemyError:
         return "down"
-    finally:
-        engine.dispose()
     return "ok"
