@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -8,7 +7,6 @@ from core.settings import Settings
 
 
 def test_healthz_reports_version_request_id_and_database_status() -> None:
-    os.environ["REQUIRE_DBS"] = "0"
     client = TestClient(create_app())
 
     response = client.get("/healthz")
@@ -25,7 +23,6 @@ def test_healthz_reports_version_request_id_and_database_status() -> None:
 
 
 def test_healthz_returns_json_and_request_id_when_database_is_down(tmp_path: Path) -> None:
-    os.environ["REQUIRE_DBS"] = "0"
     missing_parent = tmp_path / "missing" / "shared.db"
     settings = Settings(
         DATABASE_URL_SHARED=f"sqlite:///{missing_parent}",

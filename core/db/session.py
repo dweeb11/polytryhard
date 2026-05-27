@@ -38,7 +38,7 @@ def per_env_session(settings: Settings | None = None) -> Iterator[Session]:
 
 
 def check_database(database_url: str | None) -> str:
-    if database_url is None:
+    if database_url is None or not database_url.strip():
         return "unconfigured"
     try:
         with make_engine(database_url).connect() as conn:
