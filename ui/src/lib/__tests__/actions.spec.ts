@@ -43,9 +43,9 @@ function setStrategy(
 describe('deposit', () => {
 	beforeEach(setupFixture);
 
-	it('increments bankroll and writes cash_event, audit, and history', () => {
+	it('increments bankroll and writes cash_event, audit, and history', async () => {
 		const before = get(strategies).find((s) => s.name === STRATEGY)!;
-		const result = deposit(STRATEGY, 5_000, 'test deposit');
+		const result = await deposit(STRATEGY, 5_000, 'test deposit');
 
 		expect(result.ok).toBe(true);
 		const after = get(strategies).find((s) => s.name === STRATEGY)!;
@@ -60,27 +60,27 @@ describe('deposit', () => {
 		expect(history.at(-1)?.bankrollCents).toBe(after.bankrollCents);
 	});
 
-	it('rejects non-positive amounts', () => {
-		expect(deposit(STRATEGY, 0, 'zero').ok).toBe(false);
+	it('rejects non-positive amounts', async () => {
+		expect((await deposit(STRATEGY, 0, 'zero')).ok).toBe(false);
 	});
 
-	it('rejects when kill switch is active', () => {
-		tripKillSwitch('halt');
-		expect(deposit(STRATEGY, 1_000, 'blocked').ok).toBe(false);
+	it('rejects when kill switch is active', async () => {
+		await tripKillSwitch('halt');
+		expect((await deposit(STRATEGY, 1_000, 'blocked')).ok).toBe(false);
 	});
 
-	it('rejects decommissioned strategies', () => {
+	it('rejects decommissioned strategies', async () => {
 		setStrategy(STRATEGY, { state: 'decommissioned' });
-		expect(deposit(STRATEGY, 1_000, 'nope').ok).toBe(false);
+		expect((await deposit(STRATEGY, 1_000, 'nope')).ok).toBe(false);
 	});
 
-	it('auto-resumes low_bankroll_paused to active when crossing minBankrollCents', () => {
+	it('auto-resumes low_bankroll_paused to active when crossing minBankrollCents', async () => {
 		setStrategy(STRATEGY, {
 			state: 'low_bankroll_paused',
 			bankrollCents: 5_000,
 			config: { ...FIXTURE.strategies[0].config, autoResumeOnDeposit: true, minBankrollCents: 10_000 }
 		});
-		deposit(STRATEGY, 6_000, 'top up');
+		await deposit(STRATEGY, 6_000, 'top up');
 		const after = get(strategies).find((s) => s.name === STRATEGY)!;
 		expect(after.state).toBe('active');
 		expect(after.bankrollCents).toBe(11_000);
@@ -90,21 +90,21 @@ describe('deposit', () => {
 describe('withdraw', () => {
 	beforeEach(setupFixture);
 
-	it('rejects when amount exceeds free cash with open positions', () => {
+	it('rejects when amount exceeds free cash with open positions', async () => {
 		const strat = get(strategies).find((s) => s.name === STRATEGY)!;
-		const result = withdraw(STRATEGY, strat.bankrollCents, 'too much');
+		const result = await withdraw(STRATEGY, strat.bankrollCents, 'too much');
 		expect(result.ok).toBe(false);
 		expect(result.ok === false && result.reason).toContain('free cash');
 	});
 
-	it('rejects on kill switch', () => {
-		tripKillSwitch('halt');
-		expect(withdraw(STRATEGY, 100, 'blocked').ok).toBe(false);
+	it('rejects on kill switch', async () => {
+		await tripKillSwitch('halt');
+		expect((await withdraw(STRATEGY, 100, 'blocked')).ok).toBe(false);
 	});
 
-	it('writes negative cash_event on success', () => {
+	it('writes negative cash_event on success', async () => {
 		const before = get(strategies).find((s) => s.name === STRATEGY)!;
-		const result = withdraw(STRATEGY, 1_000, 'partial');
+		const result = await withdraw(STRATEGY, 1_000, 'partial');
 		expect(result.ok).toBe(true);
 		expect(get(cashEvents)[0]).toMatchObject({ kind: 'withdraw', amountCents: -1_000 });
 		const after = get(strategies).find((s) => s.name === STRATEGY)!;
@@ -115,27 +115,27 @@ describe('withdraw', () => {
 describe('pauseStrategy / resumeStrategy', () => {
 	beforeEach(setupFixture);
 
-	it('pauses only from pausable states', () => {
-		expect(pauseStrategy(STRATEGY, 'pause').ok).toBe(true);
+	it('pauses only from pausable states', async () => {
+		expect((await pauseStrategy(STRATEGY, 'pause')).ok).toBe(true);
 		expect(get(strategies).find((s) => s.name === STRATEGY)!.state).toBe('operator_paused');
-		expect(pauseStrategy(STRATEGY, 'again').ok).toBe(false);
+		expect((await pauseStrategy(STRATEGY, 'again')).ok).toBe(false);
 	});
 
-	it('resumes to active from resumable states', () => {
+	it('resumes to active from resumable states', async () => {
 		setStrategy(STRATEGY, { state: 'drawdown_paused' });
-		expect(resumeStrategy(STRATEGY, 'go').ok).toBe(true);
+		expect((await resumeStrategy(STRATEGY, 'go')).ok).toBe(true);
 		expect(get(strategies).find((s) => s.name === STRATEGY)!.state).toBe('active');
 	});
 
-	it('rejects resume from active', () => {
-		expect(resumeStrategy(STRATEGY, 'nope').ok).toBe(false);
+	it('rejects resume from active', async () => {
+		expect((await resumeStrategy(STRATEGY, 'nope')).ok).toBe(false);
 	});
 });
 
 describe('forceCloseAndWithdraw', () => {
 	beforeEach(setupFixture);
 
-	it('closes open positions for the strategy and realizes PnL', () => {
+	it('closes open positions for the strategy and realizes PnL', async () => {
 		const openBefore = get(positions).filter(
 			(p) => p.strategyName === STRATEGY && p.status === 'open'
 		);
@@ -145,7 +145,7 @@ describe('forceCloseAndWithdraw', () => {
 			(e) => e.strategyName === STRATEGY && e.kind === 'realized_pnl'
 		).length;
 
-		forceCloseAndWithdraw(STRATEGY, 'flatten');
+		await forceCloseAndWithdraw(STRATEGY, 'flatten');
 
 		const openAfter = get(positions).filter(
 			(p) => p.strategyName === STRATEGY && p.status === 'open'
@@ -159,10 +159,10 @@ describe('forceCloseAndWithdraw', () => {
 		expect(pnlEventsAfter - pnlEventsBefore).toBe(openBefore.length);
 	});
 
-	it('is idempotent when no open positions remain', () => {
-		forceCloseAndWithdraw(STRATEGY, 'first');
+	it('is idempotent when no open positions remain', async () => {
+		await forceCloseAndWithdraw(STRATEGY, 'first');
 		const bankroll = get(strategies).find((s) => s.name === STRATEGY)!.bankrollCents;
-		const result = forceCloseAndWithdraw(STRATEGY, 'second');
+		const result = await forceCloseAndWithdraw(STRATEGY, 'second');
 		expect(result.ok).toBe(true);
 		expect(get(strategies).find((s) => s.name === STRATEGY)!.bankrollCents).toBe(bankroll);
 	});
@@ -171,18 +171,18 @@ describe('forceCloseAndWithdraw', () => {
 describe('kill switch', () => {
 	beforeEach(setupFixture);
 
-	it('requires a reason to trip and resume', () => {
-		expect(tripKillSwitch('').ok).toBe(false);
-		expect(tripKillSwitch('incident').ok).toBe(true);
+	it('requires a reason to trip and resume', async () => {
+		expect((await tripKillSwitch('')).ok).toBe(false);
+		expect((await tripKillSwitch('incident')).ok).toBe(true);
 		expect(get(system).state).toBe('paused');
-		expect(resumeKillSwitch('').ok).toBe(false);
-		expect(resumeKillSwitch('cleared').ok).toBe(true);
+		expect((await resumeKillSwitch('')).ok).toBe(false);
+		expect((await resumeKillSwitch('cleared')).ok).toBe(true);
 		expect(get(system).state).toBe('active');
 	});
 
-	it('blocks deposit while paused', () => {
-		tripKillSwitch('halt');
-		expect(deposit(STRATEGY, 500, 'blocked').ok).toBe(false);
+	it('blocks deposit while paused', async () => {
+		await tripKillSwitch('halt');
+		expect((await deposit(STRATEGY, 500, 'blocked')).ok).toBe(false);
 	});
 });
 
@@ -211,8 +211,8 @@ describe('canEmitSignals / resolveSignalOutcome', () => {
 describe('persistence round-trip', () => {
 	beforeEach(setupFixture);
 
-	it('restores mutated state from localStorage', () => {
-		deposit(STRATEGY, 2_500, 'persist me');
+	it('restores mutated state from localStorage', async () => {
+		await deposit(STRATEGY, 2_500, 'persist me');
 		const stored = localStorage.getItem('polytryhard');
 		expect(stored).toBeTruthy();
 		const expectedBankroll =

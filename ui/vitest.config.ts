@@ -4,7 +4,8 @@ import path from 'node:path';
 export default defineConfig({
 	resolve: {
 		alias: {
-			$lib: path.resolve(__dirname, 'src/lib')
+			$lib: path.resolve(__dirname, 'src/lib'),
+			'$env/dynamic/public': path.resolve(__dirname, 'src/lib/__tests__/env-public-stub.ts')
 		}
 	},
 	test: {

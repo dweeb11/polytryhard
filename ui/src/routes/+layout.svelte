@@ -5,6 +5,7 @@
 	import { page } from '$app/stores';
 	import { strategies, system, systemPaused } from '$lib/stores';
 	import { toasts, dismissToast } from '$lib/stores/toasts';
+	import { apiModeLabel } from '$lib/api/mode';
 	import { isDeveloperMode, uiMode } from '$lib/stores/uiMode';
 	import { tickSimulatorEnabled } from '$lib/stores/tick';
 	import { initTickFromStore, setTickEnabled } from '$lib/mocks/tick';
@@ -30,13 +31,13 @@
 	});
 
 	function confirmKill() {
-		tripKillSwitch(killReason);
+		void tripKillSwitch(killReason);
 		killModal = false;
 		killReason = '';
 	}
 
 	function confirmResume() {
-		resumeKillSwitch(resumeReason);
+		void resumeKillSwitch(resumeReason);
 		resumeModal = false;
 		resumeReason = '';
 	}
@@ -53,6 +54,7 @@
 	>
 		<span class="font-semibold tracking-tight text-slate-100">polytryhard</span>
 		<BackendStatusBadge />
+		<span class="rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-300">{$apiModeLabel}</span>
 		{#if $isDeveloperMode}
 			<span class="rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-400">prototype</span>
 		{/if}

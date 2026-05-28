@@ -54,7 +54,7 @@
 									class="text-xs text-amber-400 hover:underline disabled:opacity-40"
 									disabled={$systemPaused}
 									title={$systemPaused ? 'Kill switch active' : 'Pause strategy'}
-									onclick={() => pauseStrategy(s.name, 'operator pause from roster')}
+									onclick={() => void pauseStrategy(s.name, 'operator pause from roster')}
 								>
 									Pause
 								</button>
@@ -63,7 +63,7 @@
 									type="button"
 									class="text-xs text-emerald-400 hover:underline disabled:opacity-40"
 									disabled={$systemPaused}
-									onclick={() => resumeStrategy(s.name, 'operator resume from roster')}
+									onclick={() => void resumeStrategy(s.name, 'operator resume from roster')}
 								>
 									Resume
 								</button>

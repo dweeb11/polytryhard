@@ -1,4 +1,7 @@
 import { get } from 'svelte/store';
+import { apiPost } from './api/client';
+import { hydrateLedgerFromApi } from './api/hydrate';
+import { apiMode } from './api/mode';
 import {
 	audit,
 	bankrollHistoryByStrategy,
@@ -34,15 +37,35 @@ import {
 function toastResult(result: ActionResult, successMsg: string): ActionResult {
 	if (result.ok) {
 		pushToast('success', successMsg);
-		persistCurrent();
+		if (!isLiveMode()) {
+			persistCurrent();
+		}
 	} else {
 		pushToast('error', result.reason);
 	}
 	return result;
 }
 
+function isLiveMode(): boolean {
+	return get(apiMode) === 'live';
+}
+
 function isSystemPaused(): boolean {
 	return get(system).state === 'paused';
+}
+
+async function runLiveMutation(
+	mutate: () => Promise<void>,
+	successMsg: string
+): Promise<ActionResult> {
+	try {
+		await mutate();
+		await hydrateLedgerFromApi();
+		return toastResult({ ok: true }, successMsg);
+	} catch (error) {
+		const reason = error instanceof Error ? error.message : 'API request failed';
+		return toastResult({ ok: false, reason }, '');
+	}
 }
 
 function findStrategy(name: string): StrategyInstance | undefined {
@@ -112,11 +135,21 @@ function bumpBankrollHistory(name: string, bankrollCents: number): void {
 	});
 }
 
-export function deposit(
+export async function deposit(
 	strategyName: string,
 	amountCents: number,
 	reason: string
-): ActionResult {
+): Promise<ActionResult> {
+	if (isLiveMode()) {
+		return runLiveMutation(
+			() =>
+				apiPost(`/v1/strategies/${strategyName}/deposit`, {
+					amountCents,
+					reason
+				}) as Promise<void>,
+			`Deposited $${(amountCents / 100).toFixed(2)} to ${strategyName}`
+		);
+	}
 	if (isSystemPaused()) return toastResult({ ok: false, reason: 'System kill switch is active' }, '');
 	const strat = findStrategy(strategyName);
 	if (!strat) return toastResult({ ok: false, reason: 'Strategy not found' }, '');
@@ -148,11 +181,21 @@ export function deposit(
 	return toastResult({ ok: true }, `Deposited $${(amountCents / 100).toFixed(2)} to ${strategyName}`);
 }
 
-export function withdraw(
+export async function withdraw(
 	strategyName: string,
 	amountCents: number,
 	reason: string
-): ActionResult {
+): Promise<ActionResult> {
+	if (isLiveMode()) {
+		return runLiveMutation(
+			() =>
+				apiPost(`/v1/strategies/${strategyName}/withdraw`, {
+					amountCents,
+					reason
+				}) as Promise<void>,
+			`Withdrew $${(amountCents / 100).toFixed(2)} from ${strategyName}`
+		);
+	}
 	if (isSystemPaused()) return toastResult({ ok: false, reason: 'System kill switch is active' }, '');
 	const strat = findStrategy(strategyName);
 	if (!strat) return toastResult({ ok: false, reason: 'Strategy not found' }, '');
@@ -175,7 +218,13 @@ export function withdraw(
 	return toastResult({ ok: true }, `Withdrew $${(amountCents / 100).toFixed(2)} from ${strategyName}`);
 }
 
-export function pauseStrategy(strategyName: string, reason: string): ActionResult {
+export async function pauseStrategy(strategyName: string, reason: string): Promise<ActionResult> {
+	if (isLiveMode()) {
+		return runLiveMutation(
+			() => apiPost(`/v1/strategies/${strategyName}/pause`, { reason }) as Promise<void>,
+			`Paused ${strategyName}`
+		);
+	}
 	if (isSystemPaused()) return toastResult({ ok: false, reason: 'System kill switch is active' }, '');
 	const strat = findStrategy(strategyName);
 	if (!strat) return toastResult({ ok: false, reason: 'Strategy not found' }, '');
@@ -193,7 +242,13 @@ export function pauseStrategy(strategyName: string, reason: string): ActionResul
 	return toastResult({ ok: true }, `Paused ${strategyName}`);
 }
 
-export function resumeStrategy(strategyName: string, reason: string): ActionResult {
+export async function resumeStrategy(strategyName: string, reason: string): Promise<ActionResult> {
+	if (isLiveMode()) {
+		return runLiveMutation(
+			() => apiPost(`/v1/strategies/${strategyName}/resume`, { reason }) as Promise<void>,
+			`Resumed ${strategyName} → active`
+		);
+	}
 	if (isSystemPaused()) return toastResult({ ok: false, reason: 'System kill switch is active' }, '');
 	const strat = findStrategy(strategyName);
 	if (!strat) return toastResult({ ok: false, reason: 'Strategy not found' }, '');
@@ -206,11 +261,21 @@ export function resumeStrategy(strategyName: string, reason: string): ActionResu
 	return toastResult({ ok: true }, `Resumed ${strategyName} → active`);
 }
 
-export function setKellyFraction(
+export async function setKellyFraction(
 	strategyName: string,
 	fraction: number,
 	reason: string
-): ActionResult {
+): Promise<ActionResult> {
+	if (isLiveMode()) {
+		return runLiveMutation(
+			() =>
+				apiPost(`/v1/strategies/${strategyName}/set-kelly-fraction`, {
+					fraction,
+					reason
+				}) as Promise<void>,
+			`Kelly fraction set to ${(clamp(fraction, 0, 1) * 100).toFixed(1)}%`
+		);
+	}
 	if (isSystemPaused()) return toastResult({ ok: false, reason: 'System kill switch is active' }, '');
 	const strat = findStrategy(strategyName);
 	if (!strat) return toastResult({ ok: false, reason: 'Strategy not found' }, '');
@@ -230,7 +295,10 @@ export function setKellyFraction(
 	return toastResult({ ok: true }, `Kelly fraction set to ${(value * 100).toFixed(1)}%`);
 }
 
-export function forceCloseAndWithdraw(strategyName: string, reason: string): ActionResult {
+export async function forceCloseAndWithdraw(
+	strategyName: string,
+	reason: string
+): Promise<ActionResult> {
 	if (isSystemPaused()) return toastResult({ ok: false, reason: 'System kill switch is active' }, '');
 	const strat = findStrategy(strategyName);
 	if (!strat) return toastResult({ ok: false, reason: 'Strategy not found' }, '');
@@ -273,7 +341,13 @@ export function forceCloseAndWithdraw(strategyName: string, reason: string): Act
 	);
 }
 
-export function decommission(strategyName: string, reason: string): ActionResult {
+export async function decommission(strategyName: string, reason: string): Promise<ActionResult> {
+	if (isLiveMode()) {
+		return runLiveMutation(
+			() => apiPost(`/v1/strategies/${strategyName}/decommission`, { reason }) as Promise<void>,
+			`${strategyName} decommissioned`
+		);
+	}
 	const strat = findStrategy(strategyName);
 	if (!strat) return toastResult({ ok: false, reason: 'Strategy not found' }, '');
 	const before = { state: strat.state };
@@ -282,7 +356,14 @@ export function decommission(strategyName: string, reason: string): ActionResult
 	return toastResult({ ok: true }, `${strategyName} decommissioned`);
 }
 
-export function tripKillSwitch(reason: string): ActionResult {
+export async function tripKillSwitch(reason: string): Promise<ActionResult> {
+	if (isLiveMode()) {
+		if (!reason.trim()) return toastResult({ ok: false, reason: 'Reason is required' }, '');
+		return runLiveMutation(
+			() => apiPost('/v1/system/pause', { reason }) as Promise<void>,
+			'Kill switch tripped — executors blocked'
+		);
+	}
 	if (!reason.trim()) return toastResult({ ok: false, reason: 'Reason is required' }, '');
 	const before = { ...get(system) };
 	system.set({
@@ -294,7 +375,14 @@ export function tripKillSwitch(reason: string): ActionResult {
 	return toastResult({ ok: true }, 'Kill switch tripped — executors blocked');
 }
 
-export function resumeKillSwitch(reason: string): ActionResult {
+export async function resumeKillSwitch(reason: string): Promise<ActionResult> {
+	if (isLiveMode()) {
+		if (!reason.trim()) return toastResult({ ok: false, reason: 'Reason is required to resume' }, '');
+		return runLiveMutation(
+			() => apiPost('/v1/system/resume', { reason }) as Promise<void>,
+			'Kill switch cleared — system active'
+		);
+	}
 	if (!reason.trim()) return toastResult({ ok: false, reason: 'Reason is required to resume' }, '');
 	const before = { ...get(system) };
 	system.set({
