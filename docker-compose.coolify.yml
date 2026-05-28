@@ -2,7 +2,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.api
     environment:
       APP_VERSION: ${APP_VERSION:-0.1.0}
       GIT_SHA: ${SOURCE_COMMIT:-dev}
