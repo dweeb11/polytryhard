@@ -3,23 +3,20 @@ import {
 	audit,
 	bankrollHistoryByStrategy,
 	cashEvents,
-	loadEnv,
 	persistCurrent,
 	positions,
-	resetEnvToFixtures,
+	resetToFixtures,
 	signals,
 	strategies,
 	sources,
 	plugins,
-	system,
-	currentEnv
+	system
 } from './stores';
 import { pushToast } from './stores/toasts';
 import type {
 	ActionResult,
 	AuditEvent,
 	CashEvent,
-	EnvName,
 	Signal,
 	SignalOutcome,
 	StrategyInstance,
@@ -135,15 +132,12 @@ export function deposit(
 		RESUMABLE_STATES.includes(strat.state as (typeof RESUMABLE_STATES)[number]) &&
 		newBankroll >= strat.config.minBankrollCents
 	) {
-		newState = strat.prePauseState === 'graduated' || strat.prePauseState === 'graduated_under_review'
-			? strat.prePauseState
-			: 'active';
+		newState = 'active';
 	}
 
 	updateStrategy(strategyName, {
 		bankrollCents: newBankroll,
-		state: newState,
-		prePauseState: null
+		state: newState
 	});
 	appendCashEvent(strategyName, 'deposit', amountCents, newBankroll, reason);
 	appendAudit('deposit', 'strategy', strategyName, before, {
@@ -193,8 +187,7 @@ export function pauseStrategy(strategyName: string, reason: string): ActionResul
 	}
 	const before = { state: strat.state };
 	updateStrategy(strategyName, {
-		state: 'operator_paused',
-		prePauseState: strat.state
+		state: 'operator_paused'
 	});
 	appendAudit('pause_strategy', 'strategy', strategyName, before, { state: 'operator_paused' }, reason);
 	return toastResult({ ok: true }, `Paused ${strategyName}`);
@@ -207,14 +200,10 @@ export function resumeStrategy(strategyName: string, reason: string): ActionResu
 	if (!RESUMABLE_STATES.includes(strat.state as (typeof RESUMABLE_STATES)[number])) {
 		return toastResult({ ok: false, reason: `Cannot resume from state ${strat.state}` }, '');
 	}
-	const target: StrategyState =
-		strat.prePauseState === 'graduated' || strat.prePauseState === 'graduated_under_review'
-			? strat.prePauseState
-			: 'active';
 	const before = { state: strat.state };
-	updateStrategy(strategyName, { state: target, prePauseState: null });
-	appendAudit('resume_strategy', 'strategy', strategyName, before, { state: target }, reason);
-	return toastResult({ ok: true }, `Resumed ${strategyName} → ${target.replace(/_/g, ' ')}`);
+	updateStrategy(strategyName, { state: 'active' });
+	appendAudit('resume_strategy', 'strategy', strategyName, before, { state: 'active' }, reason);
+	return toastResult({ ok: true }, `Resumed ${strategyName} → active`);
 }
 
 export function setKellyFraction(
@@ -346,8 +335,6 @@ export function probeSource(sourceName: string): ActionResult {
 							...s,
 							state: 'healthy',
 							lastSuccessfulFetch: nowIso(),
-							consecutiveFailures: 0,
-							circuitBreaker: 'closed',
 							lastError: null
 						}
 					: s
@@ -357,16 +344,12 @@ export function probeSource(sourceName: string): ActionResult {
 		appendAudit('probe_source', 'source', sourceName, { ...before }, { ...after }, 'probe success');
 		return toastResult({ ok: true }, `${src.displayName}: probe succeeded`);
 	}
-	const failures = src.consecutiveFailures + 1;
-	const breaker = failures >= 3 ? 'open' : src.circuitBreaker;
 	sources.update((list) =>
 		list.map((s) =>
 			s.name === sourceName
 				? {
 						...s,
-						consecutiveFailures: failures,
-						circuitBreaker: breaker,
-						state: failures >= 2 ? 'degraded' : s.state,
+						state: 'degraded',
 						lastError: 'probe failed (simulated)'
 					}
 				: s
@@ -374,41 +357,14 @@ export function probeSource(sourceName: string): ActionResult {
 	);
 	const afterFail = get(sources).find((s) => s.name === sourceName)!;
 	appendAudit('probe_source', 'source', sourceName, { ...before }, { ...afterFail }, 'probe failed');
-	return toastResult({ ok: false, reason: `${src.displayName}: probe failed (${failures} consecutive)` }, '');
+	return toastResult({ ok: false, reason: `${src.displayName}: probe failed (simulated)` }, '');
 }
 
-export function resetCircuitBreaker(sourceName: string): ActionResult {
-	const src = get(sources).find((s) => s.name === sourceName);
-	if (!src) return toastResult({ ok: false, reason: 'Source not found' }, '');
-	if (src.circuitBreaker === 'closed') {
-		return toastResult({ ok: false, reason: 'Circuit breaker is already closed' }, '');
-	}
-	const before = { circuitBreaker: src.circuitBreaker, consecutiveFailures: src.consecutiveFailures };
-	sources.update((list) =>
-		list.map((s) =>
-			s.name === sourceName
-				? { ...s, circuitBreaker: 'closed', consecutiveFailures: 0, state: 'degraded' }
-				: s
-		)
-	);
-	appendAudit('reset_circuit_breaker', 'source', sourceName, before, { circuitBreaker: 'closed' }, 'operator reset');
-	return toastResult({ ok: true }, `Circuit breaker reset for ${src.displayName}`);
-}
-
-export function switchEnv(env: EnvName): ActionResult {
+export function resetPrototype(reason = 'operator reset'): ActionResult {
+	resetToFixtures();
+	pushToast('info', 'Prototype reset to fixtures');
 	persistCurrent();
-	loadEnv(env);
-	currentEnv.set(env);
-	pushToast('info', `Switched to ${env} environment`);
-	return { ok: true };
-}
-
-export function resetEnv(env: EnvName): ActionResult {
-	resetEnvToFixtures(env);
-	if (get(currentEnv) === env) {
-		pushToast('info', `${env} reset to fixtures`);
-		persistCurrent();
-	}
+	appendAudit('reset_prototype', 'system', 'global', {}, {}, reason);
 	return { ok: true };
 }
 

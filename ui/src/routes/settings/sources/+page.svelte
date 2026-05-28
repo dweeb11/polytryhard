@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { sources } from '$lib/stores';
 	import { isDeveloperMode } from '$lib/stores/uiMode';
-	import { probeSource, resetCircuitBreaker } from '$lib/actions';
+	import { probeSource } from '$lib/actions';
 	import { formatAge } from '$lib/utils';
 </script>
 
@@ -27,14 +27,6 @@
 					<dt>Last fetch</dt>
 					<dd class="text-slate-300">{formatAge(src.lastSuccessfulFetch)}</dd>
 				</div>
-				<div class="flex justify-between">
-					<dt>Circuit breaker</dt>
-					<dd class="capitalize text-slate-300">{src.circuitBreaker}</dd>
-				</div>
-				<div class="flex justify-between">
-					<dt>Consecutive failures</dt>
-					<dd class="text-slate-300">{src.consecutiveFailures}</dd>
-				</div>
 				{#if src.lastError}
 					<div>
 						<dt class="text-red-400">Last error</dt>
@@ -43,22 +35,13 @@
 				{/if}
 			</dl>
 			{#if $isDeveloperMode}
-				<div class="mt-4 flex gap-2">
+				<div class="mt-4">
 					<button
 						type="button"
 						class="rounded bg-blue-800 px-3 py-1 text-xs text-white hover:bg-blue-700"
 						onclick={() => probeSource(src.name)}
 					>
 						Probe now
-					</button>
-					<button
-						type="button"
-						class="rounded border border-[var(--color-border)] px-3 py-1 text-xs disabled:opacity-40"
-						disabled={src.circuitBreaker === 'closed'}
-						title={src.circuitBreaker === 'closed' ? 'Breaker already closed' : 'Reset breaker'}
-						onclick={() => resetCircuitBreaker(src.name)}
-					>
-						Reset breaker
 					</button>
 				</div>
 			{/if}
