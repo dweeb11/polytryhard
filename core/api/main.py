@@ -24,7 +24,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def healthz(request: Request, response: Response) -> dict[str, Any]:
         db_shared = check_database(resolved.database_url_shared)
         db_per_env = check_database(resolved.database_url_per_env)
-        status = "degraded" if "down" in {db_shared, db_per_env} else "ok"
+        db_states = {db_shared, db_per_env}
+        status = "degraded" if db_states & {"down", "unconfigured"} else "ok"
         if status == "degraded":
             response.status_code = 503
         return {
