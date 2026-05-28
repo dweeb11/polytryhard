@@ -2,6 +2,11 @@ from core.domain import state_machine
 from core.domain.enums import StrategyState
 
 
+def test_can_activate_only_from_seeded() -> None:
+    assert state_machine.can_activate(StrategyState.SEEDED)
+    assert not state_machine.can_activate(StrategyState.ACTIVE)
+
+
 def test_can_pause_only_from_active() -> None:
     assert state_machine.can_pause(StrategyState.ACTIVE)
     assert not state_machine.can_pause(StrategyState.OPERATOR_PAUSED)

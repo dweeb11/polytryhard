@@ -8,6 +8,7 @@ from core.db.models import AuditEventRow, CashEventRow, StrategyInstanceRow, Sys
 from core.domain.cash_event import CashEvent
 from core.domain.enums import AuditActor, CashEventKind, StrategyState, SystemState
 from core.domain.state_machine import (
+    can_activate,
     can_pause,
     can_resume,
     deposit_blocked_states,
@@ -317,6 +318,36 @@ def set_kelly_fraction(
         target_id=strategy_name,
         before_state=before,
         after_state=after,
+        reason=reason,
+        request_id=request_id,
+    )
+    session.flush()
+
+
+def activate_strategy(
+    session: Session,
+    strategy_name: str,
+    reason: str,
+    actor: AuditActor,
+    request_id: str,
+) -> None:
+    if not reason.strip():
+        raise LedgerError("Reason is required")
+    strategy = _get_strategy_row(session, strategy_name)
+    state = StrategyState(strategy.state)
+    if not can_activate(state):
+        raise LedgerError(f"Cannot activate from state {state.value}")
+    before = {"state": strategy.state}
+    target = StrategyState.ACTIVE
+    _touch_strategy(strategy, state=target)
+    _append_audit(
+        session,
+        actor=actor,
+        action="activate_strategy",
+        target_type="strategy",
+        target_id=strategy_name,
+        before_state=before,
+        after_state={"state": target.value},
         reason=reason,
         request_id=request_id,
     )

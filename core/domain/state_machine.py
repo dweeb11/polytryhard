@@ -17,6 +17,10 @@ PAUSED_SIGNAL_STATES: frozenset[StrategyState] = frozenset(
 )
 
 
+def can_activate(state: StrategyState) -> bool:
+    return state == StrategyState.SEEDED
+
+
 def can_pause(state: StrategyState) -> bool:
     return state in PAUSABLE_STATES
 
