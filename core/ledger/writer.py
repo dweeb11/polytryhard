@@ -103,8 +103,6 @@ def _write_bankroll_event(
     )
     session.add(event_row)
     strategy.bankroll_cents = balance_after_cents
-    if balance_after_cents > strategy.bankroll_hwm_cents:
-        strategy.bankroll_hwm_cents = balance_after_cents
     _touch_strategy(strategy)
     _append_audit(
         session,

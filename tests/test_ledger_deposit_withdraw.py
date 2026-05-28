@@ -69,6 +69,25 @@ def test_seed_is_idempotent(per_env_session_factory: sessionmaker[Session]) -> N
     session.close()
 
 
+def test_deposit_does_not_raise_hwm(per_env_session_factory: sessionmaker[Session]) -> None:
+    session = per_env_session_factory()
+    _create_strategy(session, "hwm_strategy")
+    row = session.get(StrategyInstanceRow, "hwm_strategy")
+    assert row is not None
+    row.bankroll_cents = 60_000
+    row.bankroll_hwm_cents = 100_000
+    session.commit()
+
+    writer.deposit(session, "hwm_strategy", 50_000, "top up bleeding strategy", AuditActor.USER, "req-hwm")
+    session.commit()
+
+    row = session.get(StrategyInstanceRow, "hwm_strategy")
+    assert row is not None
+    assert row.bankroll_cents == 110_000
+    assert row.bankroll_hwm_cents == 100_000
+    session.close()
+
+
 def test_deposit_and_withdraw_invariant(per_env_session_factory: sessionmaker[Session]) -> None:
     session = per_env_session_factory()
     _create_strategy(session, "test_strategy")
