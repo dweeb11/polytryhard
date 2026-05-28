@@ -28,10 +28,18 @@ def test_migrations_apply_to_fresh_sqlite_databases(tmp_path: Path) -> None:
     engine = create_engine(per_env_url)
     with engine.connect() as conn:
         rows = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'audit_event'")
+            text(
+                "SELECT name FROM sqlite_master WHERE type = 'table' "
+                "AND name IN ('audit_event', 'strategy_instance', 'system_state') "
+                "ORDER BY name"
+            )
         ).all()
 
-    assert [tuple(row) for row in rows] == [("audit_event",)]
+    assert [tuple(row) for row in rows] == [
+        ("audit_event",),
+        ("strategy_instance",),
+        ("system_state",),
+    ]
 
 
 @pytest.mark.skipif(which("docker") is None, reason="Docker is required for Testcontainers")
@@ -55,10 +63,12 @@ def test_migrations_and_healthz_run_against_postgres() -> None:
         from fastapi.testclient import TestClient
 
         settings = Settings(
+            REQUIRE_DBS=False,
             APP_VERSION="test",
             GIT_SHA="test-sha",
             DATABASE_URL_SHARED=shared_url,
             DATABASE_URL_PER_ENV=per_env_url,
+            CONTROL_PLANE_TOKEN="test-token",
         )
         response = TestClient(create_app(settings)).get("/healthz")
 
