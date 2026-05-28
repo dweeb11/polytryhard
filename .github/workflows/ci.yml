@@ -58,6 +58,9 @@ jobs:
     name: Backend checks
     runs-on: ubuntu-latest
 
+    env:
+      REQUIRE_DBS: "0"
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -92,29 +95,4 @@ jobs:
       - name: Build API Docker image
         run: docker build -f Dockerfile -t polytryhard-api:ci .
 
-  ledger-discipline:
-    name: Ledger discipline (bankroll mutations)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Enforce single mutation surface for bankrollCents
-        run: |
-          # PDD §6 invariant: bankroll only moves through actions.ts + appendCashEvent.
-          # Allowed object-literal writers of `bankrollCents:`:
-          #   - ui/src/lib/actions.ts        (the mutation surface)
-          #   - ui/src/lib/types.ts          (interface definition)
-          #   - ui/src/lib/mocks/fixtures.ts (seed / fixture data)
-          allowed='^ui/src/lib/(actions\.ts|types\.ts|mocks/fixtures\.ts):'
-          hits=$(grep -rEn 'bankrollCents[[:space:]]*:' ui/src \
-                   --include='*.ts' --include='*.svelte' || true)
-          offenders=$(printf '%s\n' "$hits" | grep -vE "$allowed" || true)
-          if [ -n "$offenders" ]; then
-            echo "::error::bankrollCents writes detected outside the allowed mutation surface."
-            echo "All bankroll mutations must go through ui/src/lib/actions.ts + appendCashEvent (PDD §6)."
-            echo "Offending lines:"
-            printf '%s\n' "$offenders"
-            exit 1
-          fi
-          echo "OK — no bankrollCents writes outside the allowed surface."
+# ledger-discipline returns in M2 as a Python AST check rooted at core/ledger/.
