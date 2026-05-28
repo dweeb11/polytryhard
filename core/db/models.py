@@ -57,7 +57,9 @@ class CashEventRow(Base):
     amount_cents: Mapped[int] = mapped_column(BigInteger)
     balance_after_cents: Mapped[int] = mapped_column(BigInteger)
     reason: Mapped[str] = mapped_column(Text)
-    ref_position_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    ref_position_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("paper_position.id"), nullable=True
+    )
 
     strategy: Mapped[StrategyInstanceRow] = relationship(back_populates="cash_events")
 
@@ -84,7 +86,7 @@ class PaperFillRow(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     position_id: Mapped[str] = mapped_column(String(36), ForeignKey("paper_position.id"))
-    signal_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    signal_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("signal.id"), nullable=True)
     filled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     side: Mapped[str] = mapped_column(String(8))
     qty: Mapped[int] = mapped_column(Integer)
