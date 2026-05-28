@@ -127,6 +127,11 @@ def upgrade() -> None:
         sa.Column("unrealized_pnl_cents", sa.BigInteger(), nullable=False, server_default="0"),
         sa.Column("status", position_status_enum, nullable=False),
     )
+    op.create_index(
+        "ix_paper_position_strategy_name",
+        "paper_position",
+        ["strategy_name"],
+    )
     op.create_table(
         "paper_fill",
         sa.Column("id", sa.String(length=36), primary_key=True),
@@ -148,6 +153,11 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("'{}'"),
         ),
+    )
+    op.create_index(
+        "ix_paper_fill_position_id",
+        "paper_fill",
+        ["position_id"],
     )
     op.create_table(
         "signal",
@@ -193,7 +203,9 @@ def downgrade() -> None:
     op.drop_table("system_state")
     op.drop_index("ix_signal_strategy_evaluated", table_name="signal")
     op.drop_table("signal")
+    op.drop_index("ix_paper_fill_position_id", table_name="paper_fill")
     op.drop_table("paper_fill")
+    op.drop_index("ix_paper_position_strategy_name", table_name="paper_position")
     op.drop_table("paper_position")
     op.drop_index("ix_cash_event_strategy_occurred", table_name="cash_event")
     op.drop_table("cash_event")
