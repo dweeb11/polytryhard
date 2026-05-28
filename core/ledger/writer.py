@@ -330,6 +330,8 @@ def pause_strategy(
     actor: AuditActor,
     request_id: str,
 ) -> None:
+    if not reason.strip():
+        raise LedgerError("Reason is required")
     _require_system_active(session)
     strategy = _get_strategy_row(session, strategy_name)
     state = StrategyState(strategy.state)
@@ -360,6 +362,8 @@ def resume_strategy(
     actor: AuditActor,
     request_id: str,
 ) -> None:
+    if not reason.strip():
+        raise LedgerError("Reason is required to resume")
     _require_system_active(session)
     strategy = _get_strategy_row(session, strategy_name)
     state = StrategyState(strategy.state)
@@ -390,6 +394,9 @@ def decommission_strategy(
     actor: AuditActor,
     request_id: str,
 ) -> None:
+    if not reason.strip():
+        raise LedgerError("Reason is required")
+    _require_system_active(session)
     strategy = _get_strategy_row(session, strategy_name)
     before = {"state": strategy.state, "enabled": strategy.enabled}
     strategy.enabled = False
