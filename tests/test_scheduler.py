@@ -1,22 +1,27 @@
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
 from sqlalchemy import func, select
 
 from core.clock import FakeClock
-from core.contracts.source import SourceContext
+from core.contracts.source import ReferenceLocation, SourceContext
 from core.db.shared_enums import SourceRunStatus
-from core.db.shared_models import SourceRunRow
+from core.db.shared_models import RawForecastRunRow, SourceRunRow
 from core.settings import Settings
-from core.sources.kalshi import KalshiMarketsSource
 from core.sources.open_meteo import OpenMeteoSource
 from core.sources.persistence import SourceHealthTracker
 from core.sources.seed import seed_locations_if_needed
 
 CASSETTES = Path(__file__).resolve().parent / "cassettes"
+ENSEMBLE_PREFIX = "https://ensemble-api.open-meteo.com/v1/ensemble"
+ROWS_PER_FETCH = 4
+SEED_LOCATION_COUNT = 6
+MODELS_PER_LOCATION = 2
+EXPECTED_FORECAST_ROWS = SEED_LOCATION_COUNT * MODELS_PER_LOCATION * ROWS_PER_FETCH
 
 
 @dataclass
@@ -37,6 +42,33 @@ class FakeHttpClient:
             if url.startswith(prefix):
                 return response
         raise AssertionError(f"unexpected url: {url}")
+
+
+def _open_meteo_context(
+    *,
+    settings: Settings,
+    http: FakeHttpClient,
+    locations: tuple[ReferenceLocation, ...] = (),
+) -> SourceContext:
+    return SourceContext(
+        request_id="test",
+        settings=settings,
+        locations=locations,
+        markets=(),
+        http=http,
+    )
+
+
+def _houston_location() -> ReferenceLocation:
+    return ReferenceLocation(
+        id="houston",
+        station_code="KIAH",
+        name="Houston",
+        lat=Decimal("29.9844"),
+        lon=Decimal("-95.3414"),
+        timezone="America/Chicago",
+        source="curated",
+    )
 
 
 @pytest.mark.asyncio
@@ -61,7 +93,7 @@ async def test_scheduler_persists_open_meteo_rows(
     ensemble = json.loads((CASSETTES / "open_meteo_ensemble.json").read_text())
     http = FakeHttpClient(
         {
-            "https://ensemble-api.open-meteo.com/v1/ensemble": FakeResponse(200, ensemble),
+            ENSEMBLE_PREFIX: FakeResponse(200, ensemble),
         }
     )
     clock = FakeClock(start=datetime(2026, 5, 28, 12, 0, tzinfo=UTC))
@@ -79,7 +111,8 @@ async def test_scheduler_persists_open_meteo_rows(
             http=http,
         )
         result = await source.fetch(clock, ctx)
-        assert result.rows_written > 0
+        assert result.rows_written == EXPECTED_FORECAST_ROWS
+        assert len(result.forecast_runs) == EXPECTED_FORECAST_ROWS
 
         from core.sources.persistence import persist_fetch_result
 
@@ -93,6 +126,8 @@ async def test_scheduler_persists_open_meteo_rows(
         )
         run_count = db.scalar(select(func.count()).select_from(SourceRunRow))
         assert run_count == 1
+        forecast_count = db.scalar(select(func.count()).select_from(RawForecastRunRow))
+        assert forecast_count == EXPECTED_FORECAST_ROWS
 
 
 def test_health_tracker_marks_degraded_after_threshold() -> None:
@@ -105,16 +140,45 @@ def test_health_tracker_marks_degraded_after_threshold() -> None:
 
 
 @pytest.mark.asyncio
-async def test_kalshi_unconfigured_reports_degraded() -> None:
-    source = KalshiMarketsSource()
+async def test_open_meteo_empty_locations_reports_degraded() -> None:
+    source = OpenMeteoSource()
     settings = Settings(REQUIRE_DBS=False, SCHEDULER_ENABLED=False)
     clock = FakeClock(start=datetime(2026, 5, 28, 12, 0, tzinfo=UTC))
-    ctx = SourceContext(
-        request_id="test",
+    ctx = _open_meteo_context(settings=settings, http=FakeHttpClient({}))
+    result = await source.fetch(clock, ctx)
+    assert result.status == SourceRunStatus.DEGRADED
+    assert result.error_text == "No reference locations seeded"
+
+
+@pytest.mark.asyncio
+async def test_open_meteo_http_404_reports_degraded() -> None:
+    source = OpenMeteoSource()
+    settings = Settings(REQUIRE_DBS=False, SCHEDULER_ENABLED=False)
+    clock = FakeClock(start=datetime(2026, 5, 28, 12, 0, tzinfo=UTC))
+    http = FakeHttpClient({ENSEMBLE_PREFIX: FakeResponse(404, {})})
+    ctx = _open_meteo_context(
         settings=settings,
-        locations=(),
-        markets=(),
-        http=FakeHttpClient({}),
+        http=http,
+        locations=(_houston_location(),),
     )
     result = await source.fetch(clock, ctx)
     assert result.status == SourceRunStatus.DEGRADED
+    assert result.error_text == "Open-Meteo HTTP 404 for houston"
+
+
+@pytest.mark.asyncio
+async def test_open_meteo_empty_hourly_reports_degraded() -> None:
+    source = OpenMeteoSource()
+    settings = Settings(REQUIRE_DBS=False, SCHEDULER_ENABLED=False)
+    clock = FakeClock(start=datetime(2026, 5, 28, 12, 0, tzinfo=UTC))
+    http = FakeHttpClient(
+        {ENSEMBLE_PREFIX: FakeResponse(200, {"hourly": {"time": []}})}
+    )
+    ctx = _open_meteo_context(
+        settings=settings,
+        http=http,
+        locations=(_houston_location(),),
+    )
+    result = await source.fetch(clock, ctx)
+    assert result.status == SourceRunStatus.DEGRADED
+    assert result.error_text == "Open-Meteo returned no forecast rows"
