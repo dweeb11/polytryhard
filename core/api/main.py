@@ -7,11 +7,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from core.api.middleware import request_id_middleware
 from core.api.v1.routes import router as v1_router
-from core.db.session import check_database, per_env_session
+from core.db.session import check_database, per_env_session, shared_session
 from core.ledger.seed import seed_strategies_if_needed
 from core.migrations import run_upgrade
 from core.scheduler import Scheduler
 from core.settings import Settings, get_settings
+from core.sources.seed import seed_locations_if_needed
 from core.utils.time import now_iso
 
 
@@ -20,6 +21,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings: Settings = app.state.settings
     if settings.database_url_shared:
         run_upgrade("shared", settings.database_url_shared)
+        with shared_session(settings) as session:
+            seed_locations_if_needed(session)
     if settings.database_url_per_env:
         run_upgrade("per_env", settings.database_url_per_env)
         with per_env_session(settings) as session:

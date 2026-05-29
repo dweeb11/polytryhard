@@ -15,7 +15,8 @@
 - [ ] M3.2 `Clock` interface + `WallClock` ([APP-189](https://linear.app/critterhaus/issue/APP-189))
 - [ ] M3.3 `IngestionSource` ABC + explicit registry ([APP-190](https://linear.app/critterhaus/issue/APP-190))
 - [ ] M3.4 Scheduler (asyncio supervisor + health) + FastAPI lifespan ([APP-191](https://linear.app/critterhaus/issue/APP-191))
-- [ ] M3.5 `reference_location` seed + Kalshi discovery ([APP-192](https://linear.app/critterhaus/issue/APP-192))
+- [ ] M3.5a `reference_location` curated seed on startup ([APP-192](https://linear.app/critterhaus/issue/APP-192)) — PR #30
+- [ ] M3.5b Kalshi market discovery ([APP-192](https://linear.app/critterhaus/issue/APP-192)) — later stack slice
 - [ ] M3.6 Kalshi snapshot source (auth/signing) ([APP-193](https://linear.app/critterhaus/issue/APP-193))
 - [ ] M3.7 Open-Meteo source (GFS + ECMWF) ([APP-194](https://linear.app/critterhaus/issue/APP-194))
 - [ ] M3.8 `/v1/sources` endpoint + OpenAPI regen ([APP-195](https://linear.app/critterhaus/issue/APP-195))

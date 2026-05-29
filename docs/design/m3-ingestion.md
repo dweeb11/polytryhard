@@ -103,7 +103,7 @@ Deferred (land with their consuming milestones): `feature_value`, `rubric_score`
 
 ### `reference_location` seed
 
-`core/sources/seed.py`, mirroring the existing ledger seed pattern. A curated city list — Houston, NYC, Chicago, Austin, Miami, LA — each with lat/lon/timezone/station. Idempotent upsert on startup.
+`core/sources/seed.py`, mirroring the existing ledger seed pattern. A curated city list — Houston, NYC, Chicago, Austin, Miami, LA — each with lat/lon/timezone/station. Idempotent **insert-if-missing** on startup (existing rows are not updated; coordinate changes need a migration).
 
 ### `kalshi_markets`
 
