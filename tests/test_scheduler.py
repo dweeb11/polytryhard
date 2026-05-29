@@ -12,6 +12,7 @@ from core.contracts.source import ReferenceLocation, SourceContext
 from core.db.shared_enums import SourceRunStatus
 from core.db.shared_models import RawForecastRunRow, SourceRunRow
 from core.settings import Settings
+from core.sources.kalshi import KalshiMarketsSource
 from core.sources.open_meteo import OpenMeteoSource
 from core.sources.persistence import SourceHealthTracker
 from core.sources.seed import seed_locations_if_needed
@@ -182,3 +183,19 @@ async def test_open_meteo_empty_hourly_reports_degraded() -> None:
     result = await source.fetch(clock, ctx)
     assert result.status == SourceRunStatus.DEGRADED
     assert result.error_text == "Open-Meteo returned no forecast rows"
+
+
+@pytest.mark.asyncio
+async def test_kalshi_unconfigured_reports_degraded() -> None:
+    source = KalshiMarketsSource()
+    settings = Settings(REQUIRE_DBS=False, SCHEDULER_ENABLED=False)
+    clock = FakeClock(start=datetime(2026, 5, 28, 12, 0, tzinfo=UTC))
+    ctx = SourceContext(
+        request_id="test",
+        settings=settings,
+        locations=(),
+        markets=(),
+        http=FakeHttpClient({}),
+    )
+    result = await source.fetch(clock, ctx)
+    assert result.status == SourceRunStatus.DEGRADED
