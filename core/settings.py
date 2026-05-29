@@ -32,7 +32,7 @@ class Settings(BaseSettings):
         alias="KALSHI_API_BASE",
     )
     kalshi_series_prefixes_raw: str = Field(
-        default="KXHIGH,KXLOW",
+        default="KXHIGHNY",
         alias="KALSHI_SERIES_PREFIXES",
     )
 
@@ -56,6 +56,15 @@ class Settings(BaseSettings):
     @property
     def kalshi_configured(self) -> bool:
         return self.kalshi_api_key_id is not None and self.kalshi_private_key is not None
+
+    @property
+    def kalshi_api_base_url(self) -> str:
+        """Host base URL without /trade-api/v2 (paths add that segment)."""
+        base = (self.kalshi_api_base or "").rstrip("/")
+        suffix = "/trade-api/v2"
+        if base.endswith(suffix):
+            return base[: -len(suffix)]
+        return base
 
     @property
     def kalshi_series_prefixes(self) -> tuple[str, ...]:

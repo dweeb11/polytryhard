@@ -21,6 +21,31 @@ def test_sign_request_uses_stable_timestamp(monkeypatch: pytest.MonkeyPatch) -> 
     assert sig2
 
 
+def test_sign_request_ignores_query_string(monkeypatch: pytest.MonkeyPatch) -> None:
+    messages: list[bytes] = []
+
+    class _CapturingKey:
+        def sign(self, message: bytes, *_args: object, **_kwargs: object) -> bytes:
+            messages.append(message)
+            return b"sig"
+
+    monkeypatch.setattr("core.sources.kalshi.auth.time.time", lambda: 1_700_000_000.0)
+    monkeypatch.setattr("core.sources.kalshi.auth._load_private_key", lambda _pem: _CapturingKey())
+
+    sign_request(
+        private_key_pem=TEST_PEM,
+        method="GET",
+        path="/trade-api/v2/markets",
+    )
+    sign_request(
+        private_key_pem=TEST_PEM,
+        method="GET",
+        path="/trade-api/v2/markets?series_ticker=KXHIGHNY&status=open",
+    )
+    assert len(messages) == 2
+    assert messages[0] == messages[1]
+
+
 def test_auth_headers_include_kalshi_fields(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("core.sources.kalshi.auth.time.time", lambda: 1_700_000_000.0)
     headers = auth_headers(

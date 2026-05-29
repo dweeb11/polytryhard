@@ -1,0 +1,129 @@
+from __future__ import annotations
+
+import json
+from datetime import UTC, datetime
+from decimal import Decimal
+from pathlib import Path
+
+import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+
+from core.contracts.source import ReferenceMarketUpsert
+from core.db.shared_enums import SourceRunStatus
+from core.settings import Settings
+from core.sources.kalshi import KalshiMarketsSource
+from core.sources.kalshi.parse import parse_market, parse_orderbook
+
+CASSETTES = Path(__file__).resolve().parent / "cassettes"
+
+_TEST_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+TEST_PEM = _TEST_KEY.private_bytes(
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PrivateFormat.PKCS8,
+    encryption_algorithm=serialization.NoEncryption(),
+).decode("utf-8")
+
+
+def _load_cassette(name: str) -> dict:
+    return json.loads((CASSETTES / name).read_text(encoding="utf-8"))
+
+
+def test_parse_market_from_discovery_cassette() -> None:
+    payload = _load_cassette("kalshi_markets_discovery.json")
+    market = payload["markets"][0]
+    upsert = parse_market(market)
+    assert upsert == ReferenceMarketUpsert(
+        ticker="KXHIGHNY-25MAY28-T72",
+        series="KXHIGHNY",
+        title="Highest temp in NYC on May 28",
+        status="open",
+        open_time=datetime(2026, 5, 27, 0, 0, tzinfo=UTC),
+        close_time=datetime(2026, 5, 28, 23, 59, 59, tzinfo=UTC),
+        settlement_source=None,
+        settlement_ref=None,
+        settlement_time=None,
+        raw_jsonb=market,
+    )
+
+
+def test_parse_orderbook_from_fp_cassette() -> None:
+    payload = _load_cassette("kalshi_orderbook.json")
+    as_of = datetime(2026, 5, 28, 12, 0, tzinfo=UTC)
+    snapshot = parse_orderbook(ticker="KXHIGHNY-25MAY28-T72", as_of=as_of, payload=payload)
+    assert snapshot is not None
+    assert snapshot.bid_yes == Decimal("0.4500")
+    assert snapshot.ask_yes == Decimal("0.4800")
+    assert snapshot.mid_yes == Decimal("0.4650")
+    assert snapshot.bid_size == 120
+    assert snapshot.ask_size == 80
+    assert snapshot.last_trade_price is None
+    assert snapshot.last_trade_size is None
+
+
+def test_parse_orderbook_legacy_cent_format() -> None:
+    payload = _load_cassette("kalshi_orderbook_legacy.json")
+    as_of = datetime(2026, 5, 28, 12, 0, tzinfo=UTC)
+    snapshot = parse_orderbook(ticker="TEST", as_of=as_of, payload=payload)
+    assert snapshot is not None
+    assert snapshot.bid_yes == Decimal("0.45")
+    assert snapshot.ask_yes == Decimal("0.48")
+    assert snapshot.bid_size == 120
+    assert snapshot.ask_size == 80
+    assert snapshot.last_trade_price == Decimal("0.46")
+    assert snapshot.last_trade_size == 10
+
+
+class _MockResponse:
+    def __init__(self, *, status_code: int, payload: dict) -> None:
+        self.status_code = status_code
+        self._payload = payload
+
+    def json(self) -> dict:
+        return self._payload
+
+
+class _MockHttp:
+    def __init__(self, *, responses: list[tuple[str, _MockResponse]]) -> None:
+        self._responses = responses
+        self.calls: list[str] = []
+
+    async def get(self, url: str, *, headers: dict[str, str] | None = None) -> _MockResponse:
+        self.calls.append(url)
+        for prefix, response in self._responses:
+            if prefix in url:
+                return response
+        return _MockResponse(status_code=404, payload={})
+
+
+@pytest.mark.asyncio
+async def test_kalshi_fetch_degraded_when_orderbooks_empty() -> None:
+    discovery = _load_cassette("kalshi_markets_discovery.json")
+    settings = Settings(
+        REQUIRE_DBS=False,
+        KALSHI_API_KEY_ID="key",
+        KALSHI_PRIVATE_KEY=TEST_PEM,
+    )
+    http = _MockHttp(
+        responses=[
+            ("/trade-api/v2/markets", _MockResponse(status_code=200, payload=discovery)),
+            ("/orderbook", _MockResponse(status_code=404, payload={})),
+        ]
+    )
+    from core.clock import FakeClock
+    from core.contracts.source import SourceContext
+
+    source = KalshiMarketsSource()
+    result = await source.fetch(
+        FakeClock(start=datetime(2026, 5, 28, 12, 0, tzinfo=UTC)),
+        SourceContext(
+            request_id="test",
+            settings=settings,
+            locations=(),
+            markets=(),
+            http=http,
+        ),
+    )
+    assert result.status == SourceRunStatus.DEGRADED
+    assert result.error_text == "Kalshi orderbook fetch produced no snapshots"
+    assert len(result.market_upserts) == 1

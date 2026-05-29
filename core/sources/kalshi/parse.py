@@ -36,28 +36,53 @@ def parse_market(payload: dict[str, Any]) -> ReferenceMarketUpsert | None:
     )
 
 
+def _fp_level(
+    levels: object,
+) -> tuple[Decimal | None, int | None]:
+    if not isinstance(levels, list) or not levels:
+        return None, None
+    top = levels[0]
+    if not isinstance(top, list) or len(top) < 2:
+        return None, None
+    price = Decimal(str(top[0]))
+    size = int(Decimal(str(top[1])))
+    return price, size
+
+
+def _cent_level(
+    levels: object,
+) -> tuple[Decimal | None, int | None]:
+    if not isinstance(levels, list) or not levels:
+        return None, None
+    top = levels[0]
+    if not isinstance(top, list) or len(top) < 2:
+        return None, None
+    price = Decimal(str(top[0])) / Decimal("100")
+    size = int(top[1])
+    return price, size
+
+
 def parse_orderbook(
     *, ticker: str, as_of: datetime, payload: dict[str, Any]
 ) -> RawMarketSnapshotDraft | None:
-    orderbook = payload.get("orderbook") or payload.get("orderbook_fp") or {}
-    yes_bids = orderbook.get("yes") or []
-    no_bids = orderbook.get("no") or []
+    orderbook_fp = payload.get("orderbook_fp")
+    orderbook_legacy = payload.get("orderbook")
 
     bid_yes: Decimal | None = None
     bid_size: int | None = None
-    if yes_bids:
-        top = yes_bids[0]
-        if isinstance(top, list) and len(top) >= 2:
-            bid_yes = Decimal(str(top[0])) / Decimal("100")
-            bid_size = int(top[1])
-
     ask_yes: Decimal | None = None
     ask_size: int | None = None
-    if no_bids:
-        top = no_bids[0]
-        if isinstance(top, list) and len(top) >= 2:
-            ask_yes = Decimal("1") - Decimal(str(top[0])) / Decimal("100")
-            ask_size = int(top[1])
+
+    if isinstance(orderbook_fp, dict):
+        bid_yes, bid_size = _fp_level(orderbook_fp.get("yes_dollars"))
+        no_price, ask_size = _fp_level(orderbook_fp.get("no_dollars"))
+        if no_price is not None:
+            ask_yes = Decimal("1") - no_price
+    elif isinstance(orderbook_legacy, dict):
+        bid_yes, bid_size = _cent_level(orderbook_legacy.get("yes"))
+        no_price, ask_size = _cent_level(orderbook_legacy.get("no"))
+        if no_price is not None:
+            ask_yes = Decimal("1") - no_price
 
     mid_yes: Decimal | None = None
     if bid_yes is not None and ask_yes is not None:
