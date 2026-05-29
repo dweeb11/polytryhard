@@ -3,7 +3,7 @@
 FROM node:24-alpine AS build
 WORKDIR /app
 
-COPY ui/package*.json ./
+COPY ui/package*.json ui/.npmrc ./
 RUN npm ci
 
 COPY ui/ ./
