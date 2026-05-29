@@ -231,6 +231,23 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/v1/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Sources Route */
+        get: operations["list_sources_route_v1_sources_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -332,6 +349,23 @@ export type components = {
             fraction: number;
             /** Reason */
             reason: string;
+        };
+        /** SourceHealthEntry */
+        SourceHealthEntry: {
+            /** Name */
+            name: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Status */
+            status?: string | null;
+            /** Lastrunat */
+            lastRunAt?: string | null;
+            /** Lastsuccessat */
+            lastSuccessAt?: string | null;
+            /** Rowslastrun */
+            rowsLastRun?: number | null;
+            /** Lasterror */
+            lastError?: string | null;
         };
         /** StrategyConfig */
         StrategyConfig: {
@@ -810,6 +844,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_sources_route_v1_sources_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceHealthEntry"][];
                 };
             };
         };

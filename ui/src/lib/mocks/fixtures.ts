@@ -202,31 +202,17 @@ function seedFixture(): EnvSnapshot {
 		sources: [
 			{
 				name: 'kalshi_markets',
-				displayName: 'Kalshi Markets (WS)',
-				state: 'healthy',
-				lastSuccessfulFetch: hoursAgo(0.01),
-				lastError: null
+				displayName: 'Kalshi Markets',
+				state: 'degraded',
+				lastSuccessfulFetch: hoursAgo(2.5),
+				lastError: 'Kalshi credentials not configured'
 			},
 			{
-				name: 'nws_forecast',
-				displayName: 'NOAA NWS',
+				name: 'open_meteo',
+				displayName: 'Open-Meteo (GFS + ECMWF)',
 				state: 'healthy',
 				lastSuccessfulFetch: hoursAgo(0.5),
 				lastError: null
-			},
-			{
-				name: 'gfs_ensemble',
-				displayName: 'GFS Ensemble',
-				state: 'degraded',
-				lastSuccessfulFetch: hoursAgo(2.5),
-				lastError: 'HTTP 503 from Open-Meteo'
-			},
-			{
-				name: 'ecmwf_open_meteo',
-				displayName: 'ECMWF (Open-Meteo)',
-				state: 'down',
-				lastSuccessfulFetch: hoursAgo(6),
-				lastError: 'Connection timeout after 30s'
 			}
 		],
 		plugins: basePlugins(),
