@@ -161,7 +161,7 @@
 						type="button"
 						class="rounded border border-amber-700 px-3 py-1.5 text-sm text-amber-300 disabled:opacity-40"
 						disabled={$systemPaused}
-						onclick={() => pauseStrategy(strat.name, reason || 'operator pause')}
+						onclick={() => void pauseStrategy(strat.name, reason || 'operator pause')}
 					>
 						Pause
 					</button>
@@ -171,7 +171,7 @@
 						type="button"
 						class="rounded border border-emerald-700 px-3 py-1.5 text-sm text-emerald-300 disabled:opacity-40"
 						disabled={$systemPaused}
-						onclick={() => resumeStrategy(strat.name, reason || 'operator resume')}
+						onclick={() => void resumeStrategy(strat.name, reason || 'operator resume')}
 					>
 						Resume
 					</button>
@@ -190,7 +190,7 @@
 						type="button"
 						class="mt-1 w-full rounded border border-[var(--color-border)] py-1 text-xs disabled:opacity-40"
 						disabled={$systemPaused || strat.state === 'decommissioned'}
-						onclick={() => setKellyFraction(strat.name, kellyPct / 100, 'dashboard slider')}
+						onclick={() => void setKellyFraction(strat.name, kellyPct / 100, 'dashboard slider')}
 					>
 						Apply Kelly {kellyPct}%
 					</button>
@@ -298,7 +298,7 @@
 		onclick={() => {
 			const cents = parseAmountCents();
 			if (cents === null) return;
-			deposit(name, cents, reason || 'deposit');
+			void deposit(name, cents, reason || 'deposit');
 			depositModal = false;
 			amountError = '';
 		}}
@@ -327,7 +327,7 @@
 		onclick={() => {
 			const cents = parseAmountCents();
 			if (cents === null) return;
-			withdraw(name, cents, reason || 'withdraw');
+			void withdraw(name, cents, reason || 'withdraw');
 			withdrawModal = false;
 			amountError = '';
 		}}
@@ -342,7 +342,7 @@
 		type="button"
 		class="w-full rounded bg-orange-700 py-2 text-sm text-white"
 		onclick={() => {
-			forceCloseAndWithdraw(name, reason || 'force close');
+			void forceCloseAndWithdraw(name, reason || 'force close');
 			forceModal = false;
 		}}
 	>
@@ -355,7 +355,7 @@
 		type="button"
 		class="w-full rounded bg-red-800 py-2 text-sm text-white"
 		onclick={() => {
-			decommission(name, reason || 'decommission');
+			void decommission(name, reason || 'decommission');
 			decomModal = false;
 		}}
 	>
