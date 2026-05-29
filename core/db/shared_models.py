@@ -4,26 +4,19 @@ from decimal import Decimal
 from sqlalchemy import (
     BigInteger,
     DateTime,
-    Enum,
     ForeignKey,
     Index,
     Integer,
     Numeric,
     String,
     Text,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.types import JSON
 
 from core.db.shared_enums import ForecastSource, SourceRunStatus
-
-
-def _str_enum_column(enum_type: type) -> Enum:
-    return Enum(
-        enum_type,
-        native_enum=False,
-        values_callable=lambda obj: [member.value for member in obj],
-    )
+from core.db.types import str_enum_column
 
 
 class SharedBase(DeclarativeBase):
@@ -59,7 +52,9 @@ class ReferenceMarketRow(SharedBase):
 
 class RawMarketSnapshotRow(SharedBase):
     __tablename__ = "raw_market_snapshot"
-    __table_args__ = (Index("ix_raw_market_snapshot_ticker_as_of", "ticker", "as_of"),)
+    __table_args__ = (
+        Index("ix_raw_market_snapshot_ticker_as_of", "ticker", text("as_of DESC")),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     ticker: Mapped[str] = mapped_column(String(128), ForeignKey("reference_market.ticker"))
@@ -85,12 +80,12 @@ class RawForecastRunRow(SharedBase):
             "source",
             "location_id",
             "variable",
-            "run_time",
+            text("run_time DESC"),
         ),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    source: Mapped[ForecastSource] = mapped_column(_str_enum_column(ForecastSource))
+    source: Mapped[ForecastSource] = mapped_column(str_enum_column(ForecastSource))
     run_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     location_id: Mapped[str] = mapped_column(String(64), ForeignKey("reference_location.id"))
@@ -104,13 +99,15 @@ class RawForecastRunRow(SharedBase):
 
 class SourceRunRow(SharedBase):
     __tablename__ = "source_run"
-    __table_args__ = (Index("ix_source_run_source_started", "source_name", "started_at"),)
+    __table_args__ = (
+        Index("ix_source_run_source_started", "source_name", text("started_at DESC")),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     source_name: Mapped[str] = mapped_column(String(64))
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    status: Mapped[SourceRunStatus] = mapped_column(_str_enum_column(SourceRunStatus))
+    status: Mapped[SourceRunStatus] = mapped_column(str_enum_column(SourceRunStatus))
     rows_written: Mapped[int] = mapped_column(BigInteger)
     error_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     request_id: Mapped[str] = mapped_column(String(64))
