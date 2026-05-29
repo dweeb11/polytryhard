@@ -5,7 +5,6 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     DateTime,
-    Enum,
     ForeignKey,
     Integer,
     Numeric,
@@ -23,14 +22,7 @@ from core.db.enums import (
     StrategyState,
     SystemState,
 )
-
-
-def str_enum_column(enum_type: type) -> Enum:
-    return Enum(
-        enum_type,
-        native_enum=False,
-        values_callable=lambda obj: [member.value for member in obj],
-    )
+from core.db.types import str_enum_column
 
 
 class Base(DeclarativeBase):

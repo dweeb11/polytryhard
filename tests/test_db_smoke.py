@@ -25,9 +25,30 @@ def test_migrations_apply_to_fresh_sqlite_databases(tmp_path: Path) -> None:
 
     from sqlalchemy import create_engine
 
-    engine = create_engine(per_env_url)
-    with engine.connect() as conn:
-        rows = conn.execute(
+    shared_engine = create_engine(shared_url)
+    with shared_engine.connect() as conn:
+        shared_rows = conn.execute(
+            text(
+                "SELECT name FROM sqlite_master WHERE type = 'table' "
+                "AND name IN ("
+                "'reference_location', 'reference_market', 'raw_market_snapshot', "
+                "'raw_forecast_run', 'source_run'"
+                ") "
+                "ORDER BY name"
+            )
+        ).all()
+
+    assert [tuple(row) for row in shared_rows] == [
+        ("raw_forecast_run",),
+        ("raw_market_snapshot",),
+        ("reference_location",),
+        ("reference_market",),
+        ("source_run",),
+    ]
+
+    per_env_engine = create_engine(per_env_url)
+    with per_env_engine.connect() as conn:
+        per_env_rows = conn.execute(
             text(
                 "SELECT name FROM sqlite_master WHERE type = 'table' "
                 "AND name IN ('audit_event', 'strategy_instance', 'system_state') "
@@ -35,7 +56,7 @@ def test_migrations_apply_to_fresh_sqlite_databases(tmp_path: Path) -> None:
             )
         ).all()
 
-    assert [tuple(row) for row in rows] == [
+    assert [tuple(row) for row in per_env_rows] == [
         ("audit_event",),
         ("strategy_instance",),
         ("system_state",),
