@@ -15,6 +15,10 @@ SIGNAL_EMITTING_STATES: frozenset[StrategyState] = frozenset({StrategyState.ACTI
 DEPOSIT_BLOCKED_STATES: frozenset[StrategyState] = frozenset({StrategyState.DECOMMISSIONED})
 
 
+def can_activate(state: StrategyState) -> bool:
+    return state == StrategyState.SEEDED
+
+
 def can_pause(state: StrategyState) -> bool:
     return state in PAUSABLE_STATES
 

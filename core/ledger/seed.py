@@ -69,7 +69,11 @@ def seed_strategies_if_needed(session: Session, *, request_id: str) -> None:
             AuditActor.SYSTEM,
             request_id,
         )
-        row = session.get(StrategyInstanceRow, name)
-        assert row is not None
-        row.state = DbStrategyState.ACTIVE
+        writer.activate_strategy(
+            session,
+            name,
+            "initial seed activation",
+            AuditActor.SYSTEM,
+            request_id,
+        )
     session.commit()

@@ -11,6 +11,7 @@ from core.domain.cash_event import CashEvent
 from core.domain.enums import AuditActor, CashEventKind, StrategyState, SystemState
 from core.domain.state_machine import (
     DEPOSIT_BLOCKED_STATES,
+    can_activate,
     can_pause,
     can_resume,
     pause_target_state,
@@ -104,8 +105,6 @@ def _write_bankroll_event(
     )
     session.add(event_row)
     strategy.bankroll_cents = balance_after_cents
-    if balance_after_cents > strategy.bankroll_hwm_cents:
-        strategy.bankroll_hwm_cents = balance_after_cents
     _touch_strategy(strategy)
     _append_audit(
         session,
@@ -325,6 +324,36 @@ def set_kelly_fraction(
     session.flush()
 
 
+def activate_strategy(
+    session: Session,
+    strategy_name: str,
+    reason: str,
+    actor: AuditActor,
+    request_id: str,
+) -> None:
+    if not reason.strip():
+        raise LedgerError("Reason is required")
+    strategy = _get_strategy_row(session, strategy_name)
+    state = StrategyState(strategy.state)
+    if not can_activate(state):
+        raise LedgerError(f"Cannot activate from state {state.value}")
+    before = {"state": strategy.state}
+    target = StrategyState.ACTIVE
+    _touch_strategy(strategy, state=target)
+    _append_audit(
+        session,
+        actor=actor,
+        action="activate_strategy",
+        target_type="strategy",
+        target_id=strategy_name,
+        before_state=before,
+        after_state={"state": target.value},
+        reason=reason,
+        request_id=request_id,
+    )
+    session.flush()
+
+
 def pause_strategy(
     session: Session,
     strategy_name: str,
@@ -332,6 +361,8 @@ def pause_strategy(
     actor: AuditActor,
     request_id: str,
 ) -> None:
+    if not reason.strip():
+        raise LedgerError("Reason is required")
     _require_system_active(session)
     strategy = _get_strategy_row(session, strategy_name)
     state = StrategyState(strategy.state)
@@ -362,6 +393,8 @@ def resume_strategy(
     actor: AuditActor,
     request_id: str,
 ) -> None:
+    if not reason.strip():
+        raise LedgerError("Reason is required to resume")
     _require_system_active(session)
     strategy = _get_strategy_row(session, strategy_name)
     state = StrategyState(strategy.state)
@@ -392,6 +425,9 @@ def decommission_strategy(
     actor: AuditActor,
     request_id: str,
 ) -> None:
+    if not reason.strip():
+        raise LedgerError("Reason is required")
+    _require_system_active(session)
     strategy = _get_strategy_row(session, strategy_name)
     before = {"state": strategy.state, "enabled": strategy.enabled}
     strategy.enabled = False

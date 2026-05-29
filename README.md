@@ -1,37 +1,48 @@
 # polytryhard
 
-Statistical research lab for prediction markets — **frontend prototype only** (no FastAPI, Postgres, or Docker yet).
+Statistical research lab for prediction markets — FastAPI control plane, per-env Postgres ledger, and a SvelteKit UI that runs in **live** or **mock** mode.
 
-The dashboard in `ui/` is a live, in-browser mock: every control mutates persisted state, writes audit events, and enforces PDD ledger/state-machine rules. See [docs/PDD.md](docs/PDD.md) for the full product design.
+See [docs/PDD.md](docs/PDD.md) for the full product design.
 
-## Run the UI
+## Quick start (local)
+
+```bash
+python3.11 -m venv .venv
+./.venv/bin/pip install -r requirements-dev.txt
+cp .env.example .env   # edit DATABASE_URL_* and CONTROL_PLANE_TOKEN
+
+docker compose up -d postgres   # or point URLs at existing Postgres
+./.venv/bin/alembic -c alembic.ini upgrade head  # per-env tree via scripts/start-api.sh
+
+REQUIRE_DBS=0 CONTROL_PLANE_TOKEN=dev ./.venv/bin/uvicorn core.api.main:app --reload --port 8080
+```
 
 ```bash
 cd ui
-npm install --cache .npm-cache   # use local cache if global npm cache has permission issues
+npm install --cache .npm-cache
+# optional live mode:
+# PUBLIC_BACKEND_URL=http://localhost:8080 PUBLIC_BACKEND_TOKEN=dev npm run dev
 npm run dev
 ```
 
-Open http://localhost:5173
+Open http://localhost:5173 — header shows **Live backend** when `/healthz` is ok and `PUBLIC_BACKEND_*` are set; otherwise **Mock prototype**.
 
-Other commands:
+## Commands
 
-```bash
-npm run build    # production static build
-npm run check    # svelte-check
-npm run lint
-```
+| Area | Command |
+|------|---------|
+| API lint/type/test | `./.venv/bin/ruff check . && ./.venv/bin/mypy core tests && REQUIRE_DBS=0 pytest -q` |
+| UI | `cd ui && npm run check && npm run lint && npm run test && npm run build` |
+| Regen API types | `REQUIRE_DBS=0 CONTROL_PLANE_TOKEN=export ./.venv/bin/python scripts/export_openapi.py && cd ui && npm run regen-api-types` |
 
 ## Repo
 
 Canonical remote: `git@github.com:dweeb11/polytryhard.git`
 
-**Branches:** `staging` (integration / user-test) ← feature PRs; `main` (production) ← promote via PR after staging soak. See [.cursor/rules/git-workflow.mdc](.cursor/rules/git-workflow.mdc).
+**Branches:** `staging` (integration) ← feature PRs; `main` (production) ← promote via PR after staging soak. See [.cursor/rules/git-workflow.mdc](.cursor/rules/git-workflow.mdc).
 
-## What works in the prototype
+## Architecture (M2)
 
-- Environments `main` / `staging` with separate `localStorage` namespaces
-- Strategy roster, detail (bankroll + calibration SVG), sources, plugins, audit log
-- Single mutation surface: `ui/src/lib/actions.ts`
-- Simulated tick loop (~3s) for P&L drift, source aging, and signal emission
-- Kill switch, deposit/withdraw with free-cash gating, plugin dependency blocking
+- `core/ledger/writer.py` — sole bankroll mutator; every change writes `cash_event` + `audit_event`
+- `core/api/v1/` — bearer-auth control plane (`/v1/strategies`, `/v1/system`, `/v1/audit`)
+- `ui/src/lib/api/types.ts` — generated from OpenAPI; mock-only types stay in `ui/src/lib/types.ts`

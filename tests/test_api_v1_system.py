@@ -20,6 +20,14 @@ def test_kill_switch_blocks_deposit(
     )
     assert deposit.status_code == 400
 
+    decommission = api_client.post(
+        "/v1/strategies/weather_ensemble_disagreement/decommission",
+        headers=auth_headers,
+        json={"reason": "blocked"},
+    )
+    assert decommission.status_code == 400
+    assert decommission.json()["detail"] == "System kill switch is active"
+
     resume = api_client.post(
         "/v1/system/resume",
         headers=auth_headers,

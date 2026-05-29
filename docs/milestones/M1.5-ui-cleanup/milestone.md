@@ -8,7 +8,7 @@
 - [x] Milestone — this doc
 - [x] **Implement**
 - [x] Verify
-- [ ] Ship — PR to `staging`
+- [x] Ship — PR to `staging`
 
 ## Tasks
 - [x] Delete redirect stubs (`/plugins`, `/audit`, `/sources`, `/settings`); nav links point at `/settings/*`
