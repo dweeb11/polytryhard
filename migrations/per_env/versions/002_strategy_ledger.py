@@ -87,27 +87,6 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     )
     op.create_table(
-        "cash_event",
-        sa.Column("id", sa.String(length=36), primary_key=True),
-        sa.Column(
-            "strategy_name",
-            sa.String(length=128),
-            sa.ForeignKey("strategy_instance.name"),
-            nullable=False,
-        ),
-        sa.Column("occurred_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("kind", cash_event_kind_enum, nullable=False),
-        sa.Column("amount_cents", sa.BigInteger(), nullable=False),
-        sa.Column("balance_after_cents", sa.BigInteger(), nullable=False),
-        sa.Column("reason", sa.Text(), nullable=False),
-        sa.Column("ref_position_id", sa.String(length=36), nullable=True),
-    )
-    op.create_index(
-        "ix_cash_event_strategy_occurred",
-        "cash_event",
-        ["strategy_name", sa.text("occurred_at DESC")],
-    )
-    op.create_table(
         "paper_position",
         sa.Column("id", sa.String(length=36), primary_key=True),
         sa.Column(
@@ -127,12 +106,36 @@ def upgrade() -> None:
         sa.Column("unrealized_pnl_cents", sa.BigInteger(), nullable=False, server_default="0"),
         sa.Column("status", position_status_enum, nullable=False),
     )
-    op.create_foreign_key(
-        "fk_cash_event_ref_position_id_paper_position",
-        "cash_event",
+    op.create_index(
+        "ix_paper_position_strategy_name",
         "paper_position",
-        ["ref_position_id"],
-        ["id"],
+        ["strategy_name"],
+    )
+    op.create_table(
+        "cash_event",
+        sa.Column("id", sa.String(length=36), primary_key=True),
+        sa.Column(
+            "strategy_name",
+            sa.String(length=128),
+            sa.ForeignKey("strategy_instance.name"),
+            nullable=False,
+        ),
+        sa.Column("occurred_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("kind", cash_event_kind_enum, nullable=False),
+        sa.Column("amount_cents", sa.BigInteger(), nullable=False),
+        sa.Column("balance_after_cents", sa.BigInteger(), nullable=False),
+        sa.Column("reason", sa.Text(), nullable=False),
+        sa.Column(
+            "ref_position_id",
+            sa.String(length=36),
+            sa.ForeignKey("paper_position.id"),
+            nullable=True,
+        ),
+    )
+    op.create_index(
+        "ix_cash_event_strategy_occurred",
+        "cash_event",
+        ["strategy_name", sa.text("occurred_at DESC")],
     )
     op.create_table(
         "signal",
@@ -184,6 +187,11 @@ def upgrade() -> None:
             server_default=sa.text("'{}'"),
         ),
     )
+    op.create_index(
+        "ix_paper_fill_position_id",
+        "paper_fill",
+        ["position_id"],
+    )
     op.create_table(
         "system_state",
         sa.Column("id", sa.Integer(), primary_key=True),
@@ -203,15 +211,12 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_table("system_state")
+    op.drop_index("ix_paper_fill_position_id", table_name="paper_fill")
     op.drop_table("paper_fill")
     op.drop_index("ix_signal_strategy_evaluated", table_name="signal")
     op.drop_table("signal")
-    op.drop_constraint(
-        "fk_cash_event_ref_position_id_paper_position",
-        "cash_event",
-        type_="foreignkey",
-    )
-    op.drop_table("paper_position")
     op.drop_index("ix_cash_event_strategy_occurred", table_name="cash_event")
     op.drop_table("cash_event")
+    op.drop_index("ix_paper_position_strategy_name", table_name="paper_position")
+    op.drop_table("paper_position")
     op.drop_table("strategy_instance")
