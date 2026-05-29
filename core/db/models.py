@@ -25,6 +25,14 @@ from core.db.enums import (
 )
 
 
+def str_enum_column(enum_type: type) -> Enum:
+    return Enum(
+        enum_type,
+        native_enum=False,
+        values_callable=lambda obj: [member.value for member in obj],
+    )
+
+
 class Base(DeclarativeBase):
     pass
 
@@ -49,7 +57,7 @@ class StrategyInstanceRow(Base):
 
     name: Mapped[str] = mapped_column(String(128), primary_key=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    state: Mapped[StrategyState] = mapped_column(Enum(StrategyState, native_enum=False))
+    state: Mapped[StrategyState] = mapped_column(str_enum_column(StrategyState))
     bankroll_cents: Mapped[int] = mapped_column(BigInteger)
     initial_deposit_cents: Mapped[int] = mapped_column(BigInteger)
     bankroll_hwm_cents: Mapped[int] = mapped_column(BigInteger)
@@ -72,7 +80,7 @@ class CashEventRow(Base):
         String(128), ForeignKey("strategy_instance.name"), index=True
     )
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    kind: Mapped[CashEventKind] = mapped_column(Enum(CashEventKind, native_enum=False))
+    kind: Mapped[CashEventKind] = mapped_column(str_enum_column(CashEventKind))
     amount_cents: Mapped[int] = mapped_column(BigInteger)
     balance_after_cents: Mapped[int] = mapped_column(BigInteger)
     reason: Mapped[str] = mapped_column(Text)
@@ -89,7 +97,7 @@ class PaperPositionRow(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     strategy_name: Mapped[str] = mapped_column(String(128), ForeignKey("strategy_instance.name"))
     ticker: Mapped[str] = mapped_column(String(128))
-    side: Mapped[PositionSide] = mapped_column(Enum(PositionSide, native_enum=False))
+    side: Mapped[PositionSide] = mapped_column(str_enum_column(PositionSide))
     opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     open_avg_price: Mapped[Decimal] = mapped_column(Numeric(12, 6))
@@ -97,7 +105,7 @@ class PaperPositionRow(Base):
     cost_basis_cents: Mapped[int] = mapped_column(BigInteger)
     realized_pnl_cents: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     unrealized_pnl_cents: Mapped[int] = mapped_column(BigInteger, default=0)
-    status: Mapped[PositionStatus] = mapped_column(Enum(PositionStatus, native_enum=False))
+    status: Mapped[PositionStatus] = mapped_column(str_enum_column(PositionStatus))
 
 
 class PaperFillRow(Base):
@@ -109,7 +117,7 @@ class PaperFillRow(Base):
         String(36), ForeignKey("signal.id"), nullable=True
     )
     filled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    side: Mapped[PositionSide] = mapped_column(Enum(PositionSide, native_enum=False))
+    side: Mapped[PositionSide] = mapped_column(str_enum_column(PositionSide))
     qty: Mapped[int] = mapped_column(Integer)
     price: Mapped[Decimal] = mapped_column(Numeric(12, 6))
     fees_cents: Mapped[int] = mapped_column(BigInteger, default=0)
@@ -127,7 +135,7 @@ class SignalRow(Base):
     confidence: Mapped[Decimal] = mapped_column(Numeric(8, 6))
     features_snapshot_jsonb: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
     market_state_jsonb: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
-    outcome: Mapped[SignalOutcome] = mapped_column(Enum(SignalOutcome, native_enum=False))
+    outcome: Mapped[SignalOutcome] = mapped_column(str_enum_column(SignalOutcome))
     rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
@@ -135,7 +143,7 @@ class SystemStateRow(Base):
     __tablename__ = "system_state"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    state: Mapped[SystemState] = mapped_column(Enum(SystemState, native_enum=False))
+    state: Mapped[SystemState] = mapped_column(str_enum_column(SystemState))
     kill_switch_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     kill_switch_tripped_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
