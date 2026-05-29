@@ -118,15 +118,18 @@ class Scheduler:
             self._http = httpx.AsyncClient(timeout=30.0)
         try:
             with shared_session(self.settings) as session:
-                ctx = SourceContext(
-                    request_id=request_id,
-                    settings=self.settings,
-                    locations=load_locations(session),
-                    markets=load_markets(session),
-                    http=HttpxClient(self._http),
-                )
-                result = await source.fetch(self.clock, ctx)
-                finished_at = self.clock.now()
+                locations = load_locations(session)
+                markets = load_markets(session)
+            ctx = SourceContext(
+                request_id=request_id,
+                settings=self.settings,
+                locations=locations,
+                markets=markets,
+                http=HttpxClient(self._http),
+            )
+            result = await source.fetch(self.clock, ctx)
+            finished_at = self.clock.now()
+            with shared_session(self.settings) as session:
                 persist_fetch_result(
                     session,
                     source_name=source.name,
@@ -135,13 +138,13 @@ class Scheduler:
                     finished_at=finished_at,
                     result=result,
                 )
-                self.health.record_success(
-                    source.name,
-                    finished_at=finished_at,
-                    rows_written=result.rows_written,
-                    run_status=result.status,
-                    error_text=result.error_text,
-                )
+            self.health.record_success(
+                source.name,
+                finished_at=finished_at,
+                rows_written=result.rows_written,
+                run_status=result.status,
+                error_text=result.error_text,
+            )
         except Exception as exc:
             finished_at = self.clock.now()
             logger.exception("source fetch failed source=%s request_id=%s", source.name, request_id)
