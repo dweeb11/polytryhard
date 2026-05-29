@@ -2,8 +2,9 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
+from core.db.enums import StrategyState as DbStrategyState
 from core.db.models import StrategyInstanceRow
-from core.domain.enums import AuditActor, StrategyState
+from core.domain.enums import AuditActor
 from core.ledger import writer
 from core.utils.time import utc_now
 
@@ -42,7 +43,7 @@ def seed_strategies_if_needed(session: Session, *, request_id: str) -> None:
             StrategyInstanceRow(
                 name=name,
                 enabled=True,
-                state=StrategyState.SEEDED.value,
+                state=DbStrategyState.SEEDED,
                 bankroll_cents=0,
                 initial_deposit_cents=INITIAL_DEPOSIT_CENTS,
                 bankroll_hwm_cents=0,
@@ -70,5 +71,5 @@ def seed_strategies_if_needed(session: Session, *, request_id: str) -> None:
         )
         row = session.get(StrategyInstanceRow, name)
         assert row is not None
-        row.state = StrategyState.ACTIVE.value
+        row.state = DbStrategyState.ACTIVE
     session.commit()

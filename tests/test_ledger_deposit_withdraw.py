@@ -1,8 +1,9 @@
 import pytest
 from sqlalchemy.orm import Session, sessionmaker
 
+from core.db.enums import StrategyState as DbStrategyState
 from core.db.models import PaperPositionRow, StrategyInstanceRow
-from core.domain.enums import AuditActor, StrategyState
+from core.domain.enums import AuditActor
 from core.ledger import writer
 from core.ledger.errors import LedgerError
 from core.ledger.reconcile import check_bankroll_invariant
@@ -16,7 +17,7 @@ def _create_strategy(session: Session, name: str) -> None:
         StrategyInstanceRow(
             name=name,
             enabled=True,
-            state=StrategyState.SEEDED.value,
+            state=DbStrategyState.SEEDED,
             bankroll_cents=0,
             initial_deposit_cents=0,
             bankroll_hwm_cents=0,
@@ -39,7 +40,7 @@ def _create_strategy(session: Session, name: str) -> None:
     writer.deposit(session, name, 50_000, "initial", AuditActor.USER, "req-0")
     row = session.get(StrategyInstanceRow, name)
     assert row is not None
-    row.state = StrategyState.ACTIVE.value
+    row.state = DbStrategyState.ACTIVE
     session.commit()
 
 

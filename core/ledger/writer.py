@@ -4,13 +4,15 @@ from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
+from core.db.enums import StrategyState as DbStrategyState
+from core.db.enums import SystemState as DbSystemState
 from core.db.models import AuditEventRow, CashEventRow, StrategyInstanceRow, SystemStateRow
 from core.domain.cash_event import CashEvent
 from core.domain.enums import AuditActor, CashEventKind, StrategyState, SystemState
 from core.domain.state_machine import (
+    DEPOSIT_BLOCKED_STATES,
     can_pause,
     can_resume,
-    deposit_blocked_states,
     pause_target_state,
     resume_target_state,
     should_auto_resume_on_deposit,
@@ -71,7 +73,7 @@ def _touch_strategy(row: StrategyInstanceRow, *, state: StrategyState | None = N
     row.updated_at = now
     row.last_state_change_at = now
     if state is not None:
-        row.state = state.value
+        row.state = DbStrategyState(state)
 
 
 def _write_bankroll_event(
@@ -133,7 +135,7 @@ def deposit(
         raise LedgerError("Amount must be positive")
     strategy = _get_strategy_row(session, strategy_name)
     state = StrategyState(strategy.state)
-    if state in deposit_blocked_states():
+    if state in DEPOSIT_BLOCKED_STATES:
         raise LedgerError("Cannot deposit to decommissioned strategy")
 
     before = {"bankrollCents": strategy.bankroll_cents, "state": strategy.state}
@@ -147,7 +149,7 @@ def deposit(
         min_bankroll_cents=config.min_bankroll_cents,
     ):
         new_state = resume_target_state()
-        strategy.state = new_state.value
+        strategy.state = DbStrategyState(new_state)
 
     after = {"bankrollCents": new_bankroll, "state": strategy.state}
     return _write_bankroll_event(
@@ -231,7 +233,7 @@ def apply_kill_switch(
         ),
     }
     now = utc_now()
-    row.state = SystemState.PAUSED.value
+    row.state = DbSystemState.PAUSED
     row.kill_switch_reason = reason
     row.kill_switch_tripped_at = now
     row.updated_at = now
@@ -273,7 +275,7 @@ def clear_kill_switch(
         ),
     }
     now = utc_now()
-    row.state = SystemState.ACTIVE.value
+    row.state = DbSystemState.ACTIVE
     row.kill_switch_reason = None
     row.kill_switch_tripped_at = None
     row.updated_at = now
@@ -337,7 +339,7 @@ def pause_strategy(
         raise LedgerError(f"Cannot pause from state {state.value}")
     before = {"state": strategy.state}
     target = pause_target_state()
-    strategy.state = target.value
+    strategy.state = DbStrategyState(target)
     _touch_strategy(strategy, state=target)
     _append_audit(
         session,
@@ -367,7 +369,7 @@ def resume_strategy(
         raise LedgerError(f"Cannot resume from state {state.value}")
     before = {"state": strategy.state}
     target = resume_target_state()
-    strategy.state = target.value
+    strategy.state = DbStrategyState(target)
     _touch_strategy(strategy, state=target)
     _append_audit(
         session,
@@ -393,7 +395,7 @@ def decommission_strategy(
     strategy = _get_strategy_row(session, strategy_name)
     before = {"state": strategy.state, "enabled": strategy.enabled}
     strategy.enabled = False
-    strategy.state = StrategyState.DECOMMISSIONED.value
+    strategy.state = DbStrategyState(StrategyState.DECOMMISSIONED)
     _touch_strategy(strategy, state=StrategyState.DECOMMISSIONED)
     _append_audit(
         session,
