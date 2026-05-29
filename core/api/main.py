@@ -21,9 +21,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings: Settings = app.state.settings
     if settings.database_url_shared:
         run_upgrade("shared", settings.database_url_shared)
-    scheduler: Scheduler | None = None
-    if settings.database_url_shared:
-        run_upgrade("shared", settings.database_url_shared)
         with shared_session(settings) as session:
             seed_locations_if_needed(session)
     if settings.database_url_per_env:

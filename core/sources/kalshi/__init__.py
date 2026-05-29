@@ -31,30 +31,42 @@ class KalshiMarketsSource(IngestionSource):
             )
         assert settings.kalshi_api_key_id is not None
         assert settings.kalshi_private_key is not None
-        assert settings.kalshi_api_base is not None
 
+        api_base = settings.kalshi_api_base_url
         result = FetchResult()
         for series in settings.kalshi_series_prefixes:
             path = "/trade-api/v2/markets"
-            query = urlencode({"series_ticker": series, "status": "open", "limit": 100})
-            url = f"{settings.kalshi_api_base.rstrip('/')}{path}?{query}"
-            headers = auth_headers(
-                key_id=settings.kalshi_api_key_id,
-                private_key_pem=settings.kalshi_private_key,
-                method="GET",
-                path=f"{path}?{query}",
-            )
-            response = await ctx.http.get(url, headers=headers)
-            if response.status_code >= 400:
-                return FetchResult(
-                    status=SourceRunStatus.DEGRADED,
-                    error_text=f"Kalshi discovery HTTP {response.status_code}",
+            cursor: str | None = None
+            while True:
+                params: dict[str, str | int] = {
+                    "series_ticker": series,
+                    "status": "open",
+                    "limit": 100,
+                }
+                if cursor is not None:
+                    params["cursor"] = cursor
+                query = urlencode(params)
+                url = f"{api_base}{path}?{query}"
+                headers = auth_headers(
+                    key_id=settings.kalshi_api_key_id,
+                    private_key_pem=settings.kalshi_private_key,
+                    method="GET",
+                    path=path,
                 )
-            payload = response.json()
-            for market_payload in payload.get("markets", []):
-                upsert = parse_market(market_payload)
-                if upsert is not None:
-                    result.market_upserts.append(upsert)
+                response = await ctx.http.get(url, headers=headers)
+                if response.status_code >= 400:
+                    return FetchResult(
+                        status=SourceRunStatus.DEGRADED,
+                        error_text=f"Kalshi discovery HTTP {response.status_code}",
+                    )
+                payload = response.json()
+                for market_payload in payload.get("markets", []):
+                    upsert = parse_market(market_payload)
+                    if upsert is not None:
+                        result.market_upserts.append(upsert)
+                cursor = payload.get("cursor")
+                if not cursor:
+                    break
 
         active_markets = list(ctx.markets)
         tickers = {market.ticker for market in active_markets}
@@ -63,7 +75,7 @@ class KalshiMarketsSource(IngestionSource):
 
         for ticker in sorted(tickers):
             path = f"/trade-api/v2/markets/{ticker}/orderbook"
-            url = f"{settings.kalshi_api_base.rstrip('/')}{path}"
+            url = f"{api_base}{path}"
             headers = auth_headers(
                 key_id=settings.kalshi_api_key_id,
                 private_key_pem=settings.kalshi_private_key,
@@ -81,5 +93,13 @@ class KalshiMarketsSource(IngestionSource):
             return FetchResult(
                 status=SourceRunStatus.DEGRADED,
                 error_text="Kalshi returned no markets or snapshots",
+            )
+        if tickers and not result.market_snapshots and (
+            result.market_upserts or active_markets
+        ):
+            return FetchResult(
+                status=SourceRunStatus.DEGRADED,
+                error_text="Kalshi orderbook fetch produced no snapshots",
+                market_upserts=result.market_upserts,
             )
         return result

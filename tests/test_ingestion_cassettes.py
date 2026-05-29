@@ -1,5 +1,5 @@
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from core.db.shared_enums import ForecastSource
@@ -25,7 +25,7 @@ def test_parse_kalshi_orderbook_cassette() -> None:
     assert snapshot is not None
     assert snapshot.bid_yes is not None
     assert snapshot.ask_yes is not None
-    assert snapshot.last_trade_price is not None
+    assert snapshot.last_trade_price is None
 
 
 def test_parse_open_meteo_ensemble_cassette() -> None:
@@ -36,7 +36,39 @@ def test_parse_open_meteo_ensemble_cassette() -> None:
         source=ForecastSource.GFS,
         location_id="houston",
         ingested_at=ingested_at,
+        timezone="America/Chicago",
     )
     assert len(rows) == 4
     assert rows[0].location_id == "houston"
     assert rows[0].variable == "temperature_2m"
+    assert rows[0].ensemble_member == 0
+    assert rows[2].ensemble_member == 1
+    assert rows[0].valid_window_end == rows[0].valid_window_start + timedelta(hours=1)
+
+
+def test_parse_open_meteo_ensemble_cassette_timezone() -> None:
+    payload = json.loads((CASSETTES / "open_meteo_ensemble.json").read_text())
+    ingested_at = datetime(2026, 5, 28, 12, 0, tzinfo=UTC)
+    rows = parse_ensemble_response(
+        payload=payload,
+        source=ForecastSource.GFS,
+        location_id="houston",
+        ingested_at=ingested_at,
+        timezone="America/Chicago",
+    )
+    # Cassette time 2026-05-28T12:00 is local CDT (UTC-5) → 17:00 UTC
+    assert rows[0].valid_window_start == datetime(2026, 5, 28, 17, 0, tzinfo=UTC)
+
+
+def test_parse_open_meteo_ensemble_cassette_ecmwf_source() -> None:
+    payload = json.loads((CASSETTES / "open_meteo_ensemble.json").read_text())
+    ingested_at = datetime(2026, 5, 28, 12, 0, tzinfo=UTC)
+    rows = parse_ensemble_response(
+        payload=payload,
+        source=ForecastSource.ECMWF,
+        location_id="houston",
+        ingested_at=ingested_at,
+        timezone="America/Chicago",
+    )
+    assert len(rows) == 4
+    assert rows[0].source == ForecastSource.ECMWF

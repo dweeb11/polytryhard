@@ -22,7 +22,8 @@ def sign_request(*, private_key_pem: str, method: str, path: str) -> tuple[str, 
     from cryptography.hazmat.primitives.asymmetric import padding
 
     timestamp_ms = str(int(time.time() * 1000))
-    message = f"{timestamp_ms}{method.upper()}{path}".encode()
+    sign_path = path.split("?", 1)[0]
+    message = f"{timestamp_ms}{method.upper()}{sign_path}".encode()
     key = _load_private_key(private_key_pem)
     signature = key.sign(
         message,
