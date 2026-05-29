@@ -4,6 +4,7 @@ import json
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 from cryptography.hazmat.primitives import serialization
@@ -25,8 +26,11 @@ TEST_PEM = _TEST_KEY.private_bytes(
 ).decode("utf-8")
 
 
-def _load_cassette(name: str) -> dict:
-    return json.loads((CASSETTES / name).read_text(encoding="utf-8"))
+def _load_cassette(name: str) -> dict[str, Any]:
+    return cast(
+        dict[str, Any],
+        json.loads((CASSETTES / name).read_text(encoding="utf-8")),
+    )
 
 
 def test_parse_market_from_discovery_cassette() -> None:
@@ -75,11 +79,11 @@ def test_parse_orderbook_legacy_cent_format() -> None:
 
 
 class _MockResponse:
-    def __init__(self, *, status_code: int, payload: dict) -> None:
+    def __init__(self, *, status_code: int, payload: dict[str, Any]) -> None:
         self.status_code = status_code
         self._payload = payload
 
-    def json(self) -> dict:
+    def json(self) -> dict[str, Any]:
         return self._payload
 
 
