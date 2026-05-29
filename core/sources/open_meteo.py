@@ -89,7 +89,7 @@ def parse_ensemble_response(
     if not times:
         return []
 
-    # Open-Meteo ensemble API does not expose model run init time; use ingested_at until a better field is identified.
+    # Ensemble API has no model run init time; use ingested_at until we find one.
     run_time = ingested_at
 
     rows: list[RawForecastRunDraft] = []
