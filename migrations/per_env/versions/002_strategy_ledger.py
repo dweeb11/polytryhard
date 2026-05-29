@@ -87,27 +87,6 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     )
     op.create_table(
-        "cash_event",
-        sa.Column("id", sa.String(length=36), primary_key=True),
-        sa.Column(
-            "strategy_name",
-            sa.String(length=128),
-            sa.ForeignKey("strategy_instance.name"),
-            nullable=False,
-        ),
-        sa.Column("occurred_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("kind", cash_event_kind_enum, nullable=False),
-        sa.Column("amount_cents", sa.BigInteger(), nullable=False),
-        sa.Column("balance_after_cents", sa.BigInteger(), nullable=False),
-        sa.Column("reason", sa.Text(), nullable=False),
-        sa.Column("ref_position_id", sa.String(length=36), nullable=True),
-    )
-    op.create_index(
-        "ix_cash_event_strategy_occurred",
-        "cash_event",
-        ["strategy_name", sa.text("occurred_at DESC")],
-    )
-    op.create_table(
         "paper_position",
         sa.Column("id", sa.String(length=36), primary_key=True),
         sa.Column(
@@ -133,31 +112,30 @@ def upgrade() -> None:
         ["strategy_name"],
     )
     op.create_table(
-        "paper_fill",
+        "cash_event",
         sa.Column("id", sa.String(length=36), primary_key=True),
         sa.Column(
-            "position_id",
-            sa.String(length=36),
-            sa.ForeignKey("paper_position.id"),
+            "strategy_name",
+            sa.String(length=128),
+            sa.ForeignKey("strategy_instance.name"),
             nullable=False,
         ),
-        sa.Column("signal_id", sa.String(length=36), nullable=True),
-        sa.Column("filled_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("side", position_side_enum, nullable=False),
-        sa.Column("qty", sa.Integer(), nullable=False),
-        sa.Column("price", sa.Numeric(precision=12, scale=6), nullable=False),
-        sa.Column("fees_cents", sa.BigInteger(), nullable=False, server_default="0"),
+        sa.Column("occurred_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("kind", cash_event_kind_enum, nullable=False),
+        sa.Column("amount_cents", sa.BigInteger(), nullable=False),
+        sa.Column("balance_after_cents", sa.BigInteger(), nullable=False),
+        sa.Column("reason", sa.Text(), nullable=False),
         sa.Column(
-            "simulator_assumptions_jsonb",
-            sa.JSON(),
-            nullable=False,
-            server_default=sa.text("'{}'"),
+            "ref_position_id",
+            sa.String(length=36),
+            sa.ForeignKey("paper_position.id"),
+            nullable=True,
         ),
     )
     op.create_index(
-        "ix_paper_fill_position_id",
-        "paper_fill",
-        ["position_id"],
+        "ix_cash_event_strategy_occurred",
+        "cash_event",
+        ["strategy_name", sa.text("occurred_at DESC")],
     )
     op.create_table(
         "signal",
@@ -183,6 +161,38 @@ def upgrade() -> None:
         ["strategy_name", sa.text("evaluated_at DESC")],
     )
     op.create_table(
+        "paper_fill",
+        sa.Column("id", sa.String(length=36), primary_key=True),
+        sa.Column(
+            "position_id",
+            sa.String(length=36),
+            sa.ForeignKey("paper_position.id"),
+            nullable=False,
+        ),
+        sa.Column(
+            "signal_id",
+            sa.String(length=36),
+            sa.ForeignKey("signal.id"),
+            nullable=True,
+        ),
+        sa.Column("filled_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("side", position_side_enum, nullable=False),
+        sa.Column("qty", sa.Integer(), nullable=False),
+        sa.Column("price", sa.Numeric(precision=12, scale=6), nullable=False),
+        sa.Column("fees_cents", sa.BigInteger(), nullable=False, server_default="0"),
+        sa.Column(
+            "simulator_assumptions_jsonb",
+            sa.JSON(),
+            nullable=False,
+            server_default=sa.text("'{}'"),
+        ),
+    )
+    op.create_index(
+        "ix_paper_fill_position_id",
+        "paper_fill",
+        ["position_id"],
+    )
+    op.create_table(
         "system_state",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("state", system_state_enum, nullable=False, server_default="active"),
@@ -201,12 +211,12 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_table("system_state")
-    op.drop_index("ix_signal_strategy_evaluated", table_name="signal")
-    op.drop_table("signal")
     op.drop_index("ix_paper_fill_position_id", table_name="paper_fill")
     op.drop_table("paper_fill")
-    op.drop_index("ix_paper_position_strategy_name", table_name="paper_position")
-    op.drop_table("paper_position")
+    op.drop_index("ix_signal_strategy_evaluated", table_name="signal")
+    op.drop_table("signal")
     op.drop_index("ix_cash_event_strategy_occurred", table_name="cash_event")
     op.drop_table("cash_event")
+    op.drop_index("ix_paper_position_strategy_name", table_name="paper_position")
+    op.drop_table("paper_position")
     op.drop_table("strategy_instance")
