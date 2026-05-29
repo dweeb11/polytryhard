@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from core.api.v1.deps import get_request_id, per_env_db, verify_bearer_token
-from core.api.v1.schemas import AmountReasonBody, ReasonBody, SetKellyBody
+from core.api.v1.deps import get_request_id, per_env_db, shared_db, verify_bearer_token
+from core.api.v1.schemas import AmountReasonBody, ReasonBody, SetKellyBody, SourceHealthEntry
 from core.domain.audit import AuditEvent
 from core.domain.cash_event import CashEvent
 from core.domain.enums import AuditActor
@@ -19,6 +19,9 @@ from core.ledger.queries import (
     strategy_instance_from_row,
 )
 from core.ledger.reconcile import check_bankroll_invariant
+from core.settings import Settings, get_settings
+from core.sources.queries import list_source_health
+from core.utils.time import format_dt
 
 router = APIRouter(prefix="/v1", dependencies=[Depends(verify_bearer_token)])
 
@@ -229,3 +232,23 @@ def list_audit_route(
         action=action,
         target_type=target_type,
     )
+
+
+@router.get("/sources", response_model=list[SourceHealthEntry])
+def list_sources_route(
+    session: Session = Depends(shared_db),
+    settings: Settings = Depends(get_settings),
+) -> list[SourceHealthEntry]:
+    entries = list_source_health(session, settings)
+    return [
+        SourceHealthEntry(
+            name=entry.name,
+            enabled=entry.enabled,
+            status=entry.status.value if entry.status is not None else None,
+            last_run_at=format_dt(entry.last_run_at) if entry.last_run_at else None,
+            last_success_at=format_dt(entry.last_success_at) if entry.last_success_at else None,
+            rows_last_run=entry.rows_last_run,
+            last_error=entry.last_error,
+        )
+        for entry in entries
+    ]
