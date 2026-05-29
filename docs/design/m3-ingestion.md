@@ -25,7 +25,7 @@ The deterministic engine spine (strategies → sizing → paper executor → led
 - **Two sources:**
   - `kalshi_markets` — discovery (enumerate active weather markets → upsert `reference_market`) + snapshot (orderbook + last trade → `raw_market_snapshot`). RSA-signed auth via env; fail-closed (`degraded`) when unconfigured.
   - `open_meteo` — GFS + ECMWF ensemble forecasts per curated location → `raw_forecast_run`. Public API, no auth.
-- **Reference seed:** curated `reference_location` list (cities + lat/lon/timezone), idempotent upsert on startup.
+- **Reference seed:** curated `reference_location` list (cities + lat/lon/timezone), idempotent **insert-if-missing** on startup (existing rows are not updated).
 - **Health surfacing:** `GET /v1/sources` REST endpoint + read-only **Source Health** UI panel; OpenAPI → TS regen.
 - **Tests:** recorded cassettes (parse-correctly contract tests); unit tests (health transitions, scheduler interval logic with fake clock, discovery upsert, RSA signing); one integration test (scheduler → cassette → rows in test-Postgres).
 
@@ -75,7 +75,7 @@ core/
                   async fetch(clock, ctx) -> FetchResult
   sources/
     registry.py   explicit list [KalshiMarkets(), OpenMeteo()]; enabled filter
-    seed.py       reference_location curated seed; idempotent upsert
+    seed.py       reference_location curated seed; insert-if-missing on startup
   scheduler.py    asyncio supervisor: per-source loop on its interval →
                   fetch → persist raw rows → record source_run → update health;
                   consecutive-failure → degraded; started/stopped via FastAPI lifespan
@@ -103,7 +103,7 @@ Deferred (land with their consuming milestones): `feature_value`, `rubric_score`
 
 ### `reference_location` seed
 
-`core/sources/seed.py`, mirroring the existing ledger seed pattern. A curated city list — Houston, NYC, Chicago, Austin, Miami, LA — each with lat/lon/timezone/station. Idempotent upsert on startup.
+`core/sources/seed.py`, mirroring the existing ledger seed pattern. A curated city list — Houston, NYC, Chicago, Austin, Miami, LA — each with lat/lon/timezone/station. Idempotent **insert-if-missing** on startup (existing rows are not updated; coordinate changes need a migration).
 
 ### `kalshi_markets`
 
@@ -138,7 +138,8 @@ Deferred (land with their consuming milestones): `feature_value`, `rubric_score`
 | M3.2 | `Clock` interface + `WallClock` | Backend |
 | M3.3 | `IngestionSource` ABC + explicit source registry | Backend |
 | M3.4 | Scheduler (asyncio supervisor, health/breaker) + FastAPI lifespan wiring | Backend |
-| M3.5 | `reference_location` seed + Kalshi discovery (+ cassette tests) | Backend domain |
+| M3.5a | `reference_location` curated seed on startup | Backend domain |
+| M3.5b | Kalshi market discovery (+ cassette tests) | Backend domain |
 | M3.6 | Kalshi snapshot source (auth/signing, cassette tests) | Backend domain |
 | M3.7 | Open-Meteo source (GFS+ECMWF, cassette tests) | Backend domain |
 | M3.8 | `/v1/sources` endpoint + OpenAPI regen | Backend/API |
