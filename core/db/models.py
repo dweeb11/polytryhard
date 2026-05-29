@@ -1,9 +1,28 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON
+
+from core.db.enums import (
+    CashEventKind,
+    PositionSide,
+    PositionStatus,
+    SignalOutcome,
+    StrategyState,
+    SystemState,
+)
 
 
 class Base(DeclarativeBase):
@@ -30,7 +49,7 @@ class StrategyInstanceRow(Base):
 
     name: Mapped[str] = mapped_column(String(128), primary_key=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    state: Mapped[str] = mapped_column(String(32))
+    state: Mapped[StrategyState] = mapped_column(Enum(StrategyState, native_enum=False))
     bankroll_cents: Mapped[int] = mapped_column(BigInteger)
     initial_deposit_cents: Mapped[int] = mapped_column(BigInteger)
     bankroll_hwm_cents: Mapped[int] = mapped_column(BigInteger)
@@ -53,11 +72,13 @@ class CashEventRow(Base):
         String(128), ForeignKey("strategy_instance.name"), index=True
     )
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    kind: Mapped[str] = mapped_column(String(32))
+    kind: Mapped[CashEventKind] = mapped_column(Enum(CashEventKind, native_enum=False))
     amount_cents: Mapped[int] = mapped_column(BigInteger)
     balance_after_cents: Mapped[int] = mapped_column(BigInteger)
     reason: Mapped[str] = mapped_column(Text)
-    ref_position_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    ref_position_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("paper_position.id"), nullable=True
+    )
 
     strategy: Mapped[StrategyInstanceRow] = relationship(back_populates="cash_events")
 
@@ -68,7 +89,7 @@ class PaperPositionRow(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     strategy_name: Mapped[str] = mapped_column(String(128), ForeignKey("strategy_instance.name"))
     ticker: Mapped[str] = mapped_column(String(128))
-    side: Mapped[str] = mapped_column(String(8))
+    side: Mapped[PositionSide] = mapped_column(Enum(PositionSide, native_enum=False))
     opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     open_avg_price: Mapped[Decimal] = mapped_column(Numeric(12, 6))
@@ -76,7 +97,7 @@ class PaperPositionRow(Base):
     cost_basis_cents: Mapped[int] = mapped_column(BigInteger)
     realized_pnl_cents: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     unrealized_pnl_cents: Mapped[int] = mapped_column(BigInteger, default=0)
-    status: Mapped[str] = mapped_column(String(16))
+    status: Mapped[PositionStatus] = mapped_column(Enum(PositionStatus, native_enum=False))
 
 
 class PaperFillRow(Base):
@@ -84,9 +105,11 @@ class PaperFillRow(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     position_id: Mapped[str] = mapped_column(String(36), ForeignKey("paper_position.id"))
-    signal_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    signal_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("signal.id"), nullable=True
+    )
     filled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    side: Mapped[str] = mapped_column(String(8))
+    side: Mapped[PositionSide] = mapped_column(Enum(PositionSide, native_enum=False))
     qty: Mapped[int] = mapped_column(Integer)
     price: Mapped[Decimal] = mapped_column(Numeric(12, 6))
     fees_cents: Mapped[int] = mapped_column(BigInteger, default=0)
@@ -104,7 +127,7 @@ class SignalRow(Base):
     confidence: Mapped[Decimal] = mapped_column(Numeric(8, 6))
     features_snapshot_jsonb: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
     market_state_jsonb: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
-    outcome: Mapped[str] = mapped_column(String(64))
+    outcome: Mapped[SignalOutcome] = mapped_column(Enum(SignalOutcome, native_enum=False))
     rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
@@ -112,7 +135,7 @@ class SystemStateRow(Base):
     __tablename__ = "system_state"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    state: Mapped[str] = mapped_column(String(16))
+    state: Mapped[SystemState] = mapped_column(Enum(SystemState, native_enum=False))
     kill_switch_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     kill_switch_tripped_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
