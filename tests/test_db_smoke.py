@@ -90,6 +90,7 @@ def test_migrations_and_healthz_run_against_postgres() -> None:
             DATABASE_URL_SHARED=shared_url,
             DATABASE_URL_PER_ENV=per_env_url,
             CONTROL_PLANE_TOKEN="test-token",
+            SCHEDULER_ENABLED=False,
         )
         response = TestClient(create_app(settings)).get("/healthz")
 

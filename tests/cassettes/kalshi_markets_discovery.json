@@ -1,0 +1,12 @@
+{
+  "markets": [
+    {
+      "ticker": "KXHIGHNY-25MAY28-T72",
+      "series_ticker": "KXHIGHNY",
+      "title": "Highest temp in NYC on May 28",
+      "status": "open",
+      "open_time": "2026-05-27T00:00:00Z",
+      "close_time": "2026-05-28T23:59:59Z"
+    }
+  ]
+}

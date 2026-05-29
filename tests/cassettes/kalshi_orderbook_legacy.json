@@ -1,0 +1,10 @@
+{
+  "orderbook": {
+    "yes": [[45, 120]],
+    "no": [[52, 80]]
+  },
+  "last_trade": {
+    "yes_price": 46,
+    "count": 10
+  }
+}

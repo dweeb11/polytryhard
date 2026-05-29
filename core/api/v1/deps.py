@@ -4,7 +4,7 @@ from collections.abc import Generator
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
-from core.db.session import per_env_session
+from core.db.session import per_env_session, shared_session
 from core.settings import Settings, get_settings
 
 
@@ -34,4 +34,11 @@ def per_env_db(
     settings: Settings = Depends(get_settings),
 ) -> Generator[Session, None, None]:
     with per_env_session(settings) as session:
+        yield session
+
+
+def shared_db(
+    settings: Settings = Depends(get_settings),
+) -> Generator[Session, None, None]:
+    with shared_session(settings) as session:
         yield session

@@ -6,20 +6,20 @@
 - [x] Vision — `docs/PDD.md` §1.2, §4.1
 - [x] Design — `docs/design/m3-ingestion.md`
 - [x] Milestone — this doc
-- [ ] **Implement** <- current stage (spine plan: `.cursor/plans/m3_ingestion_spine.plan.md`)
+- [x] **Implement** <- current stage (spine plan: `.cursor/plans/m3_ingestion_spine.plan.md`)
 - [ ] Verify
 - [ ] Ship — ordered PRs to `staging`
 
 ## Tasks (PR slices, ordered)
-- [ ] M3.1 Shared schema `002` — reference + raw + `source_run` tables ([APP-188](https://linear.app/critterhaus/issue/APP-188))
-- [ ] M3.2 `Clock` interface + `WallClock` ([APP-189](https://linear.app/critterhaus/issue/APP-189))
-- [ ] M3.3 `IngestionSource` ABC + explicit registry ([APP-190](https://linear.app/critterhaus/issue/APP-190))
-- [ ] M3.4 Scheduler (asyncio supervisor + health) + FastAPI lifespan ([APP-191](https://linear.app/critterhaus/issue/APP-191))
-- [ ] M3.5 `reference_location` seed + Kalshi discovery ([APP-192](https://linear.app/critterhaus/issue/APP-192))
-- [ ] M3.6 Kalshi snapshot source (auth/signing) ([APP-193](https://linear.app/critterhaus/issue/APP-193))
-- [ ] M3.7 Open-Meteo source (GFS + ECMWF) ([APP-194](https://linear.app/critterhaus/issue/APP-194))
-- [ ] M3.8 `/v1/sources` endpoint + OpenAPI regen ([APP-195](https://linear.app/critterhaus/issue/APP-195))
-- [ ] M3.9 UI Source Health panel ([APP-196](https://linear.app/critterhaus/issue/APP-196))
+- [x] M3.1 Shared schema `002` — reference + raw + `source_run` tables ([APP-188](https://linear.app/critterhaus/issue/APP-188))
+- [x] M3.2 `Clock` interface + `WallClock` ([APP-189](https://linear.app/critterhaus/issue/APP-189))
+- [x] M3.3 `IngestionSource` ABC + explicit registry ([APP-190](https://linear.app/critterhaus/issue/APP-190))
+- [x] M3.4 Scheduler (asyncio supervisor + health) + FastAPI lifespan ([APP-191](https://linear.app/critterhaus/issue/APP-191))
+- [x] M3.5 `reference_location` seed + Kalshi discovery ([APP-192](https://linear.app/critterhaus/issue/APP-192))
+- [x] M3.6 Kalshi snapshot source (auth/signing) ([APP-193](https://linear.app/critterhaus/issue/APP-193))
+- [x] M3.7 Open-Meteo source (GFS + ECMWF) ([APP-194](https://linear.app/critterhaus/issue/APP-194))
+- [x] M3.8 `/v1/sources` endpoint + OpenAPI regen ([APP-195](https://linear.app/critterhaus/issue/APP-195))
+- [x] M3.9 UI Source Health panel ([APP-196](https://linear.app/critterhaus/issue/APP-196))
 
 ## Out of scope (M4+)
 - Feature providers, strategies, risk/sizing, paper executor, eval metrics

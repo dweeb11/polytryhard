@@ -19,3 +19,13 @@ class ReasonBody(ApiModel):
 class SetKellyBody(ApiModel):
     fraction: float = Field(ge=0, le=1)
     reason: str
+
+
+class SourceHealthEntry(ApiModel):
+    name: str
+    enabled: bool
+    status: str | None = None
+    last_run_at: str | None = None
+    last_success_at: str | None = None
+    rows_last_run: int | None = None
+    last_error: str | None = None

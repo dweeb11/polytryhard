@@ -47,6 +47,14 @@ def test_require_dbs_parses_common_truthy_env_values() -> None:
     assert settings.require_dbs is True
 
 
+def test_kalshi_api_base_strips_trade_api_suffix() -> None:
+    settings = Settings(
+        REQUIRE_DBS=False,
+        KALSHI_API_BASE="https://external-api.demo.kalshi.co/trade-api/v2",
+    )
+    assert settings.kalshi_api_base_url == "https://external-api.demo.kalshi.co"
+
+
 def test_settings_raises_when_control_plane_token_missing() -> None:
     with pytest.raises(ValueError, match="CONTROL_PLANE_TOKEN"):
         Settings(

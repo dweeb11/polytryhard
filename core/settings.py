@@ -23,16 +23,56 @@ class Settings(BaseSettings):
     cors_allow_origins: str = Field(default="*", alias="CORS_ALLOW_ORIGINS")
     require_dbs: bool = Field(default=True, alias="REQUIRE_DBS")
     control_plane_token: str | None = Field(default=None, alias="CONTROL_PLANE_TOKEN")
+    scheduler_enabled: bool = Field(default=True, alias="SCHEDULER_ENABLED")
+    source_failure_threshold: int = Field(default=3, alias="SOURCE_FAILURE_THRESHOLD")
+    kalshi_api_key_id: str | None = Field(default=None, alias="KALSHI_API_KEY_ID")
+    kalshi_private_key: str | None = Field(default=None, alias="KALSHI_PRIVATE_KEY")
+    kalshi_api_base: str | None = Field(
+        default="https://demo-api.kalshi.co",
+        alias="KALSHI_API_BASE",
+    )
+    kalshi_series_prefixes_raw: str = Field(
+        default="KXHIGHNY",
+        alias="KALSHI_SERIES_PREFIXES",
+    )
 
     @field_validator("control_plane_token", mode="before")
     @classmethod
     def normalize_control_plane_token(cls, value: Any) -> Any:
         return _empty_to_none(value)
 
-    @field_validator("database_url_shared", "database_url_per_env", mode="before")
+    @field_validator(
+        "database_url_shared",
+        "database_url_per_env",
+        "kalshi_api_key_id",
+        "kalshi_private_key",
+        mode="before",
+    )
     @classmethod
     def normalize_database_url(cls, value: Any) -> Any:
         return _empty_to_none(value)
+
+
+    @property
+    def kalshi_configured(self) -> bool:
+        return self.kalshi_api_key_id is not None and self.kalshi_private_key is not None
+
+    @property
+    def kalshi_api_base_url(self) -> str:
+        """Host base URL without /trade-api/v2 (paths add that segment)."""
+        base = (self.kalshi_api_base or "").rstrip("/")
+        suffix = "/trade-api/v2"
+        if base.endswith(suffix):
+            return base[: -len(suffix)]
+        return base
+
+    @property
+    def kalshi_series_prefixes(self) -> tuple[str, ...]:
+        return tuple(
+            part.strip()
+            for part in self.kalshi_series_prefixes_raw.split(",")
+            if part.strip()
+        )
 
     @model_validator(mode="after")
     def require_database_urls_when_enforced(self) -> "Settings":

@@ -11,6 +11,27 @@ import { resetToFixtures } from '$lib/stores';
 
 const STRATEGY = 'weather_ensemble_disagreement';
 
+const SOURCES_MOCK = [
+	{
+		name: 'kalshi_markets',
+		enabled: false,
+		status: 'degraded',
+		lastRunAt: null,
+		lastSuccessAt: null,
+		rowsLastRun: null,
+		lastError: 'Kalshi credentials not configured'
+	},
+	{
+		name: 'open_meteo',
+		enabled: true,
+		status: 'ok',
+		lastRunAt: '2026-05-28T12:00:00.000Z',
+		lastSuccessAt: '2026-05-28T12:00:00.000Z',
+		rowsLastRun: 48,
+		lastError: null
+	}
+];
+
 function setupLive(): void {
 	localStorage.clear();
 	resetToFixtures();
@@ -56,6 +77,9 @@ describe('live API branch', () => {
 			if (url.includes('/v1/audit')) {
 				return new Response(JSON.stringify([]), { status: 200 });
 			}
+			if (url.endsWith('/v1/sources')) {
+				return new Response(JSON.stringify(SOURCES_MOCK), { status: 200 });
+			}
 			return new Response('not found', { status: 404 });
 		});
 		vi.stubGlobal('fetch', fetchMock);
@@ -86,6 +110,9 @@ describe('live API branch', () => {
 			}
 			if (url.includes('/v1/audit')) {
 				return new Response(JSON.stringify([]), { status: 200 });
+			}
+			if (url.endsWith('/v1/sources')) {
+				return new Response(JSON.stringify(SOURCES_MOCK), { status: 200 });
 			}
 			return new Response('not found', { status: 404 });
 		});
@@ -120,6 +147,9 @@ describe('live API branch', () => {
 			}
 			if (url.includes('/v1/audit')) {
 				return new Response(JSON.stringify([]), { status: 200 });
+			}
+			if (url.endsWith('/v1/sources')) {
+				return new Response(JSON.stringify(SOURCES_MOCK), { status: 200 });
 			}
 			return new Response('not found', { status: 404 });
 		});

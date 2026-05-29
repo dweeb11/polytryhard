@@ -1,0 +1,9 @@
+{
+  "timezone": "America/Chicago",
+  "generationtime_ms": 12.3,
+  "hourly": {
+    "time": ["2026-05-28T12:00", "2026-05-28T13:00"],
+    "temperature_2m_member01": [28.1, 29.0],
+    "temperature_2m_member02": [27.5, 28.4]
+  }
+}
