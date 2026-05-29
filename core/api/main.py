@@ -17,6 +17,8 @@ from core.utils.time import now_iso
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings: Settings = app.state.settings
+    if settings.database_url_shared:
+        run_upgrade("shared", settings.database_url_shared)
     if settings.database_url_per_env:
         run_upgrade("per_env", settings.database_url_per_env)
         with per_env_session(settings) as session:
