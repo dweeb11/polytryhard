@@ -25,7 +25,7 @@ def test_parse_kalshi_orderbook_cassette() -> None:
     assert snapshot is not None
     assert snapshot.bid_yes is not None
     assert snapshot.ask_yes is not None
-    assert snapshot.last_trade_price is not None
+    assert snapshot.last_trade_price is None
 
 
 def test_parse_open_meteo_ensemble_cassette() -> None:

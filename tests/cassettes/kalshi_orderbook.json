@@ -1,10 +1,6 @@
 {
-  "orderbook": {
-    "yes": [[45, 120]],
-    "no": [[52, 80]]
-  },
-  "last_trade": {
-    "yes_price": 46,
-    "count": 10
+  "orderbook_fp": {
+    "yes_dollars": [["0.4500", "120.00"]],
+    "no_dollars": [["0.5200", "80.00"]]
   }
 }

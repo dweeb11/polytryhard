@@ -1,3 +1,13 @@
+"""Curated reference_location rows for Open-Meteo ingestion.
+
+Insert-if-missing on startup (same pattern as core/ledger/seed.py). Existing rows
+are never updated — coordinate or station changes require a migration or manual fix.
+
+Concurrent startup (multiple API workers) can race on the same primary key and raise
+IntegrityError on insert; Coolify runs a single process today. Use one worker or add
+ON CONFLICT DO NOTHING if multi-worker deploy is required.
+"""
+
 from decimal import Decimal
 
 from sqlalchemy.orm import Session
@@ -6,6 +16,8 @@ from core.db.shared_models import ReferenceLocationRow
 
 LocationSeed = tuple[str, str, str, Decimal, Decimal, str, str]
 
+# Airport station codes (ICAO) for Open-Meteo lat/lon queries. Kalshi settlement
+# may reference different NWS stations later; update via migration if that diverges.
 SEED_LOCATIONS: tuple[LocationSeed, ...] = (
     (
         "houston",
