@@ -1,3 +1,11 @@
+"""Ingestion source contract: fetch drafts, result envelope, and plugin ABC.
+
+Sources perform external I/O only; the scheduler (M3.4) persists drafts and
+writes ``source_run``. Draft types with ``raw_jsonb`` are frozen dataclasses but
+the dict values are still mutable in place — build the dict before constructing
+the draft and do not mutate ``raw_jsonb`` after creation.
+"""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -74,6 +82,13 @@ class FetchResult:
 
     @property
     def rows_written(self) -> int:
+        """Append-only raw row count for ``source_run.rows_written``.
+
+        Counts ``market_snapshots`` and ``forecast_runs`` only — not
+        ``market_upserts`` (reference discovery). Discovery-only ticks may report
+        zero here while ``market_upserts`` is non-empty; the scheduler should
+        persist upserts separately and must not treat zero as "unknown".
+        """
         return len(self.market_snapshots) + len(self.forecast_runs)
 
 
@@ -83,6 +98,14 @@ class HttpClient(Protocol):
 
 @dataclass
 class SourceContext:
+    """Per-tick inputs for ``IngestionSource.fetch``.
+
+    ``request_id`` is assigned by the scheduler and must flow unchanged into
+    ``source_run`` (PDD §6.1). A shared-DB session factory will be added here in
+    M3.4 when the scheduler owns persistence; sources must not open DB sessions
+    themselves.
+    """
+
     request_id: str
     settings: Settings
     locations: tuple[ReferenceLocation, ...]
