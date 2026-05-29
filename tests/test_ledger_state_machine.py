@@ -35,3 +35,44 @@ def test_should_auto_resume_on_deposit() -> None:
         new_bankroll_cents=15_000,
         min_bankroll_cents=10_000,
     )
+    for state in (StrategyState.DRAWDOWN_PAUSED, StrategyState.OPERATOR_PAUSED):
+        assert not state_machine.should_auto_resume_on_deposit(
+            current_state=state,
+            auto_resume_on_deposit=True,
+            new_bankroll_cents=15_000,
+            min_bankroll_cents=10_000,
+        )
+
+
+def test_can_emit_signals() -> None:
+    assert state_machine.can_emit_signals(
+        enabled=True,
+        state=StrategyState.ACTIVE,
+        kelly_fraction=0.25,
+    )
+    assert not state_machine.can_emit_signals(
+        enabled=True,
+        state=StrategyState.SEEDED,
+        kelly_fraction=0.25,
+    )
+    assert not state_machine.can_emit_signals(
+        enabled=True,
+        state=StrategyState.ACTIVE,
+        kelly_fraction=0,
+    )
+    assert not state_machine.can_emit_signals(
+        enabled=False,
+        state=StrategyState.ACTIVE,
+        kelly_fraction=0.25,
+    )
+    for state in (
+        StrategyState.LOW_BANKROLL_PAUSED,
+        StrategyState.DRAWDOWN_PAUSED,
+        StrategyState.OPERATOR_PAUSED,
+        StrategyState.DECOMMISSIONED,
+    ):
+        assert not state_machine.can_emit_signals(
+            enabled=True,
+            state=state,
+            kelly_fraction=0.25,
+        )

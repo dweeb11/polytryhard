@@ -2,6 +2,7 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
+from core.db.enums import StrategyState as DbStrategyState
 from core.db.models import AuditEventRow, PaperPositionRow, StrategyInstanceRow
 from core.domain.enums import AuditActor, StrategyState
 from core.ledger import writer
@@ -17,7 +18,7 @@ def _create_strategy(session: Session, name: str) -> None:
         StrategyInstanceRow(
             name=name,
             enabled=True,
-            state=StrategyState.SEEDED.value,
+            state=DbStrategyState.SEEDED,
             bankroll_cents=0,
             initial_deposit_cents=0,
             bankroll_hwm_cents=0,
@@ -54,7 +55,7 @@ def test_seed_is_idempotent(per_env_session_factory: sessionmaker[Session]) -> N
     assert count_after_second == count_after_first
     row = session.get(StrategyInstanceRow, "weather_ensemble_disagreement")
     assert row is not None
-    assert row.state == StrategyState.ACTIVE.value
+    assert row.state == DbStrategyState.ACTIVE
     assert row.bankroll_cents == INITIAL_DEPOSIT_CENTS
     check_bankroll_invariant(session, row.name)
     activation = session.scalars(
@@ -78,7 +79,14 @@ def test_deposit_does_not_raise_hwm(per_env_session_factory: sessionmaker[Sessio
     row.bankroll_hwm_cents = 100_000
     session.commit()
 
-    writer.deposit(session, "hwm_strategy", 50_000, "top up bleeding strategy", AuditActor.USER, "req-hwm")
+    writer.deposit(
+        session,
+        "hwm_strategy",
+        50_000,
+        "top up bleeding strategy",
+        AuditActor.USER,
+        "req-hwm",
+    )
     session.commit()
 
     row = session.get(StrategyInstanceRow, "hwm_strategy")
