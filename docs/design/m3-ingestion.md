@@ -138,7 +138,8 @@ Deferred (land with their consuming milestones): `feature_value`, `rubric_score`
 | M3.2 | `Clock` interface + `WallClock` | Backend |
 | M3.3 | `IngestionSource` ABC + explicit source registry | Backend |
 | M3.4 | Scheduler (asyncio supervisor, health/breaker) + FastAPI lifespan wiring | Backend |
-| M3.5 | `reference_location` seed + Kalshi discovery (+ cassette tests) | Backend domain |
+| M3.5a | `reference_location` curated seed on startup | Backend domain |
+| M3.5b | Kalshi market discovery (+ cassette tests) | Backend domain |
 | M3.6 | Kalshi snapshot source (auth/signing, cassette tests) | Backend domain |
 | M3.7 | Open-Meteo source (GFS+ECMWF, cassette tests) | Backend domain |
 | M3.8 | `/v1/sources` endpoint + OpenAPI regen | Backend/API |
