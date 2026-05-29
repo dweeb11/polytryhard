@@ -30,12 +30,17 @@ def test_migrations_apply_to_fresh_sqlite_databases(tmp_path: Path) -> None:
         shared_rows = conn.execute(
             text(
                 "SELECT name FROM sqlite_master WHERE type = 'table' "
-                "AND name IN ('reference_location', 'reference_market', 'source_run') "
+                "AND name IN ("
+                "'reference_location', 'reference_market', 'raw_market_snapshot', "
+                "'raw_forecast_run', 'source_run'"
+                ") "
                 "ORDER BY name"
             )
         ).all()
 
     assert [tuple(row) for row in shared_rows] == [
+        ("raw_forecast_run",),
+        ("raw_market_snapshot",),
         ("reference_location",),
         ("reference_market",),
         ("source_run",),
