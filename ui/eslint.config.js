@@ -34,5 +34,5 @@ export default ts.config(
 			'svelte/prefer-svelte-reactivity': 'off'
 		}
 	},
-	{ ignores: ['build/', '.svelte-kit/', 'node_modules/'] }
+	{ ignores: ['build/', '.svelte-kit/', 'node_modules/', 'src/lib/api/types.ts'] }
 );

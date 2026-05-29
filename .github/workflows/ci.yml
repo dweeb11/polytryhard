@@ -30,6 +30,25 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install backend deps for OpenAPI export
+        run: python -m pip install -r requirements-dev.txt
+        working-directory: .
+
+      - name: Export OpenAPI and check generated types drift
+        working-directory: .
+        env:
+          REQUIRE_DBS: "0"
+          CONTROL_PLANE_TOKEN: ci-export
+        run: |
+          python scripts/export_openapi.py
+          npm run regen-api-types --prefix ui
+          git diff --exit-code ui/openapi/openapi.json ui/src/lib/api/types.ts
+
       - name: Typecheck
         run: npm run check
 
@@ -95,4 +114,4 @@ jobs:
       - name: Build API Docker image
         run: docker build -f Dockerfile -t polytryhard-api:ci .
 
-# ledger-discipline returns in M2 as a Python AST check rooted at core/ledger/.
+# Bankroll purity: tests/test_ledger_purity_guard.py (AST scan; only core/ledger/writer.py may assign bankroll_cents).

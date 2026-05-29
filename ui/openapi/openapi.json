@@ -1,0 +1,1009 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "polytryhard",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/v1/strategies": {
+      "get": {
+        "summary": "List Strategies Route",
+        "operationId": "list_strategies_route_v1_strategies_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StrategyInstance"
+                  },
+                  "type": "array",
+                  "title": "Response List Strategies Route V1 Strategies Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/strategies/{name}": {
+      "get": {
+        "summary": "Get Strategy Route",
+        "operationId": "get_strategy_route_v1_strategies__name__get",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StrategyInstance"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/strategies/{name}/cash-events": {
+      "get": {
+        "summary": "List Cash Events Route",
+        "operationId": "list_cash_events_route_v1_strategies__name__cash_events_get",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CashEvent"
+                  },
+                  "title": "Response List Cash Events Route V1 Strategies  Name  Cash Events Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/strategies/{name}/deposit": {
+      "post": {
+        "summary": "Deposit Route",
+        "operationId": "deposit_route_v1_strategies__name__deposit_post",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AmountReasonBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashEvent"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/strategies/{name}/withdraw": {
+      "post": {
+        "summary": "Withdraw Route",
+        "operationId": "withdraw_route_v1_strategies__name__withdraw_post",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AmountReasonBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashEvent"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/strategies/{name}/pause": {
+      "post": {
+        "summary": "Pause Route",
+        "operationId": "pause_route_v1_strategies__name__pause_post",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/strategies/{name}/resume": {
+      "post": {
+        "summary": "Resume Route",
+        "operationId": "resume_route_v1_strategies__name__resume_post",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/strategies/{name}/set-kelly-fraction": {
+      "post": {
+        "summary": "Set Kelly Route",
+        "operationId": "set_kelly_route_v1_strategies__name__set_kelly_fraction_post",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetKellyBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/strategies/{name}/decommission": {
+      "post": {
+        "summary": "Decommission Route",
+        "operationId": "decommission_route_v1_strategies__name__decommission_post",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/system": {
+      "get": {
+        "summary": "Get System Route",
+        "operationId": "get_system_route_v1_system_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemEnvState"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/system/pause": {
+      "post": {
+        "summary": "Pause System Route",
+        "operationId": "pause_system_route_v1_system_pause_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/system/resume": {
+      "post": {
+        "summary": "Resume System Route",
+        "operationId": "resume_system_route_v1_system_resume_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/audit": {
+      "get": {
+        "summary": "List Audit Route",
+        "operationId": "list_audit_route_v1_audit_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          },
+          {
+            "name": "actor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Actor"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Action"
+            }
+          },
+          {
+            "name": "target_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Target Type"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuditEvent"
+                  },
+                  "title": "Response List Audit Route V1 Audit Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/healthz": {
+      "get": {
+        "summary": "Healthz",
+        "operationId": "healthz_healthz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Healthz Healthz Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AmountReasonBody": {
+        "properties": {
+          "amountCents": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amountcents"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "AmountReasonBody"
+      },
+      "AuditActor": {
+        "type": "string",
+        "enum": [
+          "user",
+          "system",
+          "scheduler"
+        ],
+        "title": "AuditActor"
+      },
+      "AuditEvent": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "occurredAt": {
+            "type": "string",
+            "title": "Occurredat"
+          },
+          "actor": {
+            "$ref": "#/components/schemas/AuditActor"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "targetType": {
+            "type": "string",
+            "title": "Targettype"
+          },
+          "targetId": {
+            "type": "string",
+            "title": "Targetid"
+          },
+          "beforeState": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Beforestate"
+          },
+          "afterState": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Afterstate"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "requestId": {
+            "type": "string",
+            "title": "Requestid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "occurredAt",
+          "actor",
+          "action",
+          "targetType",
+          "targetId",
+          "beforeState",
+          "afterState",
+          "reason",
+          "requestId"
+        ],
+        "title": "AuditEvent"
+      },
+      "CashEvent": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "strategyName": {
+            "type": "string",
+            "title": "Strategyname"
+          },
+          "occurredAt": {
+            "type": "string",
+            "title": "Occurredat"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CashEventKind"
+          },
+          "amountCents": {
+            "type": "integer",
+            "title": "Amountcents"
+          },
+          "balanceAfterCents": {
+            "type": "integer",
+            "title": "Balanceaftercents"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "refPositionId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refpositionid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "strategyName",
+          "occurredAt",
+          "kind",
+          "amountCents",
+          "balanceAfterCents",
+          "reason",
+          "refPositionId"
+        ],
+        "title": "CashEvent"
+      },
+      "CashEventKind": {
+        "type": "string",
+        "enum": [
+          "deposit",
+          "withdraw",
+          "realized_pnl",
+          "fee",
+          "transfer_in",
+          "transfer_out"
+        ],
+        "title": "CashEventKind"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ReasonBody": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "ReasonBody"
+      },
+      "SetKellyBody": {
+        "properties": {
+          "fraction": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Fraction"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "fraction",
+          "reason"
+        ],
+        "title": "SetKellyBody"
+      },
+      "StrategyConfig": {
+        "properties": {
+          "minBankrollCents": {
+            "type": "integer",
+            "title": "Minbankrollcents"
+          },
+          "minTradeableBankrollCents": {
+            "type": "integer",
+            "title": "Mintradeablebankrollcents"
+          },
+          "maxDrawdownPctFromHwm": {
+            "type": "number",
+            "title": "Maxdrawdownpctfromhwm"
+          },
+          "autoResumeOnDeposit": {
+            "type": "boolean",
+            "title": "Autoresumeondeposit"
+          },
+          "maxInputAgeSeconds": {
+            "type": "integer",
+            "title": "Maxinputageseconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "minBankrollCents",
+          "minTradeableBankrollCents",
+          "maxDrawdownPctFromHwm",
+          "autoResumeOnDeposit",
+          "maxInputAgeSeconds"
+        ],
+        "title": "StrategyConfig"
+      },
+      "StrategyInstance": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "state": {
+            "$ref": "#/components/schemas/StrategyState"
+          },
+          "bankrollCents": {
+            "type": "integer",
+            "title": "Bankrollcents"
+          },
+          "bankrollHwmCents": {
+            "type": "integer",
+            "title": "Bankrollhwmcents"
+          },
+          "initialDepositCents": {
+            "type": "integer",
+            "title": "Initialdepositcents"
+          },
+          "kellyFraction": {
+            "type": "number",
+            "title": "Kellyfraction"
+          },
+          "config": {
+            "$ref": "#/components/schemas/StrategyConfig"
+          },
+          "lastStateChangeAt": {
+            "type": "string",
+            "title": "Laststatechangeat"
+          },
+          "todayPnlCents": {
+            "type": "integer",
+            "title": "Todaypnlcents",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "enabled",
+          "state",
+          "bankrollCents",
+          "bankrollHwmCents",
+          "initialDepositCents",
+          "kellyFraction",
+          "config",
+          "lastStateChangeAt"
+        ],
+        "title": "StrategyInstance"
+      },
+      "StrategyState": {
+        "type": "string",
+        "enum": [
+          "seeded",
+          "active",
+          "low_bankroll_paused",
+          "drawdown_paused",
+          "operator_paused",
+          "decommissioned"
+        ],
+        "title": "StrategyState"
+      },
+      "SystemEnvState": {
+        "properties": {
+          "state": {
+            "$ref": "#/components/schemas/SystemState"
+          },
+          "killSwitchReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Killswitchreason"
+          },
+          "killSwitchTrippedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Killswitchtrippedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "killSwitchReason",
+          "killSwitchTrippedAt"
+        ],
+        "title": "SystemEnvState"
+      },
+      "SystemState": {
+        "type": "string",
+        "enum": [
+          "active",
+          "paused"
+        ],
+        "title": "SystemState"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
