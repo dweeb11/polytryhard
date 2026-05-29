@@ -1,7 +1,10 @@
 from core.contracts.source import IngestionSource
 from core.settings import Settings
+from core.sources.kalshi import KalshiMarketsSource
 
-_ALL_SOURCES: tuple[IngestionSource, ...] = ()
+_ALL_SOURCES: tuple[IngestionSource, ...] = (
+    KalshiMarketsSource(),
+)
 
 
 def registered_sources() -> tuple[IngestionSource, ...]:
