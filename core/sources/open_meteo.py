@@ -4,10 +4,11 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from urllib.parse import urlencode
+from zoneinfo import ZoneInfo
 
 from core.clock import Clock
 from core.contracts.source import FetchResult, IngestionSource, RawForecastRunDraft, SourceContext
-from core.db.shared_enums import ForecastSource
+from core.db.shared_enums import ForecastSource, SourceRunStatus
 from core.settings import Settings
 
 ENSEMBLE_API = "https://ensemble-api.open-meteo.com/v1/ensemble"
@@ -29,7 +30,10 @@ class OpenMeteoSource(IngestionSource):
 
     async def fetch(self, clock: Clock, ctx: SourceContext) -> FetchResult:
         if not ctx.locations:
-            return FetchResult(error_text="No reference locations seeded")
+            return FetchResult(
+                status=SourceRunStatus.DEGRADED,
+                error_text="No reference locations seeded",
+            )
 
         result = FetchResult()
         ingested_at = clock.now()
@@ -52,7 +56,7 @@ class OpenMeteoSource(IngestionSource):
                 response = await ctx.http.get(url)
                 if response.status_code >= 400:
                     return FetchResult(
-                        status=result.status,
+                        status=SourceRunStatus.DEGRADED,
                         error_text=f"Open-Meteo HTTP {response.status_code} for {location.id}",
                     )
                 rows = parse_ensemble_response(
@@ -60,11 +64,15 @@ class OpenMeteoSource(IngestionSource):
                     source=source,
                     location_id=location.id,
                     ingested_at=ingested_at,
+                    timezone=location.timezone,
                 )
                 result.forecast_runs.extend(rows)
 
         if not result.forecast_runs:
-            return FetchResult(error_text="Open-Meteo returned no forecast rows")
+            return FetchResult(
+                status=SourceRunStatus.DEGRADED,
+                error_text="Open-Meteo returned no forecast rows",
+            )
         return result
 
 
@@ -74,17 +82,15 @@ def parse_ensemble_response(
     source: ForecastSource,
     location_id: str,
     ingested_at: datetime,
+    timezone: str,
 ) -> list[RawForecastRunDraft]:
     hourly = payload.get("hourly") or {}
     times = hourly.get("time") or []
     if not times:
         return []
 
-    run_time_raw = payload.get("generationtime_ms")
-    if isinstance(run_time_raw, (int, float)):
-        run_time = ingested_at
-    else:
-        run_time = ingested_at
+    # Ensemble API has no model run init time; use ingested_at until we find one.
+    run_time = ingested_at
 
     rows: list[RawForecastRunDraft] = []
     member_keys = [
@@ -100,7 +106,7 @@ def parse_ensemble_response(
         for time_raw, value_raw in zip(times, values, strict=False):
             if value_raw is None:
                 continue
-            valid_start = _parse_time(time_raw)
+            valid_start = _parse_time(time_raw, timezone)
             valid_end = valid_start + timedelta(hours=1)
             rows.append(
                 RawForecastRunDraft(
@@ -123,8 +129,8 @@ def parse_ensemble_response(
     return rows
 
 
-def _parse_time(value: str) -> datetime:
+def _parse_time(value: str, timezone: str) -> datetime:
     parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=UTC)
-    return parsed
+        parsed = parsed.replace(tzinfo=ZoneInfo(timezone))
+    return parsed.astimezone(UTC)
