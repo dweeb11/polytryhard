@@ -42,5 +42,16 @@ def test_require_dbs_parses_common_truthy_env_values() -> None:
         REQUIRE_DBS="on",
         DATABASE_URL_SHARED="postgresql+psycopg://localhost/shared",
         DATABASE_URL_PER_ENV="postgresql+psycopg://localhost/per_env",
+        CONTROL_PLANE_TOKEN="secret",
     )
     assert settings.require_dbs is True
+
+
+def test_settings_raises_when_control_plane_token_missing() -> None:
+    with pytest.raises(ValueError, match="CONTROL_PLANE_TOKEN"):
+        Settings(
+            REQUIRE_DBS=True,
+            DATABASE_URL_SHARED="postgresql+psycopg://localhost/shared",
+            DATABASE_URL_PER_ENV="postgresql+psycopg://localhost/per_env",
+            CONTROL_PLANE_TOKEN=None,
+        )
