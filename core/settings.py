@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     cors_allow_origins: str = Field(default="*", alias="CORS_ALLOW_ORIGINS")
     require_dbs: bool = Field(default=True, alias="REQUIRE_DBS")
     control_plane_token: str | None = Field(default=None, alias="CONTROL_PLANE_TOKEN")
+    scheduler_enabled: bool = Field(default=True, alias="SCHEDULER_ENABLED")
+    source_failure_threshold: int = Field(default=3, alias="SOURCE_FAILURE_THRESHOLD")
 
     @field_validator("control_plane_token", mode="before")
     @classmethod

@@ -7,9 +7,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from core.api.middleware import request_id_middleware
 from core.api.v1.routes import router as v1_router
-from core.db.session import check_database, per_env_session
+from core.db.session import check_database, per_env_session, shared_session
 from core.ledger.seed import seed_strategies_if_needed
 from core.migrations import run_upgrade
+from core.scheduler import Scheduler
 from core.settings import Settings, get_settings
 from core.utils.time import now_iso
 
@@ -19,11 +20,23 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings: Settings = app.state.settings
     if settings.database_url_shared:
         run_upgrade("shared", settings.database_url_shared)
+    scheduler: Scheduler | None = None
+    if settings.database_url_shared:
+        run_upgrade("shared", settings.database_url_shared)
     if settings.database_url_per_env:
         run_upgrade("per_env", settings.database_url_per_env)
         with per_env_session(settings) as session:
             seed_strategies_if_needed(session, request_id="startup_seed")
-    yield
+    if settings.database_url_shared and settings.scheduler_enabled:
+        scheduler = Scheduler.create(settings)
+        app.state.scheduler = scheduler
+        await scheduler.start()
+    try:
+        yield
+    finally:
+        active = getattr(app.state, "scheduler", None)
+        if isinstance(active, Scheduler):
+            await active.stop()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

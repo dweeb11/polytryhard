@@ -41,6 +41,7 @@ def api_settings(per_env_sqlite_urls: tuple[str, str]) -> Settings:
         CONTROL_PLANE_TOKEN="dev-token",
         DATABASE_URL_SHARED=shared_url,
         DATABASE_URL_PER_ENV=per_env_url,
+        SCHEDULER_ENABLED=False,
     )
 
 
