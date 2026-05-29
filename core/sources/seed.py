@@ -2,6 +2,10 @@
 
 Insert-if-missing on startup (same pattern as core/ledger/seed.py). Existing rows
 are never updated — coordinate or station changes require a migration or manual fix.
+
+Concurrent startup (multiple API workers) can race on the same primary key and raise
+IntegrityError on insert; Coolify runs a single process today. Use one worker or add
+ON CONFLICT DO NOTHING if multi-worker deploy is required.
 """
 
 from decimal import Decimal

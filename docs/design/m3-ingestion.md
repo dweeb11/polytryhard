@@ -25,7 +25,7 @@ The deterministic engine spine (strategies → sizing → paper executor → led
 - **Two sources:**
   - `kalshi_markets` — discovery (enumerate active weather markets → upsert `reference_market`) + snapshot (orderbook + last trade → `raw_market_snapshot`). RSA-signed auth via env; fail-closed (`degraded`) when unconfigured.
   - `open_meteo` — GFS + ECMWF ensemble forecasts per curated location → `raw_forecast_run`. Public API, no auth.
-- **Reference seed:** curated `reference_location` list (cities + lat/lon/timezone), idempotent upsert on startup.
+- **Reference seed:** curated `reference_location` list (cities + lat/lon/timezone), idempotent **insert-if-missing** on startup (existing rows are not updated).
 - **Health surfacing:** `GET /v1/sources` REST endpoint + read-only **Source Health** UI panel; OpenAPI → TS regen.
 - **Tests:** recorded cassettes (parse-correctly contract tests); unit tests (health transitions, scheduler interval logic with fake clock, discovery upsert, RSA signing); one integration test (scheduler → cassette → rows in test-Postgres).
 
@@ -75,7 +75,7 @@ core/
                   async fetch(clock, ctx) -> FetchResult
   sources/
     registry.py   explicit list [KalshiMarkets(), OpenMeteo()]; enabled filter
-    seed.py       reference_location curated seed; idempotent upsert
+    seed.py       reference_location curated seed; insert-if-missing on startup
   scheduler.py    asyncio supervisor: per-source loop on its interval →
                   fetch → persist raw rows → record source_run → update health;
                   consecutive-failure → degraded; started/stopped via FastAPI lifespan
