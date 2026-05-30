@@ -4,11 +4,38 @@ from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
-from core.db.enums import StrategyState as DbStrategyState
+from core.db.enums import (
+    PositionSide as DbPositionSide,
+)
+from core.db.enums import (
+    PositionStatus as DbPositionStatus,
+)
+from core.db.enums import (
+    SignalOutcome as DbSignalOutcome,
+)
+from core.db.enums import (
+    StrategyState as DbStrategyState,
+)
 from core.db.enums import SystemState as DbSystemState
-from core.db.models import AuditEventRow, CashEventRow, StrategyInstanceRow, SystemStateRow
+from core.db.models import (
+    AuditEventRow,
+    CashEventRow,
+    PaperFillRow,
+    PaperPositionRow,
+    SignalRow,
+    StrategyInstanceRow,
+    SystemStateRow,
+)
 from core.domain.cash_event import CashEvent
-from core.domain.enums import AuditActor, CashEventKind, StrategyState, SystemState
+from core.domain.enums import (
+    AuditActor,
+    CashEventKind,
+    PositionSide,
+    SignalOutcome,
+    StrategyState,
+    SystemState,
+)
+from core.domain.market import MarketState, SignalDraft
 from core.domain.state_machine import (
     DEPOSIT_BLOCKED_STATES,
     can_activate,
@@ -210,7 +237,102 @@ def record_realized_pnl(
     *,
     ref_position_id: str | None = None,
 ) -> CashEvent:
-    raise NotImplementedError("record_realized_pnl is reserved for the paper executor")
+    raise NotImplementedError("record_realized_pnl is reserved for M5 resolution")
+
+
+def record_signal(
+    session: Session,
+    *,
+    strategy_name: str,
+    signal: SignalDraft,
+    market: MarketState,
+    features_snapshot: dict[str, object],
+    outcome: SignalOutcome,
+    rejection_reason: str | None,
+    request_id: str,
+) -> SignalRow:
+    now = utc_now()
+    row = SignalRow(
+        id=_new_id(),
+        strategy_name=strategy_name,
+        ticker=signal.ticker,
+        evaluated_at=now,
+        prob_yes=signal.prob_yes,
+        confidence=signal.confidence,
+        features_snapshot_jsonb=features_snapshot,
+        market_state_jsonb=market.to_json(),
+        outcome=DbSignalOutcome(outcome),
+        rejection_reason=rejection_reason,
+    )
+    session.add(row)
+    session.flush()
+    return row
+
+
+def open_paper_position(
+    session: Session,
+    *,
+    strategy_name: str,
+    order_ticker: str,
+    side: PositionSide,
+    qty: int,
+    price: Decimal,
+    cost_basis_cents: int,
+    signal_id: str | None,
+    fees_cents: int,
+    simulator_assumptions: dict[str, object],
+    actor: AuditActor,
+    request_id: str,
+) -> tuple[PaperPositionRow, PaperFillRow]:
+    now = utc_now()
+    position = PaperPositionRow(
+        id=_new_id(),
+        strategy_name=strategy_name,
+        ticker=order_ticker,
+        side=DbPositionSide(side),
+        opened_at=now,
+        closed_at=None,
+        open_avg_price=price,
+        qty=qty,
+        cost_basis_cents=cost_basis_cents,
+        realized_pnl_cents=None,
+        unrealized_pnl_cents=0,
+        status=DbPositionStatus.OPEN,
+    )
+    session.add(position)
+    session.flush()
+    fill = PaperFillRow(
+        id=_new_id(),
+        position_id=position.id,
+        signal_id=signal_id,
+        filled_at=now,
+        side=DbPositionSide(side),
+        qty=qty,
+        price=price,
+        fees_cents=fees_cents,
+        simulator_assumptions_jsonb=simulator_assumptions,
+    )
+    session.add(fill)
+    session.flush()
+    if fees_cents > 0:
+        strategy = _get_strategy_row(session, strategy_name)
+        before = {"bankrollCents": strategy.bankroll_cents}
+        new_bankroll = strategy.bankroll_cents - fees_cents
+        _write_bankroll_event(
+            session,
+            strategy=strategy,
+            kind=CashEventKind.FEE,
+            amount_cents=-fees_cents,
+            balance_after_cents=new_bankroll,
+            reason=f"paper fill fee position={position.id}",
+            actor=actor,
+            request_id=request_id,
+            audit_action="paper_fill_fee",
+            before_state=before,
+            after_state={"bankrollCents": new_bankroll},
+            ref_position_id=position.id,
+        )
+    return position, fill
 
 
 def apply_kill_switch(
