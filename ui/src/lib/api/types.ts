@@ -248,6 +248,40 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/v1/signals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Signals Route */
+        get: operations["list_signals_route_v1_signals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/positions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Positions Route */
+        get: operations["list_positions_route_v1_positions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -338,6 +372,40 @@ export type components = {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** PaperPositionRecord */
+        PaperPositionRecord: {
+            /** Id */
+            id: string;
+            /** Strategyname */
+            strategyName: string;
+            /** Ticker */
+            ticker: string;
+            side: components["schemas"]["PositionSide"];
+            /** Openedat */
+            openedAt: string;
+            /** Closedat */
+            closedAt?: string | null;
+            /** Openavgprice */
+            openAvgPrice: number;
+            /** Qty */
+            qty: number;
+            /** Costbasiscents */
+            costBasisCents: number;
+            /** Realizedpnlcents */
+            realizedPnlCents?: number | null;
+            /**
+             * Unrealizedpnlcents
+             * @default 0
+             */
+            unrealizedPnlCents: number;
+            /** Status */
+            status: string;
+        };
+        /**
+         * PositionSide
+         * @enum {string}
+         */
+        PositionSide: "yes" | "no";
         /** ReasonBody */
         ReasonBody: {
             /** Reason */
@@ -349,6 +417,37 @@ export type components = {
             fraction: number;
             /** Reason */
             reason: string;
+        };
+        /**
+         * SignalOutcome
+         * @enum {string}
+         */
+        SignalOutcome: "order_placed" | "rejected_kelly_zero" | "rejected_exposure_cap" | "rejected_correlation_cap" | "rejected_below_threshold" | "rejected_below_min_position" | "rejected_market_closed" | "rejected_stale_inputs" | "rejected_system_paused";
+        /** SignalRecord */
+        SignalRecord: {
+            /** Id */
+            id: string;
+            /** Strategyname */
+            strategyName: string;
+            /** Ticker */
+            ticker: string;
+            /** Evaluatedat */
+            evaluatedAt: string;
+            /** Probyes */
+            probYes: number;
+            /** Confidence */
+            confidence: number;
+            /** Featuressnapshot */
+            featuresSnapshot?: {
+                [key: string]: unknown;
+            } | null;
+            /** Marketstate */
+            marketState?: {
+                [key: string]: unknown;
+            } | null;
+            outcome: components["schemas"]["SignalOutcome"];
+            /** Rejectionreason */
+            rejectionReason?: string | null;
         };
         /** SourceHealthEntry */
         SourceHealthEntry: {
@@ -864,6 +963,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SourceHealthEntry"][];
+                };
+            };
+        };
+    };
+    list_signals_route_v1_signals_get: {
+        parameters: {
+            query?: {
+                strategy_name?: string | null;
+                ticker?: string | null;
+                outcome?: string | null;
+                limit?: number;
+                before?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignalRecord"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_positions_route_v1_positions_get: {
+        parameters: {
+            query?: {
+                strategy_name?: string | null;
+                status?: string | null;
+                limit?: number;
+                before?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaperPositionRecord"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

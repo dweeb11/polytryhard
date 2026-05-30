@@ -1,4 +1,5 @@
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
+from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
@@ -7,15 +8,25 @@ from core.db.models import (
     AuditEventRow,
     CashEventRow,
     PaperPositionRow,
+    SignalRow,
     StrategyInstanceRow,
     SystemStateRow,
 )
 from core.domain.audit import AuditEvent
 from core.domain.cash_event import CashEvent
-from core.domain.enums import AuditActor, CashEventKind, StrategyState, SystemState
+from core.domain.enums import (
+    AuditActor,
+    CashEventKind,
+    PositionSide,
+    SignalOutcome,
+    StrategyState,
+    SystemState,
+)
 from core.domain.strategy import StrategyConfig, StrategyInstance
 from core.domain.system import SystemEnvState
-from core.utils.time import format_dt, parse_iso
+from core.domain.trading import PaperPositionRecord, SignalRecord
+from core.features.queries import latest_market_snapshot
+from core.utils.time import format_dt, parse_iso, utc_now
 
 
 def _strategy_config(row: StrategyInstanceRow) -> StrategyConfig:
@@ -151,3 +162,174 @@ def parse_before_cursor(before: str | None) -> datetime | None:
     if before is None or not before.strip():
         return None
     return parse_iso(before)
+
+
+def signal_from_row(row: SignalRow) -> SignalRecord:
+    return SignalRecord(
+        id=row.id,
+        strategy_name=row.strategy_name,
+        ticker=row.ticker,
+        evaluated_at=format_dt(row.evaluated_at),
+        prob_yes=float(row.prob_yes),
+        confidence=float(row.confidence),
+        features_snapshot=row.features_snapshot_jsonb,
+        market_state=row.market_state_jsonb,
+        outcome=SignalOutcome(row.outcome),
+        rejection_reason=row.rejection_reason,
+    )
+
+
+def list_signals(
+    session: Session,
+    *,
+    strategy_name: str | None = None,
+    ticker: str | None = None,
+    outcome: str | None = None,
+    limit: int = 50,
+    before: datetime | None = None,
+) -> list[SignalRecord]:
+    stmt = select(SignalRow).order_by(SignalRow.evaluated_at.desc()).limit(limit)
+    if strategy_name is not None:
+        stmt = stmt.where(SignalRow.strategy_name == strategy_name)
+    if ticker is not None:
+        stmt = stmt.where(SignalRow.ticker == ticker)
+    if outcome is not None:
+        stmt = stmt.where(SignalRow.outcome == outcome)
+    if before is not None:
+        stmt = stmt.where(SignalRow.evaluated_at < before)
+    rows = session.scalars(stmt).all()
+    return [signal_from_row(row) for row in rows]
+
+
+def position_from_row(
+    row: PaperPositionRow,
+    *,
+    unrealized_pnl_cents: int | None = None,
+) -> PaperPositionRecord:
+    unrealized = (
+        unrealized_pnl_cents
+        if unrealized_pnl_cents is not None
+        else row.unrealized_pnl_cents
+    )
+    status = row.status.value if hasattr(row.status, "value") else str(row.status)
+    return PaperPositionRecord(
+        id=row.id,
+        strategy_name=row.strategy_name,
+        ticker=row.ticker,
+        side=row.side,
+        opened_at=format_dt(row.opened_at),
+        closed_at=format_dt(row.closed_at) if row.closed_at else None,
+        open_avg_price=float(row.open_avg_price),
+        qty=row.qty,
+        cost_basis_cents=row.cost_basis_cents,
+        realized_pnl_cents=row.realized_pnl_cents,
+        unrealized_pnl_cents=unrealized,
+        status=status,
+    )
+
+
+def _utc_aware(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value
+
+
+def _max_input_age_seconds(config_jsonb: dict[str, object]) -> int:
+    raw = config_jsonb.get("maxInputAgeSeconds", config_jsonb.get("max_input_age_seconds", 900))
+    if isinstance(raw, int):
+        return raw
+    if isinstance(raw, float):
+        return int(raw)
+    return 900
+
+
+def _mark_price_for_side(side: PositionSide, mid_yes: Decimal) -> Decimal:
+    if side == PositionSide.YES:
+        return mid_yes
+    return Decimal("1") - mid_yes
+
+
+def _unrealized_pnl_cents(
+    *,
+    side: PositionSide,
+    open_avg_price: Decimal,
+    qty: int,
+    mid_yes: Decimal,
+) -> int:
+    mark = _mark_price_for_side(side, mid_yes)
+    pnl = (mark - open_avg_price) * Decimal(qty) * Decimal("100")
+    return int(pnl.to_integral_value(rounding=ROUND_HALF_UP))
+
+
+def _open_position_unrealized_pnl_cents(
+    row: PaperPositionRow,
+    *,
+    shared_session: Session,
+    strategy_configs: dict[str, dict[str, object]],
+    now: datetime,
+) -> int:
+    config = strategy_configs.get(row.strategy_name, {})
+    snapshot = latest_market_snapshot(
+        shared_session,
+        ticker=row.ticker,
+        as_of=now,
+    )
+    if snapshot is None or snapshot.mid_yes is None:
+        return 0
+    max_age = _max_input_age_seconds(config)
+    snapshot_as_of = _utc_aware(snapshot.as_of)
+    as_of_cutoff = _utc_aware(now) - timedelta(seconds=max_age)
+    if snapshot_as_of < as_of_cutoff:
+        return 0
+    side = PositionSide(row.side.value if hasattr(row.side, "value") else row.side)
+    return _unrealized_pnl_cents(
+        side=side,
+        open_avg_price=row.open_avg_price,
+        qty=row.qty,
+        mid_yes=snapshot.mid_yes,
+    )
+
+
+def list_positions(
+    session: Session,
+    *,
+    shared_session: Session | None = None,
+    strategy_name: str | None = None,
+    status: str | None = None,
+    limit: int = 50,
+    before: datetime | None = None,
+) -> list[PaperPositionRecord]:
+    stmt = select(PaperPositionRow).order_by(PaperPositionRow.opened_at.desc()).limit(limit)
+    if strategy_name is not None:
+        stmt = stmt.where(PaperPositionRow.strategy_name == strategy_name)
+    if status is not None:
+        stmt = stmt.where(PaperPositionRow.status == status)
+    if before is not None:
+        stmt = stmt.where(PaperPositionRow.opened_at < before)
+    rows = session.scalars(stmt).all()
+
+    strategy_configs: dict[str, dict[str, object]] = {}
+    if shared_session is not None:
+        names = {row.strategy_name for row in rows if row.status.value == "open"}
+        if names:
+            strategy_rows = session.scalars(
+                select(StrategyInstanceRow).where(StrategyInstanceRow.name.in_(names))
+            ).all()
+            strategy_configs = {row.name: row.config_jsonb for row in strategy_rows}
+        now = utc_now()
+
+    results: list[PaperPositionRecord] = []
+    for row in rows:
+        unrealized: int | None = None
+        if (
+            shared_session is not None
+            and row.status.value == "open"
+        ):
+            unrealized = _open_position_unrealized_pnl_cents(
+                row,
+                shared_session=shared_session,
+                strategy_configs=strategy_configs,
+                now=now,
+            )
+        results.append(position_from_row(row, unrealized_pnl_cents=unrealized))
+    return results

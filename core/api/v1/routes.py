@@ -8,12 +8,15 @@ from core.domain.cash_event import CashEvent
 from core.domain.enums import AuditActor
 from core.domain.strategy import StrategyInstance
 from core.domain.system import SystemEnvState
+from core.domain.trading import PaperPositionRecord, SignalRecord
 from core.ledger import writer
 from core.ledger.errors import LedgerError
 from core.ledger.queries import (
     get_strategy,
     list_audit_events,
     list_cash_events,
+    list_positions,
+    list_signals,
     list_strategies,
     parse_before_cursor,
     strategy_instance_from_row,
@@ -252,3 +255,41 @@ def list_sources_route(
         )
         for entry in entries
     ]
+
+
+@router.get("/signals", response_model=list[SignalRecord])
+def list_signals_route(
+    strategy_name: str | None = Query(default=None),
+    ticker: str | None = Query(default=None),
+    outcome: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    before: str | None = Query(default=None),
+    session: Session = Depends(per_env_db),
+) -> list[SignalRecord]:
+    return list_signals(
+        session,
+        strategy_name=strategy_name,
+        ticker=ticker,
+        outcome=outcome,
+        limit=limit,
+        before=parse_before_cursor(before),
+    )
+
+
+@router.get("/positions", response_model=list[PaperPositionRecord])
+def list_positions_route(
+    strategy_name: str | None = Query(default=None),
+    status: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    before: str | None = Query(default=None),
+    session: Session = Depends(per_env_db),
+    shared_session: Session = Depends(shared_db),
+) -> list[PaperPositionRecord]:
+    return list_positions(
+        session,
+        shared_session=shared_session,
+        strategy_name=strategy_name,
+        status=status,
+        limit=limit,
+        before=parse_before_cursor(before),
+    )

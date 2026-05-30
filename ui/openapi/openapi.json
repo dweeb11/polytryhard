@@ -615,6 +615,210 @@
         }
       }
     },
+    "/v1/signals": {
+      "get": {
+        "summary": "List Signals Route",
+        "operationId": "list_signals_route_v1_signals_get",
+        "parameters": [
+          {
+            "name": "strategy_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Strategy Name"
+            }
+          },
+          {
+            "name": "ticker",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "outcome",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Outcome"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SignalRecord"
+                  },
+                  "title": "Response List Signals Route V1 Signals Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/positions": {
+      "get": {
+        "summary": "List Positions Route",
+        "operationId": "list_positions_route_v1_positions_get",
+        "parameters": [
+          {
+            "name": "strategy_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Strategy Name"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PaperPositionRecord"
+                  },
+                  "title": "Response List Positions Route V1 Positions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "summary": "Healthz",
@@ -808,6 +1012,93 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "PaperPositionRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "strategyName": {
+            "type": "string",
+            "title": "Strategyname"
+          },
+          "ticker": {
+            "type": "string",
+            "title": "Ticker"
+          },
+          "side": {
+            "$ref": "#/components/schemas/PositionSide"
+          },
+          "openedAt": {
+            "type": "string",
+            "title": "Openedat"
+          },
+          "closedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closedat"
+          },
+          "openAvgPrice": {
+            "type": "number",
+            "title": "Openavgprice"
+          },
+          "qty": {
+            "type": "integer",
+            "title": "Qty"
+          },
+          "costBasisCents": {
+            "type": "integer",
+            "title": "Costbasiscents"
+          },
+          "realizedPnlCents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Realizedpnlcents"
+          },
+          "unrealizedPnlCents": {
+            "type": "integer",
+            "title": "Unrealizedpnlcents",
+            "default": 0
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "strategyName",
+          "ticker",
+          "side",
+          "openedAt",
+          "openAvgPrice",
+          "qty",
+          "costBasisCents",
+          "status"
+        ],
+        "title": "PaperPositionRecord"
+      },
+      "PositionSide": {
+        "type": "string",
+        "enum": [
+          "yes",
+          "no"
+        ],
+        "title": "PositionSide"
+      },
       "ReasonBody": {
         "properties": {
           "reason": {
@@ -840,6 +1131,98 @@
           "reason"
         ],
         "title": "SetKellyBody"
+      },
+      "SignalOutcome": {
+        "type": "string",
+        "enum": [
+          "order_placed",
+          "rejected_kelly_zero",
+          "rejected_exposure_cap",
+          "rejected_correlation_cap",
+          "rejected_below_threshold",
+          "rejected_below_min_position",
+          "rejected_market_closed",
+          "rejected_stale_inputs",
+          "rejected_system_paused"
+        ],
+        "title": "SignalOutcome"
+      },
+      "SignalRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "strategyName": {
+            "type": "string",
+            "title": "Strategyname"
+          },
+          "ticker": {
+            "type": "string",
+            "title": "Ticker"
+          },
+          "evaluatedAt": {
+            "type": "string",
+            "title": "Evaluatedat"
+          },
+          "probYes": {
+            "type": "number",
+            "title": "Probyes"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          },
+          "featuresSnapshot": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Featuressnapshot"
+          },
+          "marketState": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Marketstate"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/SignalOutcome"
+          },
+          "rejectionReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rejectionreason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "strategyName",
+          "ticker",
+          "evaluatedAt",
+          "probYes",
+          "confidence",
+          "outcome"
+        ],
+        "title": "SignalRecord"
       },
       "SourceHealthEntry": {
         "properties": {
