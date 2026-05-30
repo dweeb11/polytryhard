@@ -10,3 +10,8 @@ class SourceRunStatus(StrEnum):
     OK = "ok"
     DEGRADED = "degraded"
     ERROR = "error"
+
+
+class FeatureSubjectKind(StrEnum):
+    MARKET = "market"
+    LOCATION = "location"

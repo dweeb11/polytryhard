@@ -15,7 +15,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.types import JSON
 
-from core.db.shared_enums import ForecastSource, SourceRunStatus
+from core.db.shared_enums import FeatureSubjectKind, ForecastSource, SourceRunStatus
 from core.db.types import str_enum_column
 
 
@@ -95,6 +95,30 @@ class RawForecastRunRow(SharedBase):
     value: Mapped[Decimal] = mapped_column(Numeric(12, 6))
     ensemble_member: Mapped[int | None] = mapped_column(Integer, nullable=True)
     raw_jsonb: Mapped[dict[str, object]] = mapped_column(JSON)
+
+
+class FeatureValueRow(SharedBase):
+    __tablename__ = "feature_value"
+    __table_args__ = (
+        Index(
+            "ix_feature_value_provider_subject_as_of",
+            "provider_name",
+            "subject_kind",
+            "subject_id",
+            text("as_of DESC"),
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    provider_name: Mapped[str] = mapped_column(String(64))
+    provider_version: Mapped[str] = mapped_column(String(16))
+    subject_kind: Mapped[FeatureSubjectKind] = mapped_column(str_enum_column(FeatureSubjectKind))
+    subject_id: Mapped[str] = mapped_column(String(128))
+    as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    value_numeric: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    value_jsonb: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
+    input_hash: Mapped[str] = mapped_column(String(64))
+    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class SourceRunRow(SharedBase):

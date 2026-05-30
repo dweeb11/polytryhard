@@ -10,6 +10,7 @@ EXPECTED_TABLES = {
     "raw_market_snapshot",
     "raw_forecast_run",
     "source_run",
+    "feature_value",
 }
 
 
