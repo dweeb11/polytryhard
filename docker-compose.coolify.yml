@@ -8,6 +8,13 @@ services:
       GIT_SHA: ${SOURCE_COMMIT:-dev}
       DATABASE_URL_SHARED: postgresql+psycopg://polytryhard:${POSTGRES_PASSWORD:?}@postgres:5432/polytryhard_shared
       DATABASE_URL_PER_ENV: postgresql+psycopg://polytryhard:${POSTGRES_PASSWORD:?}@postgres:5432/polytryhard_staging
+      CONTROL_PLANE_TOKEN: ${CONTROL_PLANE_TOKEN:?}
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-https://staging-event-market.critterhaus.net}
+      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-1}
+      KALSHI_API_KEY_ID: ${KALSHI_API_KEY_ID:-}
+      KALSHI_PRIVATE_KEY: ${KALSHI_PRIVATE_KEY:-}
+      KALSHI_API_BASE: ${KALSHI_API_BASE:-https://demo-api.kalshi.co}
+      KALSHI_SERIES_PREFIXES: ${KALSHI_SERIES_PREFIXES:-KXHIGHNY}
     depends_on:
       postgres:
         condition: service_healthy
