@@ -17,6 +17,9 @@ SEED_STRATEGIES: tuple[tuple[str, dict[str, object]], ...] = (
             "max_drawdown_pct_from_hwm": 30,
             "auto_resume_on_deposit": True,
             "max_input_age_seconds": 900,
+            "disagreementThreshold": 2.0,
+            "spreadMarginMultiplier": 1.5,
+            "confidenceFloor": 0.55,
         },
     ),
     (
@@ -27,6 +30,8 @@ SEED_STRATEGIES: tuple[tuple[str, dict[str, object]], ...] = (
             "max_drawdown_pct_from_hwm": 30,
             "auto_resume_on_deposit": True,
             "max_input_age_seconds": 900,
+            "wideSpreadThreshold": 0.08,
+            "confidenceFloor": 0.55,
         },
     ),
 )
