@@ -10,6 +10,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -98,6 +99,9 @@ class RawForecastRunRow(SharedBase):
 
 
 class FeatureValueRow(SharedBase):
+    """Computed feature snapshot. value_numeric and value_jsonb are both nullable so
+    providers may emit either shape; writers should set at least one for persisted rows."""
+
     __tablename__ = "feature_value"
     __table_args__ = (
         Index(
@@ -106,6 +110,14 @@ class FeatureValueRow(SharedBase):
             "subject_kind",
             "subject_id",
             text("as_of DESC"),
+        ),
+        UniqueConstraint(
+            "provider_name",
+            "provider_version",
+            "subject_kind",
+            "subject_id",
+            "as_of",
+            name="uq_feature_value_provider_subject_as_of",
         ),
     )
 
