@@ -9,7 +9,7 @@ import httpx
 
 from core.clock import Clock, WallClock
 from core.contracts.source import FetchResult, IngestionSource, SourceContext
-from core.db.session import shared_session
+from core.db.session import per_env_session, shared_session
 from core.db.shared_enums import SourceRunStatus
 from core.settings import Settings
 from core.sources.persistence import (
@@ -145,6 +145,7 @@ class Scheduler:
                 run_status=result.status,
                 error_text=result.error_text,
             )
+            await self._run_engine_tick(request_id)
         except Exception as exc:
             finished_at = self.clock.now()
             logger.exception("source fetch failed source=%s request_id=%s", source.name, request_id)
@@ -165,3 +166,18 @@ class Scheduler:
                         )
                 except Exception:
                     logger.exception("failed to persist error source_run for %s", source.name)
+
+    async def _run_engine_tick(self, request_id: str) -> None:
+        from core.engine.tick import run_engine_tick
+
+        try:
+            with shared_session(self.settings) as shared, per_env_session(self.settings) as per_env:
+                await run_engine_tick(
+                    settings=self.settings,
+                    clock=self.clock,
+                    shared_session=shared,
+                    per_env_session=per_env,
+                    request_id=request_id,
+                )
+        except Exception:
+            logger.exception("engine tick failed request_id=%s", request_id)
