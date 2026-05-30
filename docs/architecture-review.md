@@ -30,7 +30,7 @@
 - **Settings:** `core/settings.py` — `pydantic-settings` BaseSettings with five fields and `@lru_cache get_settings()`.
 - **Tests:** `tests/test_healthz.py`, `test_request_id.py`, `test_time.py`, `test_db_smoke.py` (the testcontainers one — skips locally without docker, runs in CI). No UI tests.
 - **CI:** Five jobs — `ui` (svelte-check/lint/build), `docker-ui`, `backend` (ruff/mypy/pytest), `docker-api`, `ledger-discipline` (grep).
-- **Deploy:** `docker-compose.yml` (local) and `docker-compose.coolify.yml` (staging). Two Dockerfiles (`Dockerfile` = api, `Dockerfile.ui` = nginx static). Coolify app `event-market-staging` on lxc-107, domain `staging-event-market.critterhaus.net`.
+- **Deploy:** `docker-compose.yml` (local) and `docker-compose.coolify.yml` (staging: `ui` + `api` + `postgres`). `Dockerfile.api` = FastAPI; `Dockerfile.ui` = nginx static UI. Coolify app `event-market-staging` on lxc-107, domain `staging-event-market.critterhaus.net`.
 
 ## 3. Simplicity review
 
