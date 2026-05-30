@@ -1,14 +1,7 @@
 from core.contracts.feature import FeatureProvider
-from core.features.ensemble_mean_temp import EnsembleMeanTempProvider
-from core.features.forecast_disagreement import ForecastDisagreementProvider
-from core.features.kalshi_spread import KalshiSpreadProvider
 from core.settings import Settings
 
-_ALL_PROVIDERS: tuple[FeatureProvider, ...] = (
-    EnsembleMeanTempProvider(),
-    ForecastDisagreementProvider(),
-    KalshiSpreadProvider(),
-)
+_ALL_PROVIDERS: tuple[FeatureProvider, ...] = ()
 
 
 def registered_feature_providers() -> tuple[FeatureProvider, ...]:
