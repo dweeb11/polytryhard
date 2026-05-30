@@ -103,6 +103,10 @@ jobs:
         run: docker build -f Dockerfile.api -t polytryhard-api:ci .
 
       - name: Build UI Docker image
-        run: docker build -f Dockerfile.ui -t polytryhard-ui:ci .
+        run: |
+          docker build -f Dockerfile.ui \
+            --build-arg PUBLIC_BACKEND_URL=http://localhost:8080 \
+            --build-arg PUBLIC_BACKEND_TOKEN=ci \
+            -t polytryhard-ui:ci .
 
 # Bankroll purity: tests/test_ledger_purity_guard.py (AST scan; only core/ledger/writer.py may assign bankroll_cents).

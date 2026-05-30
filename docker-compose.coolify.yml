@@ -1,4 +1,17 @@
 services:
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+      args:
+        PUBLIC_BACKEND_URL: ${PUBLIC_BACKEND_URL:?}
+        PUBLIC_BACKEND_TOKEN: ${CONTROL_PLANE_TOKEN:?}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   api:
     build:
       context: .
