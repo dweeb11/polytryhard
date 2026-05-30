@@ -1,31 +1,76 @@
 # Deployment
 
-polytryhard currently deploys as a static SvelteKit prototype.
+polytryhard deploys to Coolify on lxc-107 as **one Docker Compose application per environment** (`event-market-staging`, production equivalent on `main`).
 
-## Coolify
+## Repository mirror
 
-Use the mirrored Gitea repository for homelab deployment:
+- GitHub (review): `git@github.com:dweeb11/polytryhard.git`
+- Gitea (Coolify build source): `git@git.critterhaus.net:2222/homelab/polytryhard.git`
+- **Staging branch:** `staging` → `https://staging-event-market.critterhaus.net`
+- **Production branch:** `main` → `https://event-market.critterhaus.net`
 
-- Repository: `git@git.critterhaus.net:2222/homelab/polytryhard.git`
-- Production branch: `main`
-- Staging branch: `staging`
-- Build pack: Dockerfile
-- Dockerfile location: `/Dockerfile`
-- Exposed port: `80`
-- Health check path: `/healthz`
-- Health check port: `80`
-- Production URL: `https://event-market.critterhaus.net`
-- Staging URL: `https://staging-event-market.critterhaus.net`
+GitHub merges mirror to Gitea; Coolify deploys from Gitea on branch push.
 
-The root `Dockerfile` builds `ui/` with Node 24 and serves the static `ui/build` output through nginx.
+## Compose stack (`docker-compose.coolify.yml`)
 
-## Backend API (FastAPI)
+| Service | Image | Port | Coolify domain |
+|---------|-------|------|----------------|
+| `ui` | `Dockerfile.ui` (nginx + static SvelteKit) | 80 | Primary — e.g. `staging-event-market.critterhaus.net` |
+| `api` | `Dockerfile.api` (FastAPI + scheduler) | 8080 | Subdomain — e.g. `api.staging-event-market.critterhaus.net` |
+| `postgres` | `postgres:16` | internal | none |
 
-Deployed via `docker-compose.coolify.yml` on port `8080` (see `Dockerfile.api`).
+Assign **two domains** in Coolify (one per public service). The browser must reach the API at a **public HTTPS URL** — not a Docker-internal hostname.
 
-- **`REQUIRE_DBS`** (default `1`): when enabled, the API process refuses to start unless both `DATABASE_URL_SHARED` and `DATABASE_URL_PER_ENV` are set (non-empty). Set `REQUIRE_DBS=0` in `.env` or the process environment for local pytest without Postgres.
-- **`GET /healthz`**: returns **200** when both databases respond; **503** when either is `down` or `unconfigured`. Docker/Coolify health checks should treat non-2xx as unhealthy.
+### Staging health checks
 
-## Branch flow
+- **UI** `GET /healthz` on port 80 → plain text `ok`
+- **API** `GET /healthz` on port 8080 → JSON with `db_shared` / `db_per_env`
 
-GitHub remains the review surface. Protected `main` and `staging` branches mirror to Gitea after GitHub accepts them, and Coolify deploys from Gitea.
+## Coolify environment variables
+
+Set in the application's **Environment Variables** panel. The compose file passes them into containers (values in Coolify, wiring in git).
+
+### Required (staging)
+
+| Variable | Used by | Notes |
+|----------|---------|-------|
+| `POSTGRES_PASSWORD` | postgres, api | Generated/encrypted in Coolify |
+| `CONTROL_PLANE_TOKEN` | api | `openssl rand -hex 32` |
+| `PUBLIC_BACKEND_TOKEN` | ui build | **Same value** as `CONTROL_PLANE_TOKEN` |
+| `PUBLIC_BACKEND_URL` | ui build | Public API URL, e.g. `https://api.staging-event-market.critterhaus.net` |
+
+### Recommended
+
+| Variable | Default in compose | Notes |
+|----------|-------------------|-------|
+| `CORS_ALLOW_ORIGINS` | staging UI origin | Must include the UI URL |
+| `SCHEDULER_ENABLED` | `1` | Set `0` only to disable ingestion |
+
+### Optional (Kalshi — source stays degraded without these)
+
+`KALSHI_API_KEY_ID`, `KALSHI_PRIVATE_KEY`, `KALSHI_API_BASE`, `KALSHI_SERIES_PREFIXES`
+
+### UI build-time note
+
+`PUBLIC_BACKEND_*` are baked into the static bundle during `docker build`. Changing them requires a **redeploy/rebuild** of the `ui` service, not just a container restart.
+
+## Verify after deploy
+
+```bash
+# API
+curl https://api.staging-event-market.critterhaus.net/healthz
+curl -H "Authorization: Bearer $CONTROL_PLANE_TOKEN" \
+  https://api.staging-event-market.critterhaus.net/v1/sources
+
+# UI — open in browser; header should show "Live backend" when API is reachable
+```
+
+Open-Meteo ingests without Kalshi creds. Kalshi reports `degraded` until configured.
+
+## Local development
+
+See root `README.md` and `.env.example`. UI live mode locally:
+
+```bash
+PUBLIC_BACKEND_URL=http://localhost:8080 PUBLIC_BACKEND_TOKEN=dev npm run dev --prefix ui
+```
