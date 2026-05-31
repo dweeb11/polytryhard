@@ -13,5 +13,7 @@ class SourceRunStatus(StrEnum):
 
 
 class FeatureSubjectKind(StrEnum):
+    """M4.1 scope: market and location. PDD also lists article — deferred to news features."""
+
     MARKET = "market"
     LOCATION = "location"
