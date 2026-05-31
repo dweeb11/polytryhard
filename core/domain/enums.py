@@ -15,6 +15,17 @@ class SystemState(StrEnum):
     PAUSED = "paused"
 
 
+class PositionSide(StrEnum):
+    YES = "yes"
+    NO = "no"
+
+
+class PositionStatus(StrEnum):
+    OPEN = "open"
+    CLOSED = "closed"
+    RESOLVED = "resolved"
+
+
 class CashEventKind(StrEnum):
     DEPOSIT = "deposit"
     WITHDRAW = "withdraw"
