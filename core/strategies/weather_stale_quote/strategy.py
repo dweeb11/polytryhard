@@ -7,26 +7,26 @@ from core.domain.enums import PositionSide
 from core.domain.feature import FeatureValue
 from core.domain.market import MarketState, SignalDraft
 from core.settings import Settings
-from core.strategies.weather_ensemble_disagreement.strategy import _prob_to_temp, _scoped_features
-from core.strategies.weather_utils import location_for_series, weather_series
+from core.strategies.weather_utils import (
+    config_float,
+    location_for_series,
+    numeric_feature,
+    prob_to_temp,
+    scoped_features,
+    weather_series,
+)
 
 REQUIRED_FEATURES = frozenset({"ensemble_mean_temp", "kalshi_spread"})
 
 
-def _config_float(config: dict[str, object], key: str, default: float) -> float:
-    raw = config.get(key, default)
-    if isinstance(raw, (int, float)):
-        return float(raw)
-    return default
-
-
-def _numeric(feature: FeatureValue | None) -> Decimal | None:
-    if feature is None or feature.status.value != "present":
-        return None
-    return feature.value_numeric
-
-
 class WeatherStaleQuoteStrategy(Strategy):
+    """Detect stale Kalshi quotes via unusually wide spreads.
+
+    MVP: compares spread to a static ``wideSpreadThreshold`` from strategy config.
+    Design doc (m4-engine.md) also describes spread vs recent history; that needs
+    a history feature and is deferred to a follow-up slice.
+    """
+
     @property
     def name(self) -> str:
         return "weather_stale_quote"
@@ -49,7 +49,7 @@ class WeatherStaleQuoteStrategy(Strategy):
         location_id = location_for_series(market.series)
         if location_id is None:
             return None
-        scoped = _scoped_features(features, location_id, market.ticker)
+        scoped = scoped_features(features, location_id, market.ticker)
         if not required_features_present(
             self.required_features,
             scoped,
@@ -57,23 +57,21 @@ class WeatherStaleQuoteStrategy(Strategy):
         ):
             return None
 
-        spread = _numeric(scoped.get("kalshi_spread"))
-        ensemble_mean = _numeric(scoped.get("ensemble_mean_temp"))
+        spread = numeric_feature(scoped.get("kalshi_spread"))
+        ensemble_mean = numeric_feature(scoped.get("ensemble_mean_temp"))
         mid = market.mid_yes
         if spread is None or ensemble_mean is None or mid is None:
             return None
 
         wide_spread_threshold = Decimal(
-            str(_config_float(ctx.config_jsonb, "wideSpreadThreshold", 0.08))
+            str(config_float(ctx.config_jsonb, "wideSpreadThreshold", 0.08))
         )
-        confidence_floor = Decimal(
-            str(_config_float(ctx.config_jsonb, "confidenceFloor", 0.55))
-        )
+        confidence_floor = Decimal(str(config_float(ctx.config_jsonb, "confidenceFloor", 0.55)))
 
         if spread < wide_spread_threshold:
             return None
 
-        side = PositionSide.YES if ensemble_mean >= _prob_to_temp(mid) else PositionSide.NO
+        side = PositionSide.YES if ensemble_mean >= prob_to_temp(mid) else PositionSide.NO
         prob_yes = mid if side == PositionSide.YES else (Decimal("1") - mid)
         confidence = min(Decimal("1"), confidence_floor + spread)
         return SignalDraft(

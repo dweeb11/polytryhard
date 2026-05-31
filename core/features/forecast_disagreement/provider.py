@@ -37,6 +37,7 @@ class ForecastDisagreementProvider(FeatureProvider):
                 source=ForecastSource.GFS,
                 variable=TEMPERATURE_VARIABLE,
                 as_of=as_of,
+                target_window_start=ctx.target_window_start,
             )
             ecmwf_rows = latest_forecast_rows(
                 ctx.session,
@@ -44,6 +45,7 @@ class ForecastDisagreementProvider(FeatureProvider):
                 source=ForecastSource.ECMWF,
                 variable=TEMPERATURE_VARIABLE,
                 as_of=as_of,
+                target_window_start=ctx.target_window_start,
             )
             if not gfs_rows or not ecmwf_rows:
                 results.append(
