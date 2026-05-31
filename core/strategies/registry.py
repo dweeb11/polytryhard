@@ -1,14 +1,8 @@
 from core.contracts.strategy import Strategy
 from core.settings import Settings
-from core.strategies.weather_ensemble_disagreement.strategy import (
-    WeatherEnsembleDisagreementStrategy,
-)
-from core.strategies.weather_stale_quote.strategy import WeatherStaleQuoteStrategy
 
-_ALL_STRATEGIES: tuple[Strategy, ...] = (
-    WeatherEnsembleDisagreementStrategy(),
-    WeatherStaleQuoteStrategy(),
-)
+# Weather strategies register in M4.5; keep the registry empty until then.
+_ALL_STRATEGIES: tuple[Strategy, ...] = ()
 
 
 def registered_strategies() -> tuple[Strategy, ...]:
