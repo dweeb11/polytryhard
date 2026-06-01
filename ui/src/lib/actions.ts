@@ -26,6 +26,7 @@ import type {
 	StrategyState
 } from './types';
 import {
+	AUTO_RESUME_ON_DEPOSIT_STATES,
 	RESUMABLE_STATES,
 	PAUSABLE_STATES,
 	clamp,
@@ -162,7 +163,9 @@ export async function deposit(
 	let newState: StrategyState = strat.state;
 	if (
 		strat.config.autoResumeOnDeposit &&
-		RESUMABLE_STATES.includes(strat.state as (typeof RESUMABLE_STATES)[number]) &&
+		AUTO_RESUME_ON_DEPOSIT_STATES.includes(
+			strat.state as (typeof AUTO_RESUME_ON_DEPOSIT_STATES)[number]
+		) &&
 		newBankroll >= strat.config.minBankrollCents
 	) {
 		newState = 'active';
