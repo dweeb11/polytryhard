@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from decimal import Decimal
 
@@ -10,6 +11,8 @@ from core.domain.feature import FeatureStatus, FeatureValue
 from core.domain.market import MarketState
 from core.features.queries import latest_market_snapshot, list_open_markets
 from core.strategies.weather_utils import location_for_series
+
+logger = logging.getLogger(__name__)
 
 
 def build_market_states(session: Session, as_of: datetime) -> list[MarketState]:
@@ -84,21 +87,33 @@ def features_for_market(
     Market-subject features match the market ticker; location-subject features
     match the market's location. Per-model location parts (subject_id
     ``"<location>:<model>"``) are aggregated into a single location rollup when
-    the provider did not already emit one. Provider names are unique in the
-    returned dict; the first matching row wins (stable index order).
+    the provider did not already emit one. Unrecognized ``subject_kind`` values
+    are dropped with a warning. Provider names are unique in the returned dict;
+    the first matching row wins (stable index order).
     """
     by_name: dict[str, FeatureValue] = {}
     parts_by_provider: dict[str, list[FeatureValue]] = {}
+    unknown_kinds: set[str] = set()
     for feature in indexed.values():
-        if feature.subject_kind == FeatureSubjectKind.MARKET.value:
+        if feature.subject_kind == FeatureSubjectKind.MARKET:
             if feature.subject_id == ticker:
                 by_name.setdefault(feature.provider_name, feature)
-        elif location_id and feature.subject_kind == FeatureSubjectKind.LOCATION.value:
+        elif feature.subject_kind == FeatureSubjectKind.LOCATION:
+            if location_id is None:
+                continue
             if feature.subject_id == location_id:
                 by_name.setdefault(feature.provider_name, feature)
             elif feature.subject_id.startswith(f"{location_id}:"):
                 parts_by_provider.setdefault(feature.provider_name, []).append(feature)
+        else:
+            unknown_kinds.add(feature.subject_kind)
+    if unknown_kinds:
+        logger.warning(
+            "features_for_market dropped unrecognized subject_kind(s): %s",
+            sorted(unknown_kinds),
+        )
     if location_id is not None:
+        # NOTE(APP-206): unweighted mean until FeatureProvider.aggregate() exists.
         for provider_name, parts in parts_by_provider.items():
             if provider_name in by_name:
                 continue
