@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Any, Protocol
 
 from core.clock import Clock
-from core.db.shared_enums import ForecastSource, SourceRunStatus
+from core.db.shared_enums import ContractResolution, ForecastSource, SourceRunStatus
 from core.settings import Settings
 
 
@@ -64,6 +64,15 @@ class RawForecastRunDraft:
     raw_jsonb: dict[str, object] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class ContractResolutionDraft:
+    ticker: str
+    resolved_at: datetime
+    resolution: ContractResolution
+    settlement_value: Decimal
+    source_evidence_jsonb: dict[str, object] = field(default_factory=dict)
+
+
 @dataclass
 class FetchResult:
     status: SourceRunStatus = SourceRunStatus.OK
@@ -71,10 +80,15 @@ class FetchResult:
     market_snapshots: list[RawMarketSnapshotDraft] = field(default_factory=list)
     forecast_runs: list[RawForecastRunDraft] = field(default_factory=list)
     market_upserts: list[ReferenceMarketUpsert] = field(default_factory=list)
+    resolutions: list[ContractResolutionDraft] = field(default_factory=list)
 
     @property
     def rows_written(self) -> int:
-        return len(self.market_snapshots) + len(self.forecast_runs)
+        return (
+            len(self.market_snapshots)
+            + len(self.forecast_runs)
+            + len(self.resolutions)
+        )
 
 
 class HttpClient(Protocol):

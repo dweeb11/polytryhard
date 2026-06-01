@@ -31,7 +31,7 @@ def test_list_sources_returns_registered_sources(
     assert response.status_code == 200
     body = response.json()
     names = {entry["name"] for entry in body}
-    assert names == {"kalshi_markets", "open_meteo"}
+    assert names == {"kalshi_markets", "kalshi_resolution", "open_meteo"}
     kalshi = next(entry for entry in body if entry["name"] == "kalshi_markets")
     assert kalshi["enabled"] is False
     assert kalshi["status"] is None
