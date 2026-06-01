@@ -139,7 +139,7 @@ describe('forceCloseAndWithdraw', () => {
 		const openBefore = get(positions).filter(
 			(p) => p.strategyName === STRATEGY && p.status === 'open'
 		);
-		const unrealized = openBefore.reduce((sum, p) => sum + p.unrealizedPnlCents, 0);
+		const unrealized = openBefore.reduce((sum, p) => sum + (p.unrealizedPnlCents ?? 0), 0);
 		const bankrollBefore = get(strategies).find((s) => s.name === STRATEGY)!.bankrollCents;
 		const pnlEventsBefore = get(cashEvents).filter(
 			(e) => e.strategyName === STRATEGY && e.kind === 'realized_pnl'
@@ -165,6 +165,27 @@ describe('forceCloseAndWithdraw', () => {
 		const result = await forceCloseAndWithdraw(STRATEGY, 'second');
 		expect(result.ok).toBe(true);
 		expect(get(strategies).find((s) => s.name === STRATEGY)!.bankrollCents).toBe(bankroll);
+	});
+
+	it('rejects when open position has unknown unrealized P&L', async () => {
+		positions.update((list) =>
+			list.map((p) =>
+				p.strategyName === STRATEGY && p.status === 'open'
+					? { ...p, unrealizedPnlCents: null }
+					: p
+			)
+		);
+		const openBefore = get(positions).filter(
+			(p) => p.strategyName === STRATEGY && p.status === 'open'
+		).length;
+
+		const result = await forceCloseAndWithdraw(STRATEGY, 'flatten');
+
+		expect(result.ok).toBe(false);
+		expect(result.ok === false && result.reason).toContain('unrealized P&L unknown');
+		expect(
+			get(positions).filter((p) => p.strategyName === STRATEGY && p.status === 'open')
+		).toHaveLength(openBefore);
 	});
 });
 

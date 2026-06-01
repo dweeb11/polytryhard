@@ -305,9 +305,19 @@ export async function forceCloseAndWithdraw(
 	const open = get(positions).filter(
 		(p) => p.strategyName === strategyName && p.status === 'open'
 	);
+	if (open.some((p) => p.unrealizedPnlCents == null)) {
+		return toastResult(
+			{
+				ok: false,
+				reason:
+					'Cannot close: unrealized P&L unknown for one or more open positions (no market mid)'
+			},
+			''
+		);
+	}
 	let bankroll = strat.bankrollCents;
 	for (const pos of open) {
-		const pnl = pos.unrealizedPnlCents;
+		const pnl = pos.unrealizedPnlCents!;
 		bankroll += pnl;
 		appendCashEvent(strategyName, 'realized_pnl', pnl, bankroll, `close ${pos.ticker}`, pos.id);
 	}
@@ -318,7 +328,7 @@ export async function forceCloseAndWithdraw(
 						...p,
 						status: 'closed' as const,
 						closedAt: nowIso(),
-						realizedPnlCents: p.unrealizedPnlCents,
+						realizedPnlCents: p.unrealizedPnlCents!,
 						unrealizedPnlCents: 0
 					}
 				: p

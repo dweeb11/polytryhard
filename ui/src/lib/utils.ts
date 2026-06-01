@@ -1,4 +1,4 @@
-import type { PaperPosition, StrategyInstance } from './types';
+import type { PaperPosition, SignalOutcome, StrategyInstance } from './types';
 
 export function uuid(): string {
 	return crypto.randomUUID();
@@ -31,6 +31,21 @@ export function formatCents(cents: number): string {
 	return `${sign}$${(abs / 100).toFixed(2)}`;
 }
 
+export function compareIsoDesc(a: string, b: string): number {
+	const ta = Date.parse(a);
+	const tb = Date.parse(b);
+	const na = Number.isNaN(ta) ? Number.NEGATIVE_INFINITY : ta;
+	const nb = Number.isNaN(tb) ? Number.NEGATIVE_INFINITY : tb;
+	return nb - na;
+}
+
+export function formatIsoDateTime(iso: string): string {
+	if (!iso) return '—';
+	const ms = Date.parse(iso);
+	if (Number.isNaN(ms)) return '—';
+	return new Date(ms).toLocaleString();
+}
+
 export function formatAge(iso: string): string {
 	const sec = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
 	if (sec < 60) return `${sec}s ago`;
@@ -54,8 +69,14 @@ export function strategyStateLabel(state: string): string {
 	return state.replace(/_/g, ' ');
 }
 
-export function outcomeColor(outcome: string): string {
+export function formatOutcomeLabel(outcome: SignalOutcome | string): string {
+	if (outcome === 'unknown_outcome') return 'unknown outcome';
+	return outcome.replace(/_/g, ' ');
+}
+
+export function outcomeColor(outcome: SignalOutcome | string): string {
 	if (outcome === 'order_placed') return 'text-emerald-400';
+	if (outcome === 'unknown_outcome') return 'text-red-400';
 	if (outcome === 'rejected_system_paused') return 'text-red-400';
 	if (outcome.startsWith('rejected_')) return 'text-amber-400';
 	return 'text-slate-300';

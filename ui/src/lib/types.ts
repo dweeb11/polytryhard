@@ -11,16 +11,23 @@ export type StrategyState =
 	| 'operator_paused'
 	| 'decommissioned';
 
-export type SignalOutcome =
-	| 'order_placed'
-	| 'rejected_kelly_zero'
-	| 'rejected_exposure_cap'
-	| 'rejected_correlation_cap'
-	| 'rejected_below_threshold'
-	| 'rejected_below_min_position'
-	| 'rejected_market_closed'
-	| 'rejected_stale_inputs'
-	| 'rejected_system_paused';
+/** API-known outcomes; keep in sync with OpenAPI `SignalOutcome` until types are generated. */
+export const KNOWN_SIGNAL_OUTCOMES = [
+	'order_placed',
+	'rejected_kelly_zero',
+	'rejected_exposure_cap',
+	'rejected_correlation_cap',
+	'rejected_below_threshold',
+	'rejected_below_min_position',
+	'rejected_market_closed',
+	'rejected_stale_inputs',
+	'rejected_system_paused'
+] as const;
+
+export type KnownSignalOutcome = (typeof KNOWN_SIGNAL_OUTCOMES)[number];
+
+/** Includes UI-only fallback when the API sends an unrecognized outcome string. */
+export type SignalOutcome = KnownSignalOutcome | 'unknown_outcome';
 
 export type CashEventKind =
 	| 'deposit'
@@ -112,7 +119,7 @@ export interface PaperPosition {
 	qty: number;
 	costBasisCents: number;
 	realizedPnlCents: number | null;
-	unrealizedPnlCents: number;
+	unrealizedPnlCents: number | null;
 	status: PositionStatus;
 }
 

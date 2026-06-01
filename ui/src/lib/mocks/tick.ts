@@ -43,7 +43,7 @@ function tickOnce(): void {
 
 	positions.update((list) =>
 		list.map((p) => {
-			if (p.status !== 'open') return p;
+			if (p.status !== 'open' || p.unrealizedPnlCents == null) return p;
 			const drift = Math.round((Math.random() - 0.48) * 120);
 			return { ...p, unrealizedPnlCents: p.unrealizedPnlCents + drift };
 		})

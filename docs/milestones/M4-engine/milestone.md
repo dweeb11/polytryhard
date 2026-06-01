@@ -6,21 +6,20 @@
 - [x] Vision — `docs/PDD.md` §1.2, §4.1
 - [x] Design — `docs/design/m4-engine.md`
 - [x] Milestone — this doc
-- [ ] **Implement** <- current stage
-- [ ] Verify
+- [ ] **Verify** <- current stage
 - [ ] Ship — ordered PRs to `staging`
 
 ## Tasks (PR slices, ordered)
-- [ ] M4.1 Shared schema `003` — `feature_value` table
-- [ ] M4.2 `FeatureProvider` ABC + tri-state `FeatureValue` DTO + explicit registry
-- [ ] M4.3 Stat feature providers (`ensemble_mean_temp`, `forecast_disagreement`, `kalshi_spread`) + unit tests
-- [ ] M4.4 `Strategy` ABC + registry + AST purity guard
-- [ ] M4.5 Weather strategy/strategies + unit tests incl. negation cases
-- [ ] M4.6 `core/risk` sizing engine (Kelly, caps, freshness) + unit tests
-- [ ] M4.7 `Executor` ABC + `paper_executor` writing through `core/ledger` + tests
-- [ ] M4.8 Tick orchestration in scheduler + integration test
-- [ ] M4.9 `/v1/signals` + `/v1/positions` endpoints + OpenAPI regen
-- [ ] M4.10 (optional) Minimal read-only Signals/Positions UI panel
+- [x] M4.1 Shared schema `003` — `feature_value` table
+- [x] M4.2 `FeatureProvider` ABC + tri-state `FeatureValue` DTO + explicit registry
+- [x] M4.3 Stat feature providers (`ensemble_mean_temp`, `forecast_disagreement`, `kalshi_spread`) + unit tests
+- [x] M4.4 `Strategy` ABC + registry + AST purity guard
+- [x] M4.5 Weather strategy/strategies + unit tests incl. negation cases
+- [x] M4.6 `core/risk` sizing engine (Kelly, caps, freshness) + unit tests
+- [x] M4.7 `Executor` ABC + `paper_executor` writing through `core/ledger` + tests
+- [x] M4.8 Tick orchestration in scheduler + integration test
+- [x] M4.9 `/v1/signals` + `/v1/positions` endpoints + OpenAPI regen
+- [x] M4.10 (optional) Minimal read-only Signals/Positions UI panel
 
 ## Out of scope (M5+)
 - Position resolution / realized P&L (`contract_resolution` table)

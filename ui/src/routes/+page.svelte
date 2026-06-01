@@ -2,8 +2,10 @@
 	import { strategies, signals, sources, systemPaused } from '$lib/stores';
 	import StateBadge from '$lib/components/StateBadge.svelte';
 	import {
+		compareIsoDesc,
 		drawdownPct,
 		formatCents,
+		formatOutcomeLabel,
 		outcomeColor,
 		PAUSABLE_STATES,
 		RESUMABLE_STATES,
@@ -12,7 +14,9 @@
 	import { isDeveloperMode } from '$lib/stores/uiMode';
 	import { pauseStrategy, resumeStrategy, probeSource } from '$lib/actions';
 
-	const recentSignals = $derived($signals.slice(0, 12));
+	const recentSignals = $derived(
+		[...$signals].sort((a, b) => compareIsoDesc(a.evaluatedAt, b.evaluatedAt)).slice(0, 12)
+	);
 </script>
 
 <h1 class="mb-4 text-lg font-semibold text-slate-100">Dashboard</h1>
@@ -115,7 +119,7 @@
 			{#each recentSignals as sig (sig.id)}
 				<li class="flex justify-between gap-2 border-b border-slate-800/80 py-1 last:border-0">
 					<span class="text-slate-300">{sig.strategyName} · {sig.ticker}</span>
-					<span class={outcomeColor(sig.outcome)}>{sig.outcome.replace(/_/g, ' ')}</span>
+					<span class={outcomeColor(sig.outcome)}>{formatOutcomeLabel(sig.outcome)}</span>
 				</li>
 			{/each}
 		</ul>

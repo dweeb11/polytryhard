@@ -21,7 +21,10 @@
 	let killReason = $state('');
 	let resumeReason = $state('');
 
-	const overviewNav = [{ href: '/', label: 'Overview' }];
+	const overviewNav = [
+		{ href: '/', label: 'Overview' },
+		{ href: '/trading', label: 'Trading' }
+	];
 
 	onMount(() => {
 		if (get(uiMode) === 'release') {
@@ -114,7 +117,8 @@
 					<li>
 						<a
 							href={item.href}
-							class="block rounded px-2 py-1.5 {$page.url.pathname === item.href
+							class="block rounded px-2 py-1.5 {$page.url.pathname === item.href ||
+							(item.href !== '/' && $page.url.pathname.startsWith(item.href))
 								? 'bg-slate-700 text-white'
 								: 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}"
 						>
