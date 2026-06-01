@@ -65,7 +65,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         status = "degraded" if db_states & {"down", "unconfigured"} else "ok"
         if status == "degraded":
             response.status_code = 503
-        return {
+        payload: dict[str, Any] = {
             "status": status,
             "version": resolved.app_version,
             "git_sha": resolved.git_sha,
@@ -74,6 +74,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "db_shared": db_shared,
             "db_per_env": db_per_env,
         }
+        scheduler = getattr(request.app.state, "scheduler", None)
+        if isinstance(scheduler, Scheduler):
+            cycle = scheduler.cycle_health
+            payload["scheduler_cycle"] = {
+                "status": "error" if cycle.last_cycle_error else "ok",
+                "last_error": cycle.last_cycle_error,
+                "last_success_at": (
+                    cycle.last_cycle_success_at.isoformat()
+                    if cycle.last_cycle_success_at is not None
+                    else None
+                ),
+            }
+        return payload
 
     return app
 

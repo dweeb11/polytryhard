@@ -44,6 +44,7 @@ def _aggregate_ensemble_mean_temp(
     *,
     location_id: str,
 ) -> FeatureValue | None:
+    """Unweighted arithmetic mean of per-model ensemble_mean_temp parts."""
     numerics: list[Decimal] = []
     as_ofs: list[datetime] = []
     template: FeatureValue | None = None
@@ -77,13 +78,20 @@ def features_for_market(
     location_id: str | None,
     ticker: str,
 ) -> dict[str, FeatureValue]:
+    """Scope indexed features to one market.
+
+    Provider names are unique in the returned dict; when multiple rows share a
+    provider at the same location, the first matching row wins (stable index order).
+    """
     by_name: dict[str, FeatureValue] = {}
     ensemble_parts: list[FeatureValue] = []
     for feature in indexed.values():
         if feature.provider_name == "kalshi_spread" and feature.subject_id == ticker:
-            by_name[feature.provider_name] = feature
+            if feature.provider_name not in by_name:
+                by_name[feature.provider_name] = feature
         elif location_id and feature.subject_id == location_id:
-            by_name[feature.provider_name] = feature
+            if feature.provider_name not in by_name:
+                by_name[feature.provider_name] = feature
         elif (
             location_id
             and feature.provider_name == "ensemble_mean_temp"

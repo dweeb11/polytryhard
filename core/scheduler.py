@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime
 from uuid import uuid4
 
 import httpx
@@ -33,9 +34,21 @@ def _cycle_request_id() -> str:
 
 
 def _cycle_interval_seconds(sources: list[IngestionSource]) -> float:
+    """Sleep between full ingest+tick cycles.
+
+    Every enabled source runs each cycle; use the slowest source interval so
+    faster sources are not polled more often than their own schedule intent.
+    """
     if not sources:
         return 60.0
-    return float(min(source.schedule_seconds for source in sources))
+    return float(max(source.schedule_seconds for source in sources))
+
+
+@dataclass
+class CycleHealth:
+    last_cycle_at: datetime | None = None
+    last_cycle_success_at: datetime | None = None
+    last_cycle_error: str | None = None
 
 
 class HttpxClient:
@@ -54,6 +67,7 @@ class Scheduler:
     _tasks: list[asyncio.Task[None]]
     _stop: asyncio.Event
     _http: httpx.AsyncClient | None
+    cycle_health: CycleHealth = field(default_factory=CycleHealth)
 
     @classmethod
     def create(cls, settings: Settings, *, clock: Clock | None = None) -> Scheduler:
@@ -65,6 +79,16 @@ class Scheduler:
             _stop=asyncio.Event(),
             _http=None,
         )
+
+    def _mark_cycle_success(self) -> None:
+        finished = self.clock.now()
+        self.cycle_health.last_cycle_at = finished
+        self.cycle_health.last_cycle_success_at = finished
+        self.cycle_health.last_cycle_error = None
+
+    def _mark_cycle_failure(self, error: str) -> None:
+        self.cycle_health.last_cycle_at = self.clock.now()
+        self.cycle_health.last_cycle_error = error
 
     async def start(self) -> None:
         if not self.settings.scheduler_enabled:
@@ -94,7 +118,12 @@ class Scheduler:
         cycle_id = _cycle_request_id()
         for source in enabled_sources(self.settings):
             await self._ingest_source(source)
-        await self._run_engine_tick(cycle_id)
+        try:
+            await self._run_engine_tick(cycle_id)
+        except Exception as exc:
+            self._mark_cycle_failure(str(exc))
+            raise
+        self._mark_cycle_success()
 
     def health_snapshots(self) -> list[SourceHealthSnapshot]:
         snapshots: list[SourceHealthSnapshot] = []
@@ -121,7 +150,8 @@ class Scheduler:
                 await self.run_cycle()
             except asyncio.CancelledError:
                 raise
-            except Exception:
+            except Exception as exc:
+                self._mark_cycle_failure(str(exc))
                 logger.exception("scheduler cycle failed")
             sources = enabled_sources(self.settings)
             interval = _cycle_interval_seconds(sources)

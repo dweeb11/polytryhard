@@ -11,7 +11,7 @@ from core.clock import Clock, FakeClock
 from core.contracts.source import FetchResult, ReferenceLocation, SourceContext
 from core.db.shared_enums import SourceRunStatus
 from core.db.shared_models import RawForecastRunRow, SourceRunRow
-from core.scheduler import Scheduler
+from core.scheduler import Scheduler, _cycle_interval_seconds
 from core.settings import Settings
 from core.sources.kalshi import KalshiMarketsSource
 from core.sources.open_meteo import OpenMeteoSource
@@ -250,6 +250,47 @@ async def test_run_cycle_keeps_source_health_when_engine_tick_raises(
     health = scheduler.health.get("open_meteo")
     assert health.status == SourceRunStatus.OK
     assert health.last_success_at is not None
+    assert scheduler.cycle_health.last_cycle_error == "engine tick failed"
+    assert scheduler.cycle_health.last_cycle_at is not None
+
+
+@pytest.mark.asyncio
+async def test_run_cycle_records_cycle_health_on_success(
+    per_env_sqlite_urls: tuple[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    shared_url, per_env_url = per_env_sqlite_urls
+    settings = Settings(
+        REQUIRE_DBS=False,
+        CONTROL_PLANE_TOKEN="dev-token",
+        DATABASE_URL_SHARED=shared_url,
+        DATABASE_URL_PER_ENV=per_env_url,
+        SCHEDULER_ENABLED=False,
+    )
+
+    async def ok_tick(**_kwargs: object) -> dict[str, int]:
+        return {"features": 0, "signals": 0, "orders": 0}
+
+    monkeypatch.setattr("core.engine.tick.run_engine_tick", ok_tick)
+    monkeypatch.setattr(
+        "core.scheduler.enabled_sources",
+        lambda _settings: [_StubSource(name="stub_a")],
+    )
+
+    scheduler = Scheduler.create(
+        settings,
+        clock=FakeClock(start=datetime(2026, 5, 28, 12, 0, tzinfo=UTC)),
+    )
+    await scheduler.run_cycle()
+
+    assert scheduler.cycle_health.last_cycle_error is None
+    assert scheduler.cycle_health.last_cycle_success_at is not None
+
+
+def test_cycle_interval_uses_slowest_source_schedule() -> None:
+    fast = _StubSource(name="fast", schedule_seconds=60)
+    slow = _StubSource(name="slow", schedule_seconds=3600)
+    assert _cycle_interval_seconds([fast, slow]) == 3600.0
 
 
 def test_health_tracker_marks_degraded_after_threshold() -> None:

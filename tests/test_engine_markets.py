@@ -53,3 +53,26 @@ def test_features_for_market_scopes_kalshi_spread_by_ticker() -> None:
     indexed = index_features([spread_a, spread_b])
     scoped = features_for_market(indexed, location_id="nyc", ticker="TICK-A")
     assert scoped == {"kalshi_spread": spread_a}
+
+
+def test_features_for_market_prefers_location_rollup_over_model_parts() -> None:
+    as_of = datetime(2026, 5, 28, 12, 0, tzinfo=UTC)
+    rollup = FeatureValue.present(
+        provider_name="ensemble_mean_temp",
+        provider_version="1",
+        subject_kind="location",
+        subject_id="nyc",
+        as_of=as_of,
+        value_numeric=Decimal("50"),
+    )
+    part = FeatureValue.present(
+        provider_name="ensemble_mean_temp",
+        provider_version="1",
+        subject_kind="location",
+        subject_id="nyc:gfs",
+        as_of=as_of,
+        value_numeric=Decimal("90"),
+    )
+    indexed = index_features([rollup, part])
+    scoped = features_for_market(indexed, location_id="nyc", ticker="TICK-A")
+    assert scoped["ensemble_mean_temp"].value_numeric == Decimal("50")
