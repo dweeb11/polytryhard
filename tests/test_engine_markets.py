@@ -1,7 +1,6 @@
 from datetime import UTC, datetime
 from decimal import Decimal
-
-import pytest
+from unittest.mock import patch
 
 from core.domain.feature import FeatureValue
 from core.engine.markets import features_for_market, index_features
@@ -80,9 +79,7 @@ def test_features_for_market_prefers_location_rollup_over_model_parts() -> None:
     assert scoped["ensemble_mean_temp"].value_numeric == Decimal("50")
 
 
-def test_features_for_market_warns_on_unrecognized_subject_kind(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
+def test_features_for_market_warns_on_unrecognized_subject_kind() -> None:
     as_of = datetime(2026, 5, 28, 12, 0, tzinfo=UTC)
     article = FeatureValue.present(
         provider_name="news_sentiment",
@@ -93,7 +90,8 @@ def test_features_for_market_warns_on_unrecognized_subject_kind(
         value_numeric=Decimal("0.5"),
     )
     indexed = index_features([article])
-    with caplog.at_level("WARNING"):
+    with patch("core.engine.markets.logger.warning") as warning:
         scoped = features_for_market(indexed, location_id="nyc", ticker="TICK-A")
     assert scoped == {}
-    assert "features_for_market dropped unrecognized subject_kind(s): ['article']" in caplog.text
+    warning.assert_called_once()
+    assert "article" in str(warning.call_args)
