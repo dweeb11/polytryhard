@@ -8,7 +8,7 @@ import pytest
 from sqlalchemy import func, select
 
 from core.clock import Clock, FakeClock
-from core.contracts.source import FetchResult, ReferenceLocation, SourceContext
+from core.contracts.source import FetchResult, IngestionSource, ReferenceLocation, SourceContext
 from core.db.shared_enums import SourceRunStatus
 from core.db.shared_models import RawForecastRunRow, SourceRunRow
 from core.scheduler import Scheduler, _cycle_interval_seconds
@@ -132,10 +132,18 @@ async def test_scheduler_persists_open_meteo_rows(
         assert forecast_count == EXPECTED_FORECAST_ROWS
 
 
-@dataclass
-class _StubSource:
-    name: str
-    schedule_seconds: int = 300
+class _StubSource(IngestionSource):
+    def __init__(self, name: str, schedule_seconds: int = 300) -> None:
+        self._name = name
+        self._schedule_seconds = schedule_seconds
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def schedule_seconds(self) -> int:
+        return self._schedule_seconds
 
     def is_enabled(self, _settings: Settings) -> bool:
         return True

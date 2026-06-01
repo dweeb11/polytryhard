@@ -6,10 +6,11 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from core.clock import FakeClock
+from core.db.enums import SignalOutcome
 from core.db.models import SignalRow, StrategyInstanceRow
 from core.db.shared_enums import ForecastSource
 from core.db.shared_models import RawForecastRunRow, RawMarketSnapshotRow, ReferenceMarketRow
-from core.domain.enums import AuditActor, PositionSide, SignalOutcome
+from core.domain.enums import AuditActor, PositionSide
 from core.engine.tick import _strategy_open_positions, run_engine_tick
 from core.ledger import writer
 from core.ledger.seed import seed_strategies_if_needed
