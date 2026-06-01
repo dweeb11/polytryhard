@@ -166,6 +166,27 @@ describe('forceCloseAndWithdraw', () => {
 		expect(result.ok).toBe(true);
 		expect(get(strategies).find((s) => s.name === STRATEGY)!.bankrollCents).toBe(bankroll);
 	});
+
+	it('rejects when open position has unknown unrealized P&L', async () => {
+		positions.update((list) =>
+			list.map((p) =>
+				p.strategyName === STRATEGY && p.status === 'open'
+					? { ...p, unrealizedPnlCents: null }
+					: p
+			)
+		);
+		const openBefore = get(positions).filter(
+			(p) => p.strategyName === STRATEGY && p.status === 'open'
+		).length;
+
+		const result = await forceCloseAndWithdraw(STRATEGY, 'flatten');
+
+		expect(result.ok).toBe(false);
+		expect(result.ok === false && result.reason).toContain('unrealized P&L unknown');
+		expect(
+			get(positions).filter((p) => p.strategyName === STRATEGY && p.status === 'open')
+		).toHaveLength(openBefore);
+	});
 });
 
 describe('kill switch', () => {

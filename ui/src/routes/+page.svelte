@@ -2,6 +2,7 @@
 	import { strategies, signals, sources, systemPaused } from '$lib/stores';
 	import StateBadge from '$lib/components/StateBadge.svelte';
 	import {
+		compareIsoDesc,
 		drawdownPct,
 		formatCents,
 		outcomeColor,
@@ -12,7 +13,9 @@
 	import { isDeveloperMode } from '$lib/stores/uiMode';
 	import { pauseStrategy, resumeStrategy, probeSource } from '$lib/actions';
 
-	const recentSignals = $derived($signals.slice(0, 12));
+	const recentSignals = $derived(
+		[...$signals].sort((a, b) => compareIsoDesc(a.evaluatedAt, b.evaluatedAt)).slice(0, 12)
+	);
 </script>
 
 <h1 class="mb-4 text-lg font-semibold text-slate-100">Dashboard</h1>

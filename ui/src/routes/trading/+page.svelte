@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { signals, positions, strategies } from '$lib/stores';
-	import { formatCents, outcomeColor } from '$lib/utils';
+	import { compareIsoDesc, formatCents, formatIsoDateTime, outcomeColor } from '$lib/utils';
 
 	let strategyFilter = $state('all');
 	let outcomeFilter = $state('all');
@@ -9,19 +9,23 @@
 	const strategyNames = $derived(['all', ...$strategies.map((s) => s.name)]);
 
 	const filteredSignals = $derived(
-		$signals.filter((sig) => {
-			if (strategyFilter !== 'all' && sig.strategyName !== strategyFilter) return false;
-			if (outcomeFilter !== 'all' && sig.outcome !== outcomeFilter) return false;
-			return true;
-		})
+		$signals
+			.filter((sig) => {
+				if (strategyFilter !== 'all' && sig.strategyName !== strategyFilter) return false;
+				if (outcomeFilter !== 'all' && sig.outcome !== outcomeFilter) return false;
+				return true;
+			})
+			.sort((a, b) => compareIsoDesc(a.evaluatedAt, b.evaluatedAt))
 	);
 
 	const filteredPositions = $derived(
-		$positions.filter((pos) => {
-			if (strategyFilter !== 'all' && pos.strategyName !== strategyFilter) return false;
-			if (statusFilter !== 'all' && pos.status !== statusFilter) return false;
-			return true;
-		})
+		$positions
+			.filter((pos) => {
+				if (strategyFilter !== 'all' && pos.strategyName !== strategyFilter) return false;
+				if (statusFilter !== 'all' && pos.status !== statusFilter) return false;
+				return true;
+			})
+			.sort((a, b) => compareIsoDesc(a.openedAt, b.openedAt))
 	);
 
 	const signalOutcomes = $derived([
@@ -89,7 +93,7 @@
 				<tbody>
 					{#each filteredSignals as sig (sig.id)}
 						<tr class="border-t border-slate-800">
-							<td class="py-1 text-slate-400">{new Date(sig.evaluatedAt).toLocaleString()}</td>
+							<td class="py-1 text-slate-400">{formatIsoDateTime(sig.evaluatedAt)}</td>
 							<td class="py-1">{sig.strategyName}</td>
 							<td class="py-1 font-mono">{sig.ticker}</td>
 							<td class="py-1 text-right tabular-nums">{sig.probYes.toFixed(2)}</td>

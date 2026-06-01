@@ -31,6 +31,21 @@ export function formatCents(cents: number): string {
 	return `${sign}$${(abs / 100).toFixed(2)}`;
 }
 
+export function compareIsoDesc(a: string, b: string): number {
+	const ta = Date.parse(a);
+	const tb = Date.parse(b);
+	const na = Number.isNaN(ta) ? Number.NEGATIVE_INFINITY : ta;
+	const nb = Number.isNaN(tb) ? Number.NEGATIVE_INFINITY : tb;
+	return nb - na;
+}
+
+export function formatIsoDateTime(iso: string): string {
+	if (!iso) return '—';
+	const ms = Date.parse(iso);
+	if (Number.isNaN(ms)) return '—';
+	return new Date(ms).toLocaleString();
+}
+
 export function formatAge(iso: string): string {
 	const sec = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
 	if (sec < 60) return `${sec}s ago`;
