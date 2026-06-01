@@ -31,54 +31,60 @@ class EnsembleMeanTempProvider(FeatureProvider):
         results: list[FeatureValue] = []
         subject_kind = FeatureSubjectKind.LOCATION.value
         for location in list_locations(ctx.session):
-            gfs_rows = latest_forecast_rows(
-                ctx.session,
-                location_id=location.id,
-                source=ForecastSource.GFS,
-                variable=TEMPERATURE_VARIABLE,
-                as_of=as_of,
-            )
-            ecmwf_rows = latest_forecast_rows(
-                ctx.session,
-                location_id=location.id,
-                source=ForecastSource.ECMWF,
-                variable=TEMPERATURE_VARIABLE,
-                as_of=as_of,
-            )
-            all_rows = gfs_rows + ecmwf_rows
-            if not all_rows:
+            for source in (ForecastSource.GFS, ForecastSource.ECMWF):
+                subject_id = f"{location.id}:{source.value}"
+                rows = latest_forecast_rows(
+                    ctx.session,
+                    location_id=location.id,
+                    source=source,
+                    variable=TEMPERATURE_VARIABLE,
+                    as_of=as_of,
+                    target_window_start=ctx.target_window_start,
+                )
+                if not rows:
+                    results.append(
+                        FeatureValue.missing(
+                            provider_name=self.name,
+                            provider_version=self.version,
+                            subject_kind=subject_kind,
+                            subject_id=subject_id,
+                            reason="no forecast rows",
+                        )
+                    )
+                    continue
+                mean = ensemble_mean(rows)
+                if mean is None:
+                    results.append(
+                        FeatureValue.missing(
+                            provider_name=self.name,
+                            provider_version=self.version,
+                            subject_kind=subject_kind,
+                            subject_id=subject_id,
+                            reason="empty ensemble",
+                        )
+                    )
+                    continue
+                as_of_value = latest_forecast_as_of(rows)
+                if as_of_value is None:
+                    results.append(
+                        FeatureValue.missing(
+                            provider_name=self.name,
+                            provider_version=self.version,
+                            subject_kind=subject_kind,
+                            subject_id=subject_id,
+                            reason="empty ensemble",
+                        )
+                    )
+                    continue
                 results.append(
-                    FeatureValue.missing(
+                    FeatureValue.present(
                         provider_name=self.name,
                         provider_version=self.version,
                         subject_kind=subject_kind,
-                        subject_id=location.id,
-                        reason="no forecast rows",
+                        subject_id=subject_id,
+                        as_of=as_of_value,
+                        value_numeric=mean,
+                        value_jsonb={"source": source.value},
                     )
                 )
-                continue
-            mean = ensemble_mean(all_rows)
-            if mean is None:
-                results.append(
-                    FeatureValue.missing(
-                        provider_name=self.name,
-                        provider_version=self.version,
-                        subject_kind=subject_kind,
-                        subject_id=location.id,
-                        reason="empty ensemble",
-                    )
-                )
-                continue
-            as_of_value = latest_forecast_as_of(all_rows)
-            assert as_of_value is not None
-            results.append(
-                FeatureValue.present(
-                    provider_name=self.name,
-                    provider_version=self.version,
-                    subject_kind=subject_kind,
-                    subject_id=location.id,
-                    as_of=as_of_value,
-                    value_numeric=mean,
-                )
-            )
         return results

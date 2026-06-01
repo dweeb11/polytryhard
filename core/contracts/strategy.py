@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-from core.domain.feature import FeatureValue
+from core.domain.feature import FeatureStatus, FeatureValue
 from core.domain.market import MarketState, SignalDraft
 from core.settings import Settings
 
@@ -48,10 +48,15 @@ def required_features_present(
 ) -> bool:
     for name in required:
         feature = values.get(name)
-        if feature is None or feature.status.value == "missing":
+        if feature is None:
             if not tolerate_missing:
                 return False
-        elif feature.status.value != "present":
+            continue
+        if feature.status == FeatureStatus.PRESENT:
+            continue
+        if feature.status == FeatureStatus.MISSING:
             if not tolerate_missing:
                 return False
+            continue
+        return False
     return True

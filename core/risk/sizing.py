@@ -4,11 +4,11 @@ from dataclasses import dataclass
 from datetime import timedelta
 from decimal import ROUND_DOWN, Decimal
 
+from core.db.enums import PositionStatus
 from core.db.models import PaperPositionRow, StrategyInstanceRow
-from core.domain.enums import PositionSide, SignalOutcome, StrategyState, SystemState
-from core.domain.feature import FeatureValue
+from core.domain.enums import PositionSide, SignalOutcome, SystemState
+from core.domain.feature import FeatureStatus, FeatureValue
 from core.domain.market import MarketState, SignalDraft
-from core.domain.state_machine import can_emit_signals
 from core.domain.strategy import StrategyConfig
 from core.domain.system import SystemEnvState
 from core.domain.trading import Order, Rejection
@@ -35,14 +35,6 @@ class SizingInput:
 def size_order(input_data: SizingInput) -> Order | Rejection:
     if input_data.system_state.state == SystemState.PAUSED:
         return Rejection(SignalOutcome.REJECTED_SYSTEM_PAUSED, "system paused")
-
-    strategy_state = StrategyState(input_data.strategy.state)
-    if not can_emit_signals(
-        enabled=input_data.strategy.enabled,
-        state=strategy_state,
-        kelly_fraction=float(input_data.strategy.kelly_fraction),
-    ):
-        return Rejection(SignalOutcome.REJECTED_SYSTEM_PAUSED, "strategy not emitting")
 
     config = StrategyConfig.model_validate(input_data.strategy.config_jsonb)
     stale = _stale_feature(config.max_input_age_seconds, input_data.features, input_data.market)
@@ -137,12 +129,15 @@ def _stale_feature(
 ) -> str | None:
     cutoff = market.as_of - timedelta(seconds=max_age_seconds)
     location_id = location_for_series(market.series)
+    scoped_subjects = {market.ticker, location_id}
     for feature in features.values():
-        if feature.status.value != "present" or feature.as_of is None:
+        if feature.subject_id not in scoped_subjects:
             continue
-        if feature.subject_id not in {market.ticker, location_id}:
-            continue
-        if feature.as_of < cutoff:
+        if feature.status == FeatureStatus.STALE:
+            return f"stale feature {feature.provider_name}"
+        if feature.status != FeatureStatus.PRESENT:
+            return f"missing feature {feature.provider_name}"
+        if feature.as_of is None or feature.as_of < cutoff:
             return f"stale feature {feature.provider_name}"
     return None
 
@@ -156,7 +151,7 @@ def _exposure_cap_exceeded(input_data: SizingInput, new_cost_basis_cents: int) -
     open_cost = sum(
         pos.cost_basis_cents
         for pos in input_data.open_positions
-        if pos.status.value == "open"
+        if pos.status == PositionStatus.OPEN
     )
     total_exposure = open_cost + new_cost_basis_cents
     cap = int(input_data.total_bankroll_cents * cap_pct)
@@ -170,7 +165,7 @@ def _correlation_cap_exceeded(input_data: SizingInput, new_cost_basis_cents: int
     correlated_cost = sum(
         pos.cost_basis_cents
         for pos in input_data.open_positions
-        if pos.status.value == "open" and _settlement_key(pos.ticker) == settlement_key
+        if pos.status == PositionStatus.OPEN and _settlement_key(pos.ticker) == settlement_key
     )
     cap_pct = _config_float(
         input_data.strategy.config_jsonb,

@@ -1,21 +1,14 @@
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 from uuid import uuid4
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from core.db.enums import (
-    PositionSide as DbPositionSide,
-)
-from core.db.enums import (
-    PositionStatus as DbPositionStatus,
-)
-from core.db.enums import (
-    SignalOutcome as DbSignalOutcome,
-)
-from core.db.enums import (
-    StrategyState as DbStrategyState,
-)
+from core.db.enums import PositionSide as DbPositionSide
+from core.db.enums import PositionStatus as DbPositionStatus
+from core.db.enums import SignalOutcome as DbSignalOutcome
+from core.db.enums import StrategyState as DbStrategyState
 from core.db.enums import SystemState as DbSystemState
 from core.db.models import (
     AuditEventRow,
@@ -47,7 +40,12 @@ from core.domain.state_machine import (
 )
 from core.domain.strategy import StrategyConfig
 from core.ledger.errors import LedgerError
-from core.ledger.queries import cash_event_from_row, free_cash_cents, get_system_state
+from core.ledger.queries import (
+    cash_event_from_row,
+    free_cash_cents,
+    free_cash_for_strategy,
+    get_system_state,
+)
 from core.utils.time import utc_now
 
 
@@ -94,6 +92,22 @@ def _get_strategy_row(session: Session, strategy_name: str) -> StrategyInstanceR
     if row is None:
         raise LedgerError("Strategy not found")
     return row
+
+
+def _lock_strategy_row(session: Session, strategy_name: str) -> StrategyInstanceRow:
+    row = session.execute(
+        select(StrategyInstanceRow)
+        .where(StrategyInstanceRow.name == strategy_name)
+        .with_for_update()
+    ).scalar_one_or_none()
+    if row is None:
+        raise LedgerError("Strategy not found")
+    return row
+
+
+def _expected_cost_basis_cents(qty: int, price: Decimal) -> int:
+    total = (Decimal(qty) * price * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    return int(total)
 
 
 def _touch_strategy(row: StrategyInstanceRow, *, state: StrategyState | None = None) -> None:
@@ -249,11 +263,14 @@ def record_signal(
     features_snapshot: dict[str, object],
     outcome: SignalOutcome,
     rejection_reason: str | None,
+    actor: AuditActor,
     request_id: str,
 ) -> SignalRow:
+    _require_system_active(session)
     now = utc_now()
+    signal_id = _new_id()
     row = SignalRow(
-        id=_new_id(),
+        id=signal_id,
         strategy_name=strategy_name,
         ticker=signal.ticker,
         evaluated_at=now,
@@ -265,6 +282,23 @@ def record_signal(
         rejection_reason=rejection_reason,
     )
     session.add(row)
+    session.flush()
+    _append_audit(
+        session,
+        actor=actor,
+        action="record_signal",
+        target_type="signal",
+        target_id=signal_id,
+        before_state={},
+        after_state={
+            "signalId": signal_id,
+            "strategyName": strategy_name,
+            "ticker": signal.ticker,
+            "outcome": outcome.value,
+        },
+        reason=rejection_reason or f"signal outcome={outcome.value}",
+        request_id=request_id,
+    )
     session.flush()
     return row
 
@@ -284,6 +318,31 @@ def open_paper_position(
     actor: AuditActor,
     request_id: str,
 ) -> tuple[PaperPositionRow, PaperFillRow]:
+    _require_system_active(session)
+    if qty <= 0:
+        raise LedgerError("Quantity must be positive")
+    if cost_basis_cents <= 0:
+        raise LedgerError("Cost basis must be positive")
+    if fees_cents < 0:
+        raise LedgerError("Fees must be non-negative")
+    expected_cost = _expected_cost_basis_cents(qty, price)
+    if cost_basis_cents != expected_cost:
+        raise LedgerError(
+            f"Cost basis {cost_basis_cents} does not match qty×price ({expected_cost} cents)"
+        )
+    if signal_id is not None:
+        signal_row = session.get(SignalRow, signal_id)
+        if signal_row is None:
+            raise LedgerError("Signal not found")
+        if signal_row.strategy_name != strategy_name:
+            raise LedgerError("Signal does not belong to strategy")
+
+    strategy = _lock_strategy_row(session, strategy_name)
+    free = free_cash_for_strategy(session, strategy)
+    total_cost = cost_basis_cents + fees_cents
+    if total_cost > free:
+        raise LedgerError(f"Position exceeds free cash ({free} cents available)")
+
     now = utc_now()
     position = PaperPositionRow(
         id=_new_id(),
@@ -314,8 +373,23 @@ def open_paper_position(
     )
     session.add(fill)
     session.flush()
+    _append_audit(
+        session,
+        actor=actor,
+        action="open_paper_position",
+        target_type="paper_position",
+        target_id=position.id,
+        before_state={},
+        after_state={
+            "positionId": position.id,
+            "fillId": fill.id,
+            "costBasisCents": cost_basis_cents,
+            "feesCents": fees_cents,
+        },
+        reason=f"paper fill position={position.id}",
+        request_id=request_id,
+    )
     if fees_cents > 0:
-        strategy = _get_strategy_row(session, strategy_name)
         before = {"bankrollCents": strategy.bankroll_cents}
         new_bankroll = strategy.bankroll_cents - fees_cents
         _write_bankroll_event(

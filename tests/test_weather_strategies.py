@@ -5,6 +5,7 @@ from core.contracts.strategy import StrategyContext
 from core.domain.enums import PositionSide
 from core.domain.feature import FeatureValue
 from core.domain.market import MarketState
+from core.strategies.registry import registered_strategies
 from core.strategies.weather_ensemble_disagreement.strategy import (
     WeatherEnsembleDisagreementStrategy,
 )
@@ -49,6 +50,11 @@ def _features(**overrides: Decimal) -> dict[str, FeatureValue]:
     return result
 
 
+def test_weather_strategies_registered() -> None:
+    names = {strategy.name for strategy in registered_strategies()}
+    assert names == {"weather_ensemble_disagreement", "weather_stale_quote"}
+
+
 def test_weather_ensemble_disagreement_emits_on_divergence() -> None:
     strategy = WeatherEnsembleDisagreementStrategy()
     signal = strategy.evaluate(
@@ -65,6 +71,21 @@ def test_weather_ensemble_disagreement_rejects_low_disagreement() -> None:
     signal = strategy.evaluate(
         _market(),
         _features(forecast_disagreement=Decimal("0.5")),
+        StrategyContext(strategy_name=strategy.name, config_jsonb={}),
+    )
+    assert signal is None
+
+
+def test_weather_ensemble_disagreement_rejects_insufficient_divergence() -> None:
+    strategy = WeatherEnsembleDisagreementStrategy()
+    # ensemble 72°F -> prob 0.40; mid aligned -> divergence 0 <= spread × 1.5
+    signal = strategy.evaluate(
+        _market(mid_yes=Decimal("0.40")),
+        _features(
+            ensemble_mean_temp=Decimal("72"),
+            forecast_disagreement=Decimal("5"),
+            kalshi_spread=Decimal("0.15"),
+        ),
         StrategyContext(strategy_name=strategy.name, config_jsonb={}),
     )
     assert signal is None
