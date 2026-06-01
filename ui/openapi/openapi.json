@@ -625,9 +625,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "type": "object",
-                  "title": "Response Healthz Healthz Get"
+                  "$ref": "#/components/schemas/HealthzResponse"
                 }
               }
             }
@@ -808,6 +806,63 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "HealthzResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "degraded"
+            ],
+            "title": "Status"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "git_sha": {
+            "type": "string",
+            "title": "Git Sha"
+          },
+          "request_id": {
+            "type": "string",
+            "title": "Request Id"
+          },
+          "checked_at": {
+            "type": "string",
+            "title": "Checked At"
+          },
+          "db_shared": {
+            "type": "string",
+            "title": "Db Shared"
+          },
+          "db_per_env": {
+            "type": "string",
+            "title": "Db Per Env"
+          },
+          "scheduler_cycle": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SchedulerCycleHealth"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "version",
+          "git_sha",
+          "request_id",
+          "checked_at",
+          "db_shared",
+          "db_per_env"
+        ],
+        "title": "HealthzResponse"
+      },
       "ReasonBody": {
         "properties": {
           "reason": {
@@ -820,6 +875,57 @@
           "reason"
         ],
         "title": "ReasonBody"
+      },
+      "SchedulerCycleHealth": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "ok",
+              "error"
+            ],
+            "title": "Status"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "last_cycle_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Cycle At"
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "SchedulerCycleHealth"
       },
       "SetKellyBody": {
         "properties": {

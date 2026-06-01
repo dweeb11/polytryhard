@@ -1,9 +1,10 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from core.api.middleware import request_id_middleware
 from core.api.v1.routes import router as v1_router
@@ -14,6 +15,24 @@ from core.scheduler import Scheduler
 from core.settings import Settings, get_settings
 from core.sources.seed import seed_locations_if_needed
 from core.utils.time import now_iso
+
+
+class SchedulerCycleHealth(BaseModel):
+    status: Literal["pending", "ok", "error"]
+    last_error: str | None = None
+    last_cycle_at: str | None = None
+    last_success_at: str | None = None
+
+
+class HealthzResponse(BaseModel):
+    status: Literal["ok", "degraded"]
+    version: str
+    git_sha: str
+    request_id: str
+    checked_at: str
+    db_shared: str
+    db_per_env: str
+    scheduler_cycle: SchedulerCycleHealth | None = None
 
 
 @asynccontextmanager
@@ -57,14 +76,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.middleware("http")(request_id_middleware)
     app.include_router(v1_router)
 
-    @app.get("/healthz")
+    @app.get("/healthz", response_model=HealthzResponse)
     def healthz(request: Request, response: Response) -> dict[str, Any]:
         db_shared = check_database(resolved.database_url_shared)
         db_per_env = check_database(resolved.database_url_per_env)
         db_states = {db_shared, db_per_env}
         status = "degraded" if db_states & {"down", "unconfigured"} else "ok"
-        if status == "degraded":
-            response.status_code = 503
         payload: dict[str, Any] = {
             "status": status,
             "version": resolved.app_version,
@@ -77,15 +94,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         scheduler = getattr(request.app.state, "scheduler", None)
         if isinstance(scheduler, Scheduler):
             cycle = scheduler.cycle_health
+            cycle_status = cycle.status
+            if cycle_status == "error":
+                payload["status"] = "degraded"
             payload["scheduler_cycle"] = {
-                "status": "error" if cycle.last_cycle_error else "ok",
-                "last_error": cycle.last_cycle_error,
+                "status": cycle_status,
+                "last_error": "scheduler cycle failed" if cycle.last_cycle_error else None,
+                "last_cycle_at": (
+                    cycle.last_cycle_at.isoformat() if cycle.last_cycle_at is not None else None
+                ),
                 "last_success_at": (
                     cycle.last_cycle_success_at.isoformat()
                     if cycle.last_cycle_success_at is not None
                     else None
                 ),
             }
+        if payload["status"] == "degraded":
+            response.status_code = 503
         return payload
 
     return app

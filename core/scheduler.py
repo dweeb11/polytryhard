@@ -50,6 +50,14 @@ class CycleHealth:
     last_cycle_success_at: datetime | None = None
     last_cycle_error: str | None = None
 
+    @property
+    def status(self) -> str:
+        if self.last_cycle_error is not None:
+            return "error"
+        if self.last_cycle_success_at is None:
+            return "pending"
+        return "ok"
+
 
 class HttpxClient:
     def __init__(self, client: httpx.AsyncClient) -> None:
@@ -116,13 +124,19 @@ class Scheduler:
     async def run_cycle(self) -> None:
         """Ingest all enabled sources sequentially, then run one engine tick."""
         cycle_id = _cycle_request_id()
+        failed_sources: list[str] = []
         for source in enabled_sources(self.settings):
-            await self._ingest_source(source)
+            status = await self._ingest_source(source)
+            if status != SourceRunStatus.OK:
+                failed_sources.append(source.name)
         try:
             await self._run_engine_tick(cycle_id)
         except Exception as exc:
             self._mark_cycle_failure(str(exc))
             raise
+        if failed_sources:
+            self._mark_cycle_failure(f"source ingest failed: {', '.join(failed_sources)}")
+            return
         self._mark_cycle_success()
 
     def health_snapshots(self) -> list[SourceHealthSnapshot]:
@@ -151,7 +165,11 @@ class Scheduler:
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
-                self._mark_cycle_failure(str(exc))
+                if (
+                    self.cycle_health.last_cycle_at is None
+                    or self.cycle_health.last_cycle_at < started
+                ):
+                    self._mark_cycle_failure(str(exc))
                 logger.exception("scheduler cycle failed")
             sources = enabled_sources(self.settings)
             interval = _cycle_interval_seconds(sources)
@@ -162,7 +180,7 @@ class Scheduler:
             except TimeoutError:
                 continue
 
-    async def _ingest_source(self, source: IngestionSource) -> None:
+    async def _ingest_source(self, source: IngestionSource) -> SourceRunStatus:
         request_id = _tick_request_id(source.name)
         started_at = self.clock.now()
         if self._http is None:
@@ -196,6 +214,7 @@ class Scheduler:
                 run_status=result.status,
                 error_text=result.error_text,
             )
+            return result.status
         except Exception as exc:
             finished_at = self.clock.now()
             logger.exception("source fetch failed source=%s request_id=%s", source.name, request_id)
@@ -216,6 +235,7 @@ class Scheduler:
                         )
                 except Exception:
                     logger.exception("failed to persist error source_run for %s", source.name)
+            return SourceRunStatus.ERROR
 
     async def _run_engine_tick(self, request_id: str) -> None:
         from core.engine.tick import run_engine_tick
