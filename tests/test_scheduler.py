@@ -195,7 +195,9 @@ async def test_ingest_source_records_failure_on_fetch_error(
         SCHEDULER_ENABLED=False,
     )
 
-    async def fail_fetch(_self: OpenMeteoSource, _clock: FakeClock, _ctx: SourceContext) -> FetchResult:
+    async def fail_fetch(
+        _self: OpenMeteoSource, _clock: FakeClock, _ctx: SourceContext
+    ) -> FetchResult:
         raise RuntimeError("fetch failed")
 
     monkeypatch.setattr(OpenMeteoSource, "fetch", fail_fetch)
@@ -227,7 +229,9 @@ async def test_run_cycle_keeps_source_health_when_engine_tick_raises(
         SCHEDULER_ENABLED=False,
     )
 
-    async def fake_fetch(_self: OpenMeteoSource, _clock: FakeClock, _ctx: SourceContext) -> FetchResult:
+    async def fake_fetch(
+        _self: OpenMeteoSource, _clock: FakeClock, _ctx: SourceContext
+    ) -> FetchResult:
         return FetchResult()
 
     async def fail_tick(**_kwargs: object) -> None:
