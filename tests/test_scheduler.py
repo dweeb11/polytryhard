@@ -337,10 +337,53 @@ async def test_run_cycle_records_cycle_health_on_source_failure(
     )
     await scheduler.run_cycle()
 
-    assert tick_calls == 1
+    assert tick_calls == 0
     assert scheduler.cycle_health.last_cycle_error == "source ingest failed: open_meteo"
     assert scheduler.cycle_health.last_cycle_at is not None
     assert scheduler.cycle_health.last_cycle_success_at is None
+
+
+@pytest.mark.asyncio
+async def test_run_cycle_tolerates_source_degraded_status(
+    per_env_sqlite_urls: tuple[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    shared_url, per_env_url = per_env_sqlite_urls
+    settings = Settings(
+        REQUIRE_DBS=False,
+        CONTROL_PLANE_TOKEN="dev-token",
+        DATABASE_URL_SHARED=shared_url,
+        DATABASE_URL_PER_ENV=per_env_url,
+        SCHEDULER_ENABLED=False,
+    )
+    tick_calls = 0
+
+    async def degraded_fetch(
+        _self: OpenMeteoSource, _clock: FakeClock, _ctx: SourceContext
+    ) -> FetchResult:
+        return FetchResult(status=SourceRunStatus.DEGRADED, error_text="no rows")
+
+    async def track_tick(**_kwargs: object) -> dict[str, int]:
+        nonlocal tick_calls
+        tick_calls += 1
+        return {"features": 0, "signals": 0, "orders": 0}
+
+    monkeypatch.setattr(OpenMeteoSource, "fetch", degraded_fetch)
+    monkeypatch.setattr("core.engine.tick.run_engine_tick", track_tick)
+    monkeypatch.setattr(
+        "core.scheduler.enabled_sources",
+        lambda _settings: [OpenMeteoSource()],
+    )
+
+    scheduler = Scheduler.create(
+        settings,
+        clock=FakeClock(start=datetime(2026, 5, 28, 12, 0, tzinfo=UTC)),
+    )
+    await scheduler.run_cycle()
+
+    assert tick_calls == 1
+    assert scheduler.cycle_health.last_cycle_error is None
+    assert scheduler.cycle_health.last_cycle_success_at is not None
 
 
 def test_cycle_interval_uses_slowest_source_schedule() -> None:

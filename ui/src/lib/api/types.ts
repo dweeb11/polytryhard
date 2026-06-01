@@ -921,6 +921,15 @@ export interface operations {
                     "application/json": components["schemas"]["HealthzResponse"];
                 };
             };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthzResponse"];
+                };
+            };
         };
     };
 }

@@ -127,16 +127,16 @@ class Scheduler:
         failed_sources: list[str] = []
         for source in enabled_sources(self.settings):
             status = await self._ingest_source(source)
-            if status != SourceRunStatus.OK:
+            if status == SourceRunStatus.ERROR:
                 failed_sources.append(source.name)
+        if failed_sources:
+            self._mark_cycle_failure(f"source ingest failed: {', '.join(failed_sources)}")
+            return
         try:
             await self._run_engine_tick(cycle_id)
         except Exception as exc:
             self._mark_cycle_failure(str(exc))
             raise
-        if failed_sources:
-            self._mark_cycle_failure(f"source ingest failed: {', '.join(failed_sources)}")
-            return
         self._mark_cycle_success()
 
     def health_snapshots(self) -> list[SourceHealthSnapshot]:
