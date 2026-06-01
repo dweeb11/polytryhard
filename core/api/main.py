@@ -76,7 +76,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.middleware("http")(request_id_middleware)
     app.include_router(v1_router)
 
-    @app.get("/healthz", response_model=HealthzResponse, responses={503: {"model": HealthzResponse}})
+    @app.get(
+        "/healthz",
+        response_model=HealthzResponse,
+        responses={503: {"model": HealthzResponse}},
+    )
     def healthz(request: Request, response: Response) -> dict[str, Any]:
         db_shared = check_database(resolved.database_url_shared)
         db_per_env = check_database(resolved.database_url_per_env)
