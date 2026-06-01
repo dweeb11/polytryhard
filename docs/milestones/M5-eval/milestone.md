@@ -11,9 +11,9 @@
 - [ ] Ship — ordered PRs to `staging`
 
 ## Tasks (PR slices, ordered)
-- [ ] M5.1 Shared schema `004` — `contract_resolution` table + `ContractResolution` enum + model
-- [ ] M5.2 `kalshi_resolution` Source plugin + pure parse unit tests
-- [ ] M5.3 Resolution tick + `resolve_position` / `record_realized_pnl` ledger writers + per-env tests
+- [x] M5.1 Shared schema `004` — `contract_resolution` table + `ContractResolution` enum + model
+- [x] M5.2 `kalshi_resolution` Source plugin + pure parse unit tests
+- [x] M5.3 Resolution tick + `resolve_position` / `record_realized_pnl` ledger writers + per-env tests
 - [ ] M5.4 `core/eval` pure metrics (hit rate, Brier, log-loss, drawdown, sharpe proxy, posterior edge, calibration bins) + unit tests
 - [ ] M5.5 `eval_metric_snapshot` writer + post-resolution & nightly recompute + integration test
 - [ ] M5.6 `/v1/eval` endpoints + schemas + OpenAPI/TS regen

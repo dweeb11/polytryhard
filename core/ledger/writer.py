@@ -21,6 +21,7 @@ from core.db.models import (
     StrategyInstanceRow,
     SystemStateRow,
 )
+from core.db.shared_enums import ContractResolution
 from core.domain.cash_event import CashEvent
 from core.domain.enums import (
     AuditActor,
@@ -253,7 +254,26 @@ def record_realized_pnl(
     *,
     ref_position_id: str | None = None,
 ) -> CashEvent:
-    raise NotImplementedError("record_realized_pnl is reserved for M5 resolution")
+    strategy = _lock_strategy_row(session, strategy_name)
+    before = {"bankrollCents": strategy.bankroll_cents}
+    new_bankroll = strategy.bankroll_cents + amount_cents
+    event = _write_bankroll_event(
+        session,
+        strategy=strategy,
+        kind=CashEventKind.REALIZED_PNL,
+        amount_cents=amount_cents,
+        balance_after_cents=new_bankroll,
+        reason=reason,
+        actor=actor,
+        request_id=request_id,
+        audit_action="record_realized_pnl",
+        before_state=before,
+        after_state={"bankrollCents": new_bankroll},
+        ref_position_id=ref_position_id,
+    )
+    if new_bankroll > strategy.bankroll_hwm_cents:
+        strategy.bankroll_hwm_cents = new_bankroll
+    return event
 
 
 def record_signal(
@@ -409,6 +429,73 @@ def open_paper_position(
             ref_position_id=position.id,
         )
     return position, fill
+
+
+def _resolution_payout_cents(
+    *,
+    side: PositionSide,
+    qty: int,
+    cost_basis_cents: int,
+    resolution: ContractResolution,
+    settlement_value: Decimal,
+) -> int:
+    if resolution == ContractResolution.VOID:
+        return cost_basis_cents
+    yes_price = settlement_value if side == PositionSide.YES else (Decimal("1") - settlement_value)
+    payout = (Decimal(qty) * yes_price * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    return int(payout)
+
+
+def resolve_position(
+    session: Session,
+    *,
+    position: PaperPositionRow,
+    resolution: ContractResolution,
+    settlement_value: Decimal,
+    actor: AuditActor,
+    request_id: str,
+) -> None:
+    if position.status != DbPositionStatus.OPEN:
+        return
+    side = PositionSide(position.side.value if hasattr(position.side, "value") else position.side)
+    payout = _resolution_payout_cents(
+        side=side,
+        qty=position.qty,
+        cost_basis_cents=position.cost_basis_cents,
+        resolution=resolution,
+        settlement_value=settlement_value,
+    )
+    realized = payout - position.cost_basis_cents
+    record_realized_pnl(
+        session,
+        position.strategy_name,
+        realized,
+        f"resolution {resolution.value} position={position.id}",
+        actor,
+        request_id,
+        ref_position_id=position.id,
+    )
+    now = utc_now()
+    position.status = DbPositionStatus.RESOLVED
+    position.closed_at = now
+    position.realized_pnl_cents = realized
+    position.unrealized_pnl_cents = 0
+    _append_audit(
+        session,
+        actor=actor,
+        action="resolve_position",
+        target_type="paper_position",
+        target_id=position.id,
+        before_state={"status": "open"},
+        after_state={
+            "status": "resolved",
+            "resolution": resolution.value,
+            "realizedPnlCents": realized,
+        },
+        reason=f"resolution {resolution.value}",
+        request_id=request_id,
+    )
+    session.flush()
 
 
 def apply_kill_switch(
