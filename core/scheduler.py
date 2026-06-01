@@ -28,6 +28,16 @@ def _tick_request_id(source_name: str) -> str:
     return f"tick_{source_name}_{uuid4().hex[:12]}"
 
 
+def _cycle_request_id() -> str:
+    return f"cycle_{uuid4().hex[:12]}"
+
+
+def _cycle_interval_seconds(sources: list[IngestionSource]) -> float:
+    if not sources:
+        return 60.0
+    return float(min(source.schedule_seconds for source in sources))
+
+
 class HttpxClient:
     def __init__(self, client: httpx.AsyncClient) -> None:
         self._client = client
@@ -59,9 +69,10 @@ class Scheduler:
     async def start(self) -> None:
         if not self.settings.scheduler_enabled:
             return
+        if not enabled_sources(self.settings):
+            return
         self._http = httpx.AsyncClient(timeout=30.0)
-        for source in enabled_sources(self.settings):
-            self._tasks.append(asyncio.create_task(self._run_source_loop(source)))
+        self._tasks.append(asyncio.create_task(self._run_cycle_loop()))
 
     async def stop(self) -> None:
         self._stop.set()
@@ -75,7 +86,15 @@ class Scheduler:
             self._http = None
 
     async def run_once(self, source: IngestionSource) -> None:
-        await self._execute_source(source)
+        """Run a single source ingest only (no engine tick)."""
+        await self._ingest_source(source)
+
+    async def run_cycle(self) -> None:
+        """Ingest all enabled sources sequentially, then run one engine tick."""
+        cycle_id = _cycle_request_id()
+        for source in enabled_sources(self.settings):
+            await self._ingest_source(source)
+        await self._run_engine_tick(cycle_id)
 
     def health_snapshots(self) -> list[SourceHealthSnapshot]:
         snapshots: list[SourceHealthSnapshot] = []
@@ -95,23 +114,25 @@ class Scheduler:
             )
         return snapshots
 
-    async def _run_source_loop(self, source: IngestionSource) -> None:
+    async def _run_cycle_loop(self) -> None:
         while not self._stop.is_set():
             started = self.clock.now()
             try:
-                await self._execute_source(source)
+                await self.run_cycle()
             except asyncio.CancelledError:
                 raise
             except Exception:
-                logger.exception("scheduler loop crashed for source=%s", source.name)
+                logger.exception("scheduler cycle failed")
+            sources = enabled_sources(self.settings)
+            interval = _cycle_interval_seconds(sources)
             elapsed = (self.clock.now() - started).total_seconds()
-            wait_for = max(0.0, source.schedule_seconds - elapsed)
+            wait_for = max(0.0, interval - elapsed)
             try:
                 await asyncio.wait_for(self._stop.wait(), timeout=wait_for)
             except TimeoutError:
                 continue
 
-    async def _execute_source(self, source: IngestionSource) -> None:
+    async def _ingest_source(self, source: IngestionSource) -> None:
         request_id = _tick_request_id(source.name)
         started_at = self.clock.now()
         if self._http is None:
@@ -145,7 +166,6 @@ class Scheduler:
                 run_status=result.status,
                 error_text=result.error_text,
             )
-            await self._run_engine_tick(request_id)
         except Exception as exc:
             finished_at = self.clock.now()
             logger.exception("source fetch failed source=%s request_id=%s", source.name, request_id)
@@ -170,14 +190,11 @@ class Scheduler:
     async def _run_engine_tick(self, request_id: str) -> None:
         from core.engine.tick import run_engine_tick
 
-        try:
-            with shared_session(self.settings) as shared, per_env_session(self.settings) as per_env:
-                await run_engine_tick(
-                    settings=self.settings,
-                    clock=self.clock,
-                    shared_session=shared,
-                    per_env_session=per_env,
-                    request_id=request_id,
-                )
-        except Exception:
-            logger.exception("engine tick failed request_id=%s", request_id)
+        with shared_session(self.settings) as shared, per_env_session(self.settings) as per_env:
+            await run_engine_tick(
+                settings=self.settings,
+                clock=self.clock,
+                shared_session=shared,
+                per_env_session=per_env,
+                request_id=request_id,
+            )

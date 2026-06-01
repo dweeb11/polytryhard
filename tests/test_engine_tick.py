@@ -9,7 +9,9 @@ from core.clock import FakeClock
 from core.db.models import SignalRow
 from core.db.shared_enums import ForecastSource
 from core.db.shared_models import RawForecastRunRow, RawMarketSnapshotRow, ReferenceMarketRow
-from core.engine.tick import run_engine_tick
+from core.engine.tick import _strategy_open_positions, run_engine_tick
+from core.ledger import writer
+from core.domain.enums import AuditActor, PositionSide
 from core.ledger.seed import seed_strategies_if_needed
 from core.settings import Settings
 from core.sources.seed import seed_locations_if_needed
@@ -100,5 +102,36 @@ async def test_engine_tick_writes_signal_and_optional_fill(
     )
 
     assert stats["features"] > 0
+    assert stats["signals"] >= 1
+    assert 0 <= stats["orders"] <= stats["signals"]
     signal_count = per_env.scalar(select(func.count()).select_from(SignalRow))
     assert signal_count is not None and signal_count >= 1
+
+
+def test_strategy_open_positions_sees_flushed_open_row(
+    per_env_sqlite_urls: tuple[str, str],
+) -> None:
+    _, per_env_url = per_env_sqlite_urls
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    per_env = sessionmaker(bind=create_engine(per_env_url), expire_on_commit=False)()
+    seed_strategies_if_needed(per_env, request_id="test-open-positions-seed")
+
+    writer.open_paper_position(
+        per_env,
+        strategy_name="weather_stale_quote",
+        order_ticker="KXHIGHNY-25MAY28-T72",
+        side=PositionSide.YES,
+        qty=1,
+        price=Decimal("0.15"),
+        cost_basis_cents=15,
+        signal_id=None,
+        fees_cents=0,
+        simulator_assumptions={},
+        actor=AuditActor.SCHEDULER,
+        request_id="test-open-positions",
+    )
+    per_env.flush()
+
+    assert len(_strategy_open_positions(per_env, "weather_stale_quote")) == 1
