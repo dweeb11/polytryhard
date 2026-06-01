@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, event
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from core.api.main import create_app
@@ -13,6 +15,14 @@ from core.settings import Settings
 # Tests run without real Postgres unless Testcontainers provides URLs.
 os.environ.setdefault("REQUIRE_DBS", "0")
 os.environ.setdefault("CONTROL_PLANE_TOKEN", "dev-token")
+
+
+@event.listens_for(Engine, "connect")
+def _sqlite_enable_foreign_keys(dbapi_connection, connection_record) -> None:
+    if dbapi_connection.__class__.__module__.startswith("sqlite3"):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
 
 @pytest.fixture
