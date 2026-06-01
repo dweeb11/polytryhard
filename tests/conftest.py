@@ -1,6 +1,7 @@
 import os
 from collections.abc import Generator
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -18,7 +19,7 @@ os.environ.setdefault("CONTROL_PLANE_TOKEN", "dev-token")
 
 
 @event.listens_for(Engine, "connect")
-def _sqlite_enable_foreign_keys(dbapi_connection, connection_record) -> None:
+def _sqlite_enable_foreign_keys(dbapi_connection: Any, connection_record: Any) -> None:
     if dbapi_connection.__class__.__module__.startswith("sqlite3"):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
