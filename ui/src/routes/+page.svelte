@@ -5,6 +5,7 @@
 		compareIsoDesc,
 		drawdownPct,
 		formatCents,
+		formatOutcomeLabel,
 		outcomeColor,
 		PAUSABLE_STATES,
 		RESUMABLE_STATES,
@@ -118,7 +119,7 @@
 			{#each recentSignals as sig (sig.id)}
 				<li class="flex justify-between gap-2 border-b border-slate-800/80 py-1 last:border-0">
 					<span class="text-slate-300">{sig.strategyName} · {sig.ticker}</span>
-					<span class={outcomeColor(sig.outcome)}>{sig.outcome.replace(/_/g, ' ')}</span>
+					<span class={outcomeColor(sig.outcome)}>{formatOutcomeLabel(sig.outcome)}</span>
 				</li>
 			{/each}
 		</ul>

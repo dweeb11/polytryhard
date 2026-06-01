@@ -1,4 +1,4 @@
-import type { PaperPosition, StrategyInstance } from './types';
+import type { PaperPosition, SignalOutcome, StrategyInstance } from './types';
 
 export function uuid(): string {
 	return crypto.randomUUID();
@@ -69,8 +69,14 @@ export function strategyStateLabel(state: string): string {
 	return state.replace(/_/g, ' ');
 }
 
-export function outcomeColor(outcome: string): string {
+export function formatOutcomeLabel(outcome: SignalOutcome | string): string {
+	if (outcome === 'unknown_outcome') return 'unknown outcome';
+	return outcome.replace(/_/g, ' ');
+}
+
+export function outcomeColor(outcome: SignalOutcome | string): string {
 	if (outcome === 'order_placed') return 'text-emerald-400';
+	if (outcome === 'unknown_outcome') return 'text-red-400';
 	if (outcome === 'rejected_system_paused') return 'text-red-400';
 	if (outcome.startsWith('rejected_')) return 'text-amber-400';
 	return 'text-slate-300';

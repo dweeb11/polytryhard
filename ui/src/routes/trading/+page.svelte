@@ -1,12 +1,30 @@
 <script lang="ts">
 	import { signals, positions, strategies } from '$lib/stores';
-	import { compareIsoDesc, formatCents, formatIsoDateTime, outcomeColor } from '$lib/utils';
+	import { apiMode } from '$lib/api/mode';
+	import { tradingHydration } from '$lib/api/tradingHydration';
+	import {
+		compareIsoDesc,
+		formatCents,
+		formatIsoDateTime,
+		formatOutcomeLabel,
+		outcomeColor
+	} from '$lib/utils';
 
 	let strategyFilter = $state('all');
 	let outcomeFilter = $state('all');
 	let statusFilter = $state('all');
 
 	const strategyNames = $derived(['all', ...$strategies.map((s) => s.name)]);
+
+	const staleTradingNotice = $derived.by(() => {
+		if ($apiMode !== 'live') return null;
+		const stale: string[] = [];
+		if ($tradingHydration.signals === 'stale') stale.push('signals');
+		if ($tradingHydration.positions === 'stale') stale.push('positions');
+		if (stale.length === 0) return null;
+		const label = stale.length === 2 ? 'Signals and positions' : stale[0] === 'signals' ? 'Signals' : 'Positions';
+		return `${label} may be stale — the backend read API was unavailable on the last refresh. Showing last known local data.`;
+	});
 
 	const filteredSignals = $derived(
 		$signals
@@ -50,6 +68,15 @@
 	Read-only view of engine signals and paper positions. Data hydrates from the backend when live.
 </p>
 
+{#if staleTradingNotice}
+	<p
+		class="mb-4 rounded border border-amber-700/50 bg-amber-950/30 px-3 py-2 text-sm text-amber-200"
+		role="status"
+	>
+		{staleTradingNotice}
+	</p>
+{/if}
+
 <div class="mb-4 flex flex-wrap items-end gap-3 text-sm">
 	<label class="flex flex-col gap-1 text-xs text-slate-400">
 		Strategy
@@ -74,7 +101,7 @@
 			>
 				{#each signalOutcomes as outcome (outcome)}
 					<option value={outcome}>
-						{outcome === 'all' ? 'All outcomes' : outcome.replace(/_/g, ' ')}
+						{outcome === 'all' ? 'All outcomes' : formatOutcomeLabel(outcome)}
 					</option>
 				{/each}
 			</select>
@@ -99,7 +126,7 @@
 							<td class="py-1 text-right tabular-nums">{sig.probYes.toFixed(2)}</td>
 							<td class="py-1">
 								<span class={outcomeColor(sig.outcome)} title={sig.rejectionReason ?? undefined}>
-									{sig.outcome.replace(/_/g, ' ')}
+									{formatOutcomeLabel(sig.outcome)}
 								</span>
 							</td>
 						</tr>

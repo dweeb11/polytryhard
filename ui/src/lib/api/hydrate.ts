@@ -1,7 +1,9 @@
 import { audit, positions, signals, sources, strategies, system } from '$lib/stores';
+import { tradingHydration } from '$lib/api/tradingHydration';
 import { compareIsoDesc } from '$lib/utils';
 import type {
 	AuditEvent,
+	KnownSignalOutcome,
 	PaperPosition,
 	PositionStatus,
 	Signal,
@@ -11,6 +13,7 @@ import type {
 	StrategyInstance,
 	SystemEnvState
 } from '$lib/types';
+import { KNOWN_SIGNAL_OUTCOMES } from '$lib/types';
 import { apiGet } from './client';
 
 /** Max rows per trading list; API supports `before` cursor pagination beyond this. */
@@ -21,17 +24,7 @@ const SOURCE_DISPLAY_NAMES: Record<string, string> = {
 	open_meteo: 'Open-Meteo (GFS + ECMWF)'
 };
 
-const SIGNAL_OUTCOMES = new Set<SignalOutcome>([
-	'order_placed',
-	'rejected_kelly_zero',
-	'rejected_exposure_cap',
-	'rejected_correlation_cap',
-	'rejected_below_threshold',
-	'rejected_below_min_position',
-	'rejected_market_closed',
-	'rejected_stale_inputs',
-	'rejected_system_paused'
-]);
+const KNOWN_SIGNAL_OUTCOME_SET = new Set<string>(KNOWN_SIGNAL_OUTCOMES);
 
 function mapSourceStatus(status: string | null | undefined): SourceState {
 	if (status === 'ok') return 'healthy';
@@ -41,9 +34,7 @@ function mapSourceStatus(status: string | null | undefined): SourceState {
 
 export function parseSignalOutcome(raw: unknown): SignalOutcome {
 	const value = typeof raw === 'string' ? raw : '';
-	return SIGNAL_OUTCOMES.has(value as SignalOutcome)
-		? (value as SignalOutcome)
-		: 'rejected_below_threshold';
+	return KNOWN_SIGNAL_OUTCOME_SET.has(value) ? (value as KnownSignalOutcome) : 'unknown_outcome';
 }
 
 export function sortSignalsByEvaluatedAt(records: Signal[]): Signal[] {
@@ -71,6 +62,17 @@ export function mapSourceEntry(entry: Record<string, unknown>): SourceHealth {
 }
 
 export function mapSignalRecord(entry: Record<string, unknown>): Signal {
+	const rawOutcome = entry.outcome;
+	const outcome = parseSignalOutcome(rawOutcome);
+	let rejectionReason =
+		typeof entry.rejectionReason === 'string'
+			? entry.rejectionReason
+			: entry.rejectionReason == null
+				? null
+				: String(entry.rejectionReason);
+	if (outcome === 'unknown_outcome' && typeof rawOutcome === 'string' && rawOutcome) {
+		rejectionReason = rejectionReason ?? `Unknown API outcome: ${rawOutcome}`;
+	}
 	return {
 		id: String(entry.id ?? ''),
 		strategyName: String(entry.strategyName ?? ''),
@@ -78,13 +80,8 @@ export function mapSignalRecord(entry: Record<string, unknown>): Signal {
 		evaluatedAt: String(entry.evaluatedAt ?? ''),
 		probYes: Number(entry.probYes ?? 0),
 		confidence: Number(entry.confidence ?? 0),
-		outcome: parseSignalOutcome(entry.outcome),
-		rejectionReason:
-			typeof entry.rejectionReason === 'string'
-				? entry.rejectionReason
-				: entry.rejectionReason == null
-					? null
-					: String(entry.rejectionReason)
+		outcome,
+		rejectionReason
 	};
 }
 
@@ -135,8 +132,9 @@ export async function hydrateLedgerFromApi(): Promise<void> {
 			limit: String(HYDRATE_TRADING_LIMIT)
 		})) as Record<string, unknown>[];
 		signalRecords = sortSignalsByEvaluatedAt(rows.map(mapSignalRecord));
+		tradingHydration.update((state) => ({ ...state, signals: 'fresh' }));
 	} catch {
-		// Keep existing mock/local signals when the trading read API is unavailable.
+		tradingHydration.update((state) => ({ ...state, signals: 'stale' }));
 	}
 
 	let positionRecords: PaperPosition[] | null = null;
@@ -145,8 +143,9 @@ export async function hydrateLedgerFromApi(): Promise<void> {
 			limit: String(HYDRATE_TRADING_LIMIT)
 		})) as Record<string, unknown>[];
 		positionRecords = sortPositionsByOpenedAt(rows.map(mapPositionRecord));
+		tradingHydration.update((state) => ({ ...state, positions: 'fresh' }));
 	} catch {
-		// Keep existing mock/local positions when the trading read API is unavailable.
+		tradingHydration.update((state) => ({ ...state, positions: 'stale' }));
 	}
 
 	if (signalRecords !== null) signals.set(signalRecords);

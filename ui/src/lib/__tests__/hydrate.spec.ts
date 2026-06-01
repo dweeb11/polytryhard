@@ -9,6 +9,7 @@ import {
 	sortPositionsByOpenedAt,
 	sortSignalsByEvaluatedAt
 } from '$lib/api/hydrate';
+import { tradingHydration } from '$lib/api/tradingHydration';
 import { audit, positions, signals, sources, strategies, system } from '$lib/stores';
 import { FIXTURE } from '$lib/mocks/fixtures';
 
@@ -51,9 +52,11 @@ describe('hydrate mappers', () => {
 		expect(signal.rejectionReason).toBeNull();
 	});
 
-	it('defaults unknown signal outcomes to rejected_below_threshold', () => {
-		expect(parseSignalOutcome('not_a_real_outcome')).toBe('rejected_below_threshold');
-		expect(mapSignalRecord({ outcome: 'bogus' }).outcome).toBe('rejected_below_threshold');
+	it('maps unknown signal outcomes to unknown_outcome with raw value in rejectionReason', () => {
+		expect(parseSignalOutcome('not_a_real_outcome')).toBe('unknown_outcome');
+		const signal = mapSignalRecord({ outcome: 'bogus' });
+		expect(signal.outcome).toBe('unknown_outcome');
+		expect(signal.rejectionReason).toBe('Unknown API outcome: bogus');
 	});
 
 	it('maps position records and preserves null unrealized P&L', () => {
@@ -97,6 +100,7 @@ describe('hydrateLedgerFromApi', () => {
 	beforeEach(() => {
 		apiGetMock.mockReset();
 		localStorage.clear();
+		tradingHydration.set({ signals: 'fresh', positions: 'fresh' });
 	});
 
 	it('hydrates core ledger and trading endpoints', async () => {
@@ -151,6 +155,7 @@ describe('hydrateLedgerFromApi', () => {
 		expect(get(signals)[0]?.id).toBe('sig-new');
 		expect(get(positions)).toHaveLength(1);
 		expect(get(positions)[0]?.id).toBe('pos-new');
+		expect(get(tradingHydration)).toEqual({ signals: 'fresh', positions: 'fresh' });
 	});
 
 	it('sorts hydrated signals newest-first', async () => {
@@ -205,6 +210,7 @@ describe('hydrateLedgerFromApi', () => {
 		expect(get(signals)[0]?.id).toBe('local-sig');
 		expect(get(positions)).toHaveLength(1);
 		expect(get(positions)[0]?.id).toBe('local-pos');
+		expect(get(tradingHydration)).toEqual({ signals: 'stale', positions: 'stale' });
 	});
 
 	it('updates signals but keeps positions when only positions endpoint fails', async () => {
@@ -228,5 +234,6 @@ describe('hydrateLedgerFromApi', () => {
 
 		expect(get(signals)[0]?.id).toBe('remote-sig');
 		expect(get(positions)[0]?.id).toBe('local-pos');
+		expect(get(tradingHydration)).toEqual({ signals: 'fresh', positions: 'stale' });
 	});
 });
