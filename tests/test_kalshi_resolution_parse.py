@@ -141,6 +141,17 @@ def test_parse_void_empty_result_on_settled() -> None:
     assert settlement_value == Decimal("0")
 
 
+def test_parse_unrecognized_result_returns_none() -> None:
+    assert (
+        parse_market_result({"market": {"status": "settled", "result": "sc_cancelled"}})
+        is None
+    )
+
+
+def test_parse_missing_result_on_settled_returns_none() -> None:
+    assert parse_market_result({"market": {"status": "finalized"}}) is None
+
+
 def test_parse_not_yet_settled_returns_none() -> None:
     assert parse_market_result({"market": {"status": "active", "result": ""}}) is None
 
@@ -229,10 +240,12 @@ async def test_fetch_continues_after_per_ticker_4xx() -> None:
             http=http,
         ),
     )
-    assert result.status == SourceRunStatus.OK
+    assert result.status == SourceRunStatus.DEGRADED
     assert len(result.resolutions) == 1
     assert result.resolutions[0].ticker == good
     assert len(http.calls) == 2
+    assert "404" in (result.error_text or "")
+    assert bad in (result.error_text or "")
 
 
 @pytest.mark.asyncio

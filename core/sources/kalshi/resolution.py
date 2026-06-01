@@ -23,7 +23,8 @@ _KALSHI_SETTLED_STATUSES = frozenset({"settled", "finalized"})
 def parse_market_result(payload: dict[str, Any]) -> tuple[ContractResolution, Decimal] | None:
     """Pure: decode a Kalshi market payload into (resolution, yes-settlement-price).
 
-    Returns None when the market is not yet settled or the payload is malformed.
+    Returns None when the market is not yet settled, the payload is malformed,
+    or the result field is missing or unrecognized (fail closed — never guess).
     Settlement value is the YES settlement price in [0, 1]: 1 for yes, 0 otherwise.
     """
     market = payload.get("market")
@@ -37,7 +38,9 @@ def parse_market_result(payload: dict[str, Any]) -> tuple[ContractResolution, De
         return ContractResolution.YES, Decimal("1")
     if result == "no":
         return ContractResolution.NO, Decimal("0")
-    return ContractResolution.VOID, Decimal("0")
+    if result == "":
+        return ContractResolution.VOID, Decimal("0")
+    return None
 
 
 class KalshiResolutionSource(IngestionSource):
@@ -106,4 +109,7 @@ class KalshiResolutionSource(IngestionSource):
                 status=SourceRunStatus.DEGRADED,
                 error_text="; ".join(http_errors) or "Kalshi resolution fetch produced no successful responses",
             )
+        if http_errors:
+            result.status = SourceRunStatus.DEGRADED
+            result.error_text = "; ".join(http_errors)
         return result
