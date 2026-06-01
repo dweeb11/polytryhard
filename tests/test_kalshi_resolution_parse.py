@@ -9,7 +9,12 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from core.clock import FakeClock
-from core.contracts.source import ContractResolutionDraft, FetchResult, ReferenceMarketUpsert, SourceContext
+from core.contracts.source import (
+    ContractResolutionDraft,
+    FetchResult,
+    ReferenceMarketUpsert,
+    SourceContext,
+)
 from core.db.shared_enums import ContractResolution, SourceRunStatus
 from core.db.shared_models import ContractResolutionRow, ReferenceMarketRow
 from core.settings import Settings

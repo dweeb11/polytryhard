@@ -105,9 +105,10 @@ class KalshiResolutionSource(IngestionSource):
                 )
             )
         if successful_fetches == 0:
+            fallback = "Kalshi resolution fetch produced no successful responses"
             return FetchResult(
                 status=SourceRunStatus.DEGRADED,
-                error_text="; ".join(http_errors) or "Kalshi resolution fetch produced no successful responses",
+                error_text="; ".join(http_errors) or fallback,
             )
         if http_errors:
             result.status = SourceRunStatus.DEGRADED

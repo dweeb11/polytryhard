@@ -37,8 +37,6 @@ def per_env_sqlite_urls(tmp_path: Path) -> tuple[str, str]:
 @pytest.fixture
 def per_env_session_factory(per_env_sqlite_urls: tuple[str, str]) -> sessionmaker[Session]:
     _, per_env_url = per_env_sqlite_urls
-    from sqlalchemy import create_engine
-
     engine = create_engine(per_env_url)
     return sessionmaker(bind=engine, expire_on_commit=False)
 
