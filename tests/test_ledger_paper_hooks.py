@@ -5,6 +5,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
+from core.db.enums import StrategyState as DbStrategyState
 from core.db.models import AuditEventRow, CashEventRow, SignalRow, StrategyInstanceRow
 from core.domain.enums import AuditActor, CashEventKind, PositionSide, SignalOutcome
 from core.domain.market import MarketState, SignalDraft
@@ -96,6 +97,23 @@ def test_record_signal_blocked_when_kill_switch_active(
             actor=AuditActor.SCHEDULER,
             request_id="sig-req-2",
         )
+    session.close()
+
+
+def test_activate_blocked_when_kill_switch_active(
+    per_env_session_factory: sessionmaker[Session],
+) -> None:
+    session = per_env_session_factory()
+    seed_strategies_if_needed(session, request_id="seed-test")
+    name = "weather_ensemble_disagreement"
+    row = session.get(StrategyInstanceRow, name)
+    assert row is not None
+    row.state = DbStrategyState.SEEDED
+    writer.apply_kill_switch(session, "incident", AuditActor.USER, "kill-activate")
+    session.commit()
+
+    with pytest.raises(LedgerError, match="kill switch"):
+        writer.activate_strategy(session, name, "go live", AuditActor.USER, "activate-req")
     session.close()
 
 

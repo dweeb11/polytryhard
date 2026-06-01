@@ -1,3 +1,5 @@
+from collections.abc import Callable
+from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 from uuid import uuid4
@@ -520,6 +522,87 @@ def set_kelly_fraction(
     session.flush()
 
 
+@dataclass(frozen=True)
+class _LifecycleTransition:
+    """A single operator-driven strategy state change.
+
+    All four transitions share the same shape: validate reason, require an
+    active system (kill switch closed), guard the source state, then write the
+    new state plus an audit row. Only the per-transition fields below differ.
+    """
+
+    action: str
+    target: StrategyState
+    verb: str
+    can_transition: Callable[[StrategyState], bool] | None = None
+    reason_error: str = "Reason is required"
+    disable: bool = False
+
+
+def _apply_lifecycle_transition(
+    session: Session,
+    strategy_name: str,
+    reason: str,
+    actor: AuditActor,
+    request_id: str,
+    *,
+    transition: _LifecycleTransition,
+) -> None:
+    if not reason.strip():
+        raise LedgerError(transition.reason_error)
+    _require_system_active(session)
+    strategy = _get_strategy_row(session, strategy_name)
+    state = StrategyState(strategy.state)
+    if transition.can_transition is not None and not transition.can_transition(state):
+        raise LedgerError(f"Cannot {transition.verb} from state {state.value}")
+    before: dict[str, Any] = {"state": strategy.state}
+    after: dict[str, Any] = {"state": transition.target.value}
+    if transition.disable:
+        before["enabled"] = strategy.enabled
+        strategy.enabled = False
+        after["enabled"] = False
+    _touch_strategy(strategy, state=transition.target)
+    _append_audit(
+        session,
+        actor=actor,
+        action=transition.action,
+        target_type="strategy",
+        target_id=strategy_name,
+        before_state=before,
+        after_state=after,
+        reason=reason,
+        request_id=request_id,
+    )
+    session.flush()
+
+
+_ACTIVATE = _LifecycleTransition(
+    action="activate_strategy",
+    target=StrategyState.ACTIVE,
+    verb="activate",
+    can_transition=can_activate,
+)
+_PAUSE = _LifecycleTransition(
+    action="pause_strategy",
+    target=pause_target_state(),
+    verb="pause",
+    can_transition=can_pause,
+)
+_RESUME = _LifecycleTransition(
+    action="resume_strategy",
+    target=resume_target_state(),
+    verb="resume",
+    can_transition=can_resume,
+    reason_error="Reason is required to resume",
+)
+_DECOMMISSION = _LifecycleTransition(
+    action="decommission",
+    target=StrategyState.DECOMMISSIONED,
+    verb="decommission",
+    disable=True,
+)
+
+
 def activate_strategy(
     session: Session,
     strategy_name: str,
@@ -527,27 +610,9 @@ def activate_strategy(
     actor: AuditActor,
     request_id: str,
 ) -> None:
-    if not reason.strip():
-        raise LedgerError("Reason is required")
-    strategy = _get_strategy_row(session, strategy_name)
-    state = StrategyState(strategy.state)
-    if not can_activate(state):
-        raise LedgerError(f"Cannot activate from state {state.value}")
-    before = {"state": strategy.state}
-    target = StrategyState.ACTIVE
-    _touch_strategy(strategy, state=target)
-    _append_audit(
-        session,
-        actor=actor,
-        action="activate_strategy",
-        target_type="strategy",
-        target_id=strategy_name,
-        before_state=before,
-        after_state={"state": target.value},
-        reason=reason,
-        request_id=request_id,
+    _apply_lifecycle_transition(
+        session, strategy_name, reason, actor, request_id, transition=_ACTIVATE
     )
-    session.flush()
 
 
 def pause_strategy(
@@ -557,29 +622,9 @@ def pause_strategy(
     actor: AuditActor,
     request_id: str,
 ) -> None:
-    if not reason.strip():
-        raise LedgerError("Reason is required")
-    _require_system_active(session)
-    strategy = _get_strategy_row(session, strategy_name)
-    state = StrategyState(strategy.state)
-    if not can_pause(state):
-        raise LedgerError(f"Cannot pause from state {state.value}")
-    before = {"state": strategy.state}
-    target = pause_target_state()
-    strategy.state = DbStrategyState(target)
-    _touch_strategy(strategy, state=target)
-    _append_audit(
-        session,
-        actor=actor,
-        action="pause_strategy",
-        target_type="strategy",
-        target_id=strategy_name,
-        before_state=before,
-        after_state={"state": target.value},
-        reason=reason,
-        request_id=request_id,
+    _apply_lifecycle_transition(
+        session, strategy_name, reason, actor, request_id, transition=_PAUSE
     )
-    session.flush()
 
 
 def resume_strategy(
@@ -589,29 +634,9 @@ def resume_strategy(
     actor: AuditActor,
     request_id: str,
 ) -> None:
-    if not reason.strip():
-        raise LedgerError("Reason is required to resume")
-    _require_system_active(session)
-    strategy = _get_strategy_row(session, strategy_name)
-    state = StrategyState(strategy.state)
-    if not can_resume(state):
-        raise LedgerError(f"Cannot resume from state {state.value}")
-    before = {"state": strategy.state}
-    target = resume_target_state()
-    strategy.state = DbStrategyState(target)
-    _touch_strategy(strategy, state=target)
-    _append_audit(
-        session,
-        actor=actor,
-        action="resume_strategy",
-        target_type="strategy",
-        target_id=strategy_name,
-        before_state=before,
-        after_state={"state": target.value},
-        reason=reason,
-        request_id=request_id,
+    _apply_lifecycle_transition(
+        session, strategy_name, reason, actor, request_id, transition=_RESUME
     )
-    session.flush()
 
 
 def decommission_strategy(
@@ -621,23 +646,6 @@ def decommission_strategy(
     actor: AuditActor,
     request_id: str,
 ) -> None:
-    if not reason.strip():
-        raise LedgerError("Reason is required")
-    _require_system_active(session)
-    strategy = _get_strategy_row(session, strategy_name)
-    before = {"state": strategy.state, "enabled": strategy.enabled}
-    strategy.enabled = False
-    strategy.state = DbStrategyState(StrategyState.DECOMMISSIONED)
-    _touch_strategy(strategy, state=StrategyState.DECOMMISSIONED)
-    _append_audit(
-        session,
-        actor=actor,
-        action="decommission",
-        target_type="strategy",
-        target_id=strategy_name,
-        before_state=before,
-        after_state={"state": StrategyState.DECOMMISSIONED.value, "enabled": False},
-        reason=reason,
-        request_id=request_id,
+    _apply_lifecycle_transition(
+        session, strategy_name, reason, actor, request_id, transition=_DECOMMISSION
     )
-    session.flush()
