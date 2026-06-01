@@ -11,7 +11,7 @@ from core.contracts.executor import ExecutorContext
 from core.contracts.feature import FeatureContext
 from core.contracts.strategy import StrategyContext
 from core.db.models import PaperPositionRow, StrategyInstanceRow
-from core.domain.enums import SignalOutcome, StrategyState
+from core.domain.enums import AuditActor, SignalOutcome, StrategyState
 from core.domain.feature import FeatureValue
 from core.domain.state_machine import can_emit_signals
 from core.domain.trading import Rejection
@@ -121,6 +121,7 @@ async def run_engine_tick(
                     features_snapshot=snapshot,
                     outcome=sizing.outcome,
                     rejection_reason=sizing.reason,
+                    actor=AuditActor.SCHEDULER,
                     request_id=tick_id,
                 )
                 stats["signals"] += 1
@@ -134,6 +135,7 @@ async def run_engine_tick(
                 features_snapshot=snapshot,
                 outcome=SignalOutcome.ORDER_PLACED,
                 rejection_reason=None,
+                actor=AuditActor.SCHEDULER,
                 request_id=tick_id,
             )
             stats["signals"] += 1
