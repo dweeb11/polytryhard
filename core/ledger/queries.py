@@ -214,13 +214,8 @@ def list_signals(
 def position_from_row(
     row: PaperPositionRow,
     *,
-    unrealized_pnl_cents: int | None = None,
-    computed_unrealized: bool = False,
+    unrealized_pnl_cents: int | None,
 ) -> PaperPositionRecord:
-    if computed_unrealized:
-        unrealized = unrealized_pnl_cents
-    else:
-        unrealized = row.unrealized_pnl_cents
     status = row.status.value if hasattr(row.status, "value") else str(row.status)
     return PaperPositionRecord(
         id=row.id,
@@ -233,7 +228,7 @@ def position_from_row(
         qty=row.qty,
         cost_basis_cents=row.cost_basis_cents,
         realized_pnl_cents=row.realized_pnl_cents,
-        unrealized_pnl_cents=unrealized,
+        unrealized_pnl_cents=unrealized_pnl_cents,
         status=status,
     )
 
@@ -295,10 +290,47 @@ def _open_position_unrealized_pnl_cents(
     )
 
 
+def _open_position_marks(
+    session: Session,
+    shared_session: Session,
+    open_rows: list[PaperPositionRow],
+) -> dict[str, int | None]:
+    """Mark-to-market unrealized P&L for open positions, fail-closed to None.
+
+    Every open position id gets an entry; a None value means no fresh market
+    snapshot was available, so the position must report unknown unrealized P&L
+    rather than a stale or fabricated number.
+    """
+    if not open_rows:
+        return {}
+    now = utc_now()
+    names = {row.strategy_name for row in open_rows}
+    strategy_configs = {
+        row.name: row.config_jsonb
+        for row in session.scalars(
+            select(StrategyInstanceRow).where(StrategyInstanceRow.name.in_(names))
+        ).all()
+    }
+    snapshots_by_ticker = latest_market_snapshots_by_ticker(
+        shared_session,
+        tickers={row.ticker for row in open_rows},
+        as_of=now,
+    )
+    return {
+        row.id: _open_position_unrealized_pnl_cents(
+            row,
+            snapshot=snapshots_by_ticker.get(row.ticker),
+            strategy_configs=strategy_configs,
+            now=now,
+        )
+        for row in open_rows
+    }
+
+
 def list_positions(
     session: Session,
     *,
-    shared_session: Session | None = None,
+    shared_session: Session,
     strategy_name: str | None = None,
     status: str | None = None,
     limit: int = 50,
@@ -313,39 +345,17 @@ def list_positions(
         stmt = stmt.where(PaperPositionRow.opened_at < before)
     rows = session.scalars(stmt).all()
 
-    strategy_configs: dict[str, dict[str, object]] = {}
-    snapshots_by_ticker: dict[str, RawMarketSnapshotRow] = {}
-    now = utc_now()
-    open_rows = [row for row in rows if row.status == PositionStatus.OPEN]
-    if shared_session is not None and open_rows:
-        names = {row.strategy_name for row in open_rows}
-        if names:
-            strategy_rows = session.scalars(
-                select(StrategyInstanceRow).where(StrategyInstanceRow.name.in_(names))
-            ).all()
-            strategy_configs = {row.name: row.config_jsonb for row in strategy_rows}
-        snapshots_by_ticker = latest_market_snapshots_by_ticker(
-            shared_session,
-            tickers={row.ticker for row in open_rows},
-            as_of=now,
+    open_marks = _open_position_marks(
+        session, shared_session, [row for row in rows if row.status == PositionStatus.OPEN]
+    )
+    return [
+        position_from_row(
+            row,
+            unrealized_pnl_cents=(
+                open_marks[row.id]
+                if row.status == PositionStatus.OPEN
+                else row.unrealized_pnl_cents
+            ),
         )
-
-    results: list[PaperPositionRecord] = []
-    for row in rows:
-        if shared_session is not None and row.status == PositionStatus.OPEN:
-            unrealized = _open_position_unrealized_pnl_cents(
-                row,
-                snapshot=snapshots_by_ticker.get(row.ticker),
-                strategy_configs=strategy_configs,
-                now=now,
-            )
-            results.append(
-                position_from_row(
-                    row,
-                    unrealized_pnl_cents=unrealized,
-                    computed_unrealized=True,
-                )
-            )
-        else:
-            results.append(position_from_row(row))
-    return results
+        for row in rows
+    ]
