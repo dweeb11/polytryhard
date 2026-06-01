@@ -139,7 +139,7 @@ describe('forceCloseAndWithdraw', () => {
 		const openBefore = get(positions).filter(
 			(p) => p.strategyName === STRATEGY && p.status === 'open'
 		);
-		const unrealized = openBefore.reduce((sum, p) => sum + p.unrealizedPnlCents, 0);
+		const unrealized = openBefore.reduce((sum, p) => sum + (p.unrealizedPnlCents ?? 0), 0);
 		const bankrollBefore = get(strategies).find((s) => s.name === STRATEGY)!.bankrollCents;
 		const pnlEventsBefore = get(cashEvents).filter(
 			(e) => e.strategyName === STRATEGY && e.kind === 'realized_pnl'

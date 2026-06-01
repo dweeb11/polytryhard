@@ -45,7 +45,7 @@ function tickOnce(): void {
 		list.map((p) => {
 			if (p.status !== 'open') return p;
 			const drift = Math.round((Math.random() - 0.48) * 120);
-			return { ...p, unrealizedPnlCents: p.unrealizedPnlCents + drift };
+			return { ...p, unrealizedPnlCents: (p.unrealizedPnlCents ?? 0) + drift };
 		})
 	);
 

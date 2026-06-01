@@ -112,7 +112,7 @@ export interface PaperPosition {
 	qty: number;
 	costBasisCents: number;
 	realizedPnlCents: number | null;
-	unrealizedPnlCents: number;
+	unrealizedPnlCents: number | null;
 	status: PositionStatus;
 }
 

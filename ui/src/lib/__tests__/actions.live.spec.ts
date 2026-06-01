@@ -8,6 +8,7 @@ import { deposit, pauseStrategy, tripKillSwitch } from '$lib/actions';
 import { backendHealth } from '$lib/api/mode';
 import { strategies, system } from '$lib/stores';
 import { resetToFixtures } from '$lib/stores';
+import { handleLiveApiGet } from './liveApiFixtures';
 
 const STRATEGY = 'weather_ensemble_disagreement';
 
@@ -80,6 +81,8 @@ describe('live API branch', () => {
 			if (url.endsWith('/v1/sources')) {
 				return new Response(JSON.stringify(SOURCES_MOCK), { status: 200 });
 			}
+			const liveGet = handleLiveApiGet(url);
+			if (liveGet) return liveGet;
 			return new Response('not found', { status: 404 });
 		});
 		vi.stubGlobal('fetch', fetchMock);
@@ -114,6 +117,8 @@ describe('live API branch', () => {
 			if (url.endsWith('/v1/sources')) {
 				return new Response(JSON.stringify(SOURCES_MOCK), { status: 200 });
 			}
+			const liveGet = handleLiveApiGet(url);
+			if (liveGet) return liveGet;
 			return new Response('not found', { status: 404 });
 		});
 		vi.stubGlobal('fetch', fetchMock);
@@ -151,6 +156,8 @@ describe('live API branch', () => {
 			if (url.endsWith('/v1/sources')) {
 				return new Response(JSON.stringify(SOURCES_MOCK), { status: 200 });
 			}
+			const liveGet = handleLiveApiGet(url);
+			if (liveGet) return liveGet;
 			return new Response('not found', { status: 404 });
 		});
 		vi.stubGlobal('fetch', fetchMock);

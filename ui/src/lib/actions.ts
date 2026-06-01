@@ -307,7 +307,7 @@ export async function forceCloseAndWithdraw(
 	);
 	let bankroll = strat.bankrollCents;
 	for (const pos of open) {
-		const pnl = pos.unrealizedPnlCents;
+		const pnl = pos.unrealizedPnlCents ?? 0;
 		bankroll += pnl;
 		appendCashEvent(strategyName, 'realized_pnl', pnl, bankroll, `close ${pos.ticker}`, pos.id);
 	}
@@ -318,7 +318,7 @@ export async function forceCloseAndWithdraw(
 						...p,
 						status: 'closed' as const,
 						closedAt: nowIso(),
-						realizedPnlCents: p.unrealizedPnlCents,
+						realizedPnlCents: p.unrealizedPnlCents ?? 0,
 						unrealizedPnlCents: 0
 					}
 				: p
