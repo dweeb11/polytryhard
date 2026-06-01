@@ -10,5 +10,6 @@ def registered_executors() -> tuple[Executor, ...]:
 
 
 def default_executor(settings: Settings) -> Executor:
+    # M4.8+: select executor from settings (paper vs live stub).
     del settings
     return _ALL_EXECUTORS[0]
