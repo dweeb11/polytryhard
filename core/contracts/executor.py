@@ -6,6 +6,7 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
+from core.domain.enums import AuditActor
 from core.domain.trading import Order
 
 
@@ -18,11 +19,12 @@ class Fill:
     fees_cents: int
 
 
-@dataclass
+@dataclass(frozen=True)
 class ExecutorContext:
     request_id: str
     session: Session
     strategy_name: str
+    actor: AuditActor = AuditActor.SCHEDULER
     signal_id: str | None = None
     fees_cents: int = 0
 
@@ -35,4 +37,5 @@ class Executor(ABC):
 
     @abstractmethod
     async def place(self, order: Order, ctx: ExecutorContext) -> Fill:
+        """Place an order; implementations perform sync ledger I/O on ctx.session."""
         raise NotImplementedError

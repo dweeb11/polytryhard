@@ -103,18 +103,26 @@ def get_system_state(session: Session) -> SystemEnvState:
     return system_state_from_row(row)
 
 
-def free_cash_cents(session: Session, strategy_name: str) -> int:
-    strategy = session.get(StrategyInstanceRow, strategy_name)
-    if strategy is None:
-        return 0
+def reserved_open_cost_basis_cents(session: Session, strategy_name: str) -> int:
     reserved = session.scalar(
         select(func.coalesce(func.sum(PaperPositionRow.cost_basis_cents), 0)).where(
             PaperPositionRow.strategy_name == strategy_name,
             PaperPositionRow.status == "open",
         )
     )
-    reserved_int = int(reserved or 0)
-    return max(0, strategy.bankroll_cents - reserved_int)
+    return int(reserved or 0)
+
+
+def free_cash_for_strategy(session: Session, strategy: StrategyInstanceRow) -> int:
+    reserved = reserved_open_cost_basis_cents(session, strategy.name)
+    return max(0, strategy.bankroll_cents - reserved)
+
+
+def free_cash_cents(session: Session, strategy_name: str) -> int:
+    strategy = session.get(StrategyInstanceRow, strategy_name)
+    if strategy is None:
+        return 0
+    return free_cash_for_strategy(session, strategy)
 
 
 def list_cash_events(

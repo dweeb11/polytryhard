@@ -15,6 +15,10 @@ class FeatureContext:
     request_id: str
     settings: Settings
     session: Session
+    # When set (M4.5+ market-linked tick), forecast providers average members for this
+    # valid_window_start only. When None, providers use the latest window with
+    # valid_window_start <= as_of within the newest forecast run.
+    target_window_start: datetime | None = None
 
 
 class FeatureProvider(ABC):

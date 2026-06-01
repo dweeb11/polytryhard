@@ -372,6 +372,27 @@ export type components = {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** HealthzResponse */
+        HealthzResponse: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "degraded";
+            /** Version */
+            version: string;
+            /** Git Sha */
+            git_sha: string;
+            /** Request Id */
+            request_id: string;
+            /** Checked At */
+            checked_at: string;
+            /** Db Shared */
+            db_shared: string;
+            /** Db Per Env */
+            db_per_env: string;
+            scheduler_cycle?: components["schemas"]["SchedulerCycleHealth"] | null;
+        };
         /** PaperPositionRecord */
         PaperPositionRecord: {
             /** Id */
@@ -410,6 +431,20 @@ export type components = {
         ReasonBody: {
             /** Reason */
             reason: string;
+        };
+        /** SchedulerCycleHealth */
+        SchedulerCycleHealth: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "ok" | "error";
+            /** Last Error */
+            last_error?: string | null;
+            /** Last Cycle At */
+            last_cycle_at?: string | null;
+            /** Last Success At */
+            last_success_at?: string | null;
         };
         /** SetKellyBody */
         SetKellyBody: {
@@ -1051,9 +1086,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["HealthzResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthzResponse"];
                 };
             };
         };

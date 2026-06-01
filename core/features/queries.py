@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy import Select, func, select
@@ -17,6 +17,12 @@ from core.db.shared_models import (
 )
 
 TEMPERATURE_VARIABLE = "temperature_2m"
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def list_locations(session: Session) -> list[ReferenceLocationRow]:
@@ -34,6 +40,25 @@ def list_open_markets(session: Session) -> list[ReferenceMarketRow]:
     )
 
 
+def resolve_target_valid_window(
+    rows: list[RawForecastRunRow],
+    *,
+    as_of: datetime,
+    target_window_start: datetime | None,
+) -> datetime | None:
+    if not rows:
+        return None
+    windows = {_as_utc(row.valid_window_start) for row in rows}
+    if target_window_start is not None:
+        target = _as_utc(target_window_start)
+        return target if target in windows else None
+    as_of_utc = _as_utc(as_of)
+    eligible = [window for window in windows if window <= as_of_utc]
+    if not eligible:
+        return None
+    return max(eligible)
+
+
 def latest_forecast_rows(
     session: Session,
     *,
@@ -41,6 +66,7 @@ def latest_forecast_rows(
     source: ForecastSource,
     variable: str,
     as_of: datetime,
+    target_window_start: datetime | None = None,
 ) -> list[RawForecastRunRow]:
     latest_run = session.scalar(
         select(func.max(RawForecastRunRow.run_time)).where(
@@ -58,7 +84,15 @@ def latest_forecast_rows(
         RawForecastRunRow.variable == variable,
         RawForecastRunRow.run_time == latest_run,
     )
-    return list(session.scalars(stmt).all())
+    rows = list(session.scalars(stmt).all())
+    window = resolve_target_valid_window(
+        rows,
+        as_of=as_of,
+        target_window_start=target_window_start,
+    )
+    if window is None:
+        return []
+    return [row for row in rows if _as_utc(row.valid_window_start) == window]
 
 
 def ensemble_mean(rows: list[RawForecastRunRow]) -> Decimal | None:

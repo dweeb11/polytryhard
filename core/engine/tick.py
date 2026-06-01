@@ -11,7 +11,7 @@ from core.contracts.executor import ExecutorContext
 from core.contracts.feature import FeatureContext
 from core.contracts.strategy import StrategyContext
 from core.db.models import PaperPositionRow, StrategyInstanceRow
-from core.domain.enums import SignalOutcome, StrategyState
+from core.domain.enums import AuditActor, SignalOutcome, StrategyState
 from core.domain.feature import FeatureValue
 from core.domain.state_machine import can_emit_signals
 from core.domain.trading import Rejection
@@ -32,6 +32,17 @@ from core.settings import Settings
 from core.strategies.registry import registered_strategies
 
 logger = logging.getLogger(__name__)
+
+
+def _strategy_open_positions(session: Session, strategy_name: str) -> tuple[PaperPositionRow, ...]:
+    return tuple(
+        session.scalars(
+            select(PaperPositionRow).where(
+                PaperPositionRow.status == "open",
+                PaperPositionRow.strategy_name == strategy_name,
+            )
+        ).all()
+    )
 
 
 def _engine_request_id() -> str:
@@ -56,7 +67,6 @@ async def run_engine_tick(
         values = await provider.compute(as_of, feature_ctx)
         computed.extend(values)
     stats["features"] = persist_feature_values(shared_session, computed)
-    shared_session.commit()
 
     feature_index = index_features(computed)
     markets = build_market_states(shared_session, as_of)
@@ -66,17 +76,11 @@ async def run_engine_tick(
         row.name: row
         for row in per_env_session.scalars(select(StrategyInstanceRow)).all()
     }
-    registry_by_name = {strategy.name: strategy for strategy in registered_strategies()}
-    open_positions = tuple(
-        per_env_session.scalars(
-            select(PaperPositionRow).where(PaperPositionRow.status == "open")
-        ).all()
-    )
     executor = default_executor(settings)
 
     for strategy_impl in registered_strategies():
         row = strategy_rows.get(strategy_impl.name)
-        if row is None or strategy_impl.name not in registry_by_name:
+        if row is None:
             continue
         if not can_emit_signals(
             enabled=row.enabled,
@@ -86,7 +90,7 @@ async def run_engine_tick(
             continue
 
         ctx = StrategyContext(strategy_name=row.name, config_jsonb=row.config_jsonb)
-        strategy_open = tuple(p for p in open_positions if p.strategy_name == row.name)
+        strategy_open = _strategy_open_positions(per_env_session, row.name)
 
         for market in markets:
             scoped_features = features_for_market(
@@ -121,6 +125,7 @@ async def run_engine_tick(
                     features_snapshot=snapshot,
                     outcome=sizing.outcome,
                     rejection_reason=sizing.reason,
+                    actor=AuditActor.SCHEDULER,
                     request_id=tick_id,
                 )
                 stats["signals"] += 1
@@ -134,6 +139,7 @@ async def run_engine_tick(
                 features_snapshot=snapshot,
                 outcome=SignalOutcome.ORDER_PLACED,
                 rejection_reason=None,
+                actor=AuditActor.SCHEDULER,
                 request_id=tick_id,
             )
             stats["signals"] += 1
@@ -148,8 +154,10 @@ async def run_engine_tick(
                 ),
             )
             stats["orders"] += 1
+            strategy_open = _strategy_open_positions(per_env_session, row.name)
 
     per_env_session.commit()
+    shared_session.commit()
     logger.info(
         "engine tick complete request_id=%s features=%s signals=%s orders=%s",
         tick_id,
