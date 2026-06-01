@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 from decimal import Decimal
+from unittest.mock import patch
 
 from core.domain.feature import FeatureValue
 from core.engine.markets import features_for_market, index_features
@@ -76,3 +77,21 @@ def test_features_for_market_prefers_location_rollup_over_model_parts() -> None:
     indexed = index_features([rollup, part])
     scoped = features_for_market(indexed, location_id="nyc", ticker="TICK-A")
     assert scoped["ensemble_mean_temp"].value_numeric == Decimal("50")
+
+
+def test_features_for_market_warns_on_unrecognized_subject_kind() -> None:
+    as_of = datetime(2026, 5, 28, 12, 0, tzinfo=UTC)
+    article = FeatureValue.present(
+        provider_name="news_sentiment",
+        provider_version="1",
+        subject_kind="article",
+        subject_id="article-123",
+        as_of=as_of,
+        value_numeric=Decimal("0.5"),
+    )
+    indexed = index_features([article])
+    with patch("core.engine.markets.logger.warning") as warning:
+        scoped = features_for_market(indexed, location_id="nyc", ticker="TICK-A")
+    assert scoped == {}
+    warning.assert_called_once()
+    assert "article" in str(warning.call_args)
