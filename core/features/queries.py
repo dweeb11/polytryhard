@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, and_, func, select
 from sqlalchemy.orm import Session
 
 from core.db.shared_enums import ForecastSource
@@ -114,13 +115,38 @@ def latest_market_snapshot(
     ticker: str,
     as_of: datetime,
 ) -> RawMarketSnapshotRow | None:
-    stmt = (
-        select(RawMarketSnapshotRow)
+    snapshots = latest_market_snapshots_by_ticker(session, tickers=[ticker], as_of=as_of)
+    return snapshots.get(ticker)
+
+
+def latest_market_snapshots_by_ticker(
+    session: Session,
+    *,
+    tickers: Iterable[str],
+    as_of: datetime,
+) -> dict[str, RawMarketSnapshotRow]:
+    unique = list(dict.fromkeys(tickers))
+    if not unique:
+        return {}
+    latest_as_of = (
+        select(
+            RawMarketSnapshotRow.ticker.label("ticker"),
+            func.max(RawMarketSnapshotRow.as_of).label("max_as_of"),
+        )
         .where(
-            RawMarketSnapshotRow.ticker == ticker,
+            RawMarketSnapshotRow.ticker.in_(unique),
             RawMarketSnapshotRow.as_of <= as_of,
         )
-        .order_by(RawMarketSnapshotRow.as_of.desc())
-        .limit(1)
+        .group_by(RawMarketSnapshotRow.ticker)
+        .subquery()
     )
-    return session.scalars(stmt).first()
+    rows = session.scalars(
+        select(RawMarketSnapshotRow).join(
+            latest_as_of,
+            and_(
+                RawMarketSnapshotRow.ticker == latest_as_of.c.ticker,
+                RawMarketSnapshotRow.as_of == latest_as_of.c.max_as_of,
+            ),
+        )
+    ).all()
+    return {row.ticker: row for row in rows}
