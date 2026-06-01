@@ -17,3 +17,9 @@ class FeatureSubjectKind(StrEnum):
 
     MARKET = "market"
     LOCATION = "location"
+
+
+class ContractResolution(StrEnum):
+    YES = "yes"
+    NO = "no"
+    VOID = "void"
