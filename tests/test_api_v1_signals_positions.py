@@ -1,22 +1,160 @@
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from core.db.models import StrategyInstanceRow
 from core.db.shared_models import RawMarketSnapshotRow, ReferenceMarketRow
-from core.domain.enums import AuditActor, PositionSide
+from core.domain.enums import AuditActor, PositionSide, SignalOutcome
+from core.domain.market import MarketState, SignalDraft
 from core.ledger import writer
 from core.ledger.seed import seed_strategies_if_needed
 from core.utils.time import utc_now
+
+
+def _market() -> MarketState:
+    return MarketState(
+        ticker="KXHIGHNY-25MAY28-T72",
+        series="KXHIGHNY",
+        bid_yes=Decimal("0.50"),
+        ask_yes=Decimal("0.56"),
+        mid_yes=Decimal("0.53"),
+        as_of=datetime(2025, 5, 28, 12, 0, tzinfo=UTC),
+        location_id="nyc",
+    )
+
+
+def _signal_draft(*, ticker: str = "KXHIGHNY-25MAY28-T72") -> SignalDraft:
+    return SignalDraft(
+        ticker=ticker,
+        prob_yes=Decimal("0.62"),
+        confidence=Decimal("0.71"),
+        side=PositionSide.YES,
+    )
 
 
 def test_list_signals_empty(api_client: TestClient, auth_headers: dict[str, str]) -> None:
     response = api_client.get("/v1/signals", headers=auth_headers)
     assert response.status_code == 200
     assert response.json() == []
+
+
+def test_list_signals_returns_recorded_signal(
+    per_env_sqlite_urls: tuple[str, str],
+    auth_headers: dict[str, str],
+) -> None:
+    shared_url, per_env_url = per_env_sqlite_urls
+    from core.api.main import create_app
+    from core.settings import Settings
+
+    settings = Settings(
+        REQUIRE_DBS=False,
+        CONTROL_PLANE_TOKEN="dev-token",
+        DATABASE_URL_SHARED=shared_url,
+        DATABASE_URL_PER_ENV=per_env_url,
+        SCHEDULER_ENABLED=False,
+    )
+    per_env = sessionmaker(bind=create_engine(per_env_url), expire_on_commit=False)()
+    seed_strategies_if_needed(per_env, request_id="seed-signals-api")
+    writer.record_signal(
+        per_env,
+        strategy_name="weather_ensemble_disagreement",
+        signal=_signal_draft(),
+        market=_market(),
+        features_snapshot={"ensembleMeanTemp": 72.1},
+        outcome=SignalOutcome.ORDER_PLACED,
+        rejection_reason=None,
+        actor=AuditActor.SCHEDULER,
+        request_id="sig-api-1",
+    )
+    per_env.commit()
+    per_env.close()
+
+    with TestClient(create_app(settings)) as client:
+        response = client.get("/v1/signals", headers=auth_headers)
+    assert response.status_code == 200
+    rows = response.json()
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["strategyName"] == "weather_ensemble_disagreement"
+    assert row["ticker"] == "KXHIGHNY-25MAY28-T72"
+    assert row["probYes"] == pytest.approx(0.62)
+    assert row["confidence"] == pytest.approx(0.71)
+    assert row["featuresSnapshot"] == {"ensembleMeanTemp": 72.1}
+    assert row["marketState"] is not None
+    assert row["outcome"] == "order_placed"
+    assert row["rejectionReason"] is None
+
+
+def test_list_signals_filters_by_strategy_ticker_and_outcome(
+    per_env_sqlite_urls: tuple[str, str],
+    auth_headers: dict[str, str],
+) -> None:
+    shared_url, per_env_url = per_env_sqlite_urls
+    from core.api.main import create_app
+    from core.settings import Settings
+
+    settings = Settings(
+        REQUIRE_DBS=False,
+        CONTROL_PLANE_TOKEN="dev-token",
+        DATABASE_URL_SHARED=shared_url,
+        DATABASE_URL_PER_ENV=per_env_url,
+        SCHEDULER_ENABLED=False,
+    )
+    per_env = sessionmaker(bind=create_engine(per_env_url), expire_on_commit=False)()
+    seed_strategies_if_needed(per_env, request_id="seed-signals-filter")
+    writer.record_signal(
+        per_env,
+        strategy_name="weather_ensemble_disagreement",
+        signal=_signal_draft(ticker="KXHIGHNY-25MAY28-T72"),
+        market=_market(),
+        features_snapshot={},
+        outcome=SignalOutcome.ORDER_PLACED,
+        rejection_reason=None,
+        actor=AuditActor.SCHEDULER,
+        request_id="sig-filter-1",
+    )
+    writer.record_signal(
+        per_env,
+        strategy_name="weather_stale_quote",
+        signal=_signal_draft(ticker="KXHIGHCHI-25MAY28-T68"),
+        market=MarketState(
+            ticker="KXHIGHCHI-25MAY28-T68",
+            series="KXHIGHCHI",
+            bid_yes=Decimal("0.40"),
+            ask_yes=Decimal("0.44"),
+            mid_yes=Decimal("0.42"),
+            as_of=datetime(2025, 5, 28, 12, 0, tzinfo=UTC),
+            location_id="chi",
+        ),
+        features_snapshot={},
+        outcome=SignalOutcome.REJECTED_BELOW_THRESHOLD,
+        rejection_reason="below threshold",
+        actor=AuditActor.SCHEDULER,
+        request_id="sig-filter-2",
+    )
+    per_env.commit()
+    per_env.close()
+
+    with TestClient(create_app(settings)) as client:
+        filtered = client.get(
+            "/v1/signals",
+            headers=auth_headers,
+            params={
+                "strategy_name": "weather_stale_quote",
+                "ticker": "KXHIGHCHI-25MAY28-T68",
+                "outcome": "rejected_below_threshold",
+            },
+        )
+    assert filtered.status_code == 200
+    rows = filtered.json()
+    assert len(rows) == 1
+    assert rows[0]["strategyName"] == "weather_stale_quote"
+    assert rows[0]["outcome"] == "rejected_below_threshold"
+    assert rows[0]["rejectionReason"] == "below threshold"
 
 
 def test_list_positions_empty(api_client: TestClient, auth_headers: dict[str, str]) -> None:
@@ -169,7 +307,7 @@ def test_list_positions_unrealized_fail_closed_without_snapshot(
     with TestClient(create_app(settings)) as client:
         response = client.get("/v1/positions", headers=auth_headers)
     assert response.status_code == 200
-    assert response.json()[0]["unrealizedPnlCents"] == 0
+    assert response.json()[0]["unrealizedPnlCents"] is None
 
 
 def test_list_positions_unrealized_fail_closed_when_snapshot_stale(
@@ -238,7 +376,7 @@ def test_list_positions_unrealized_fail_closed_when_snapshot_stale(
     with TestClient(create_app(settings)) as client:
         response = client.get("/v1/positions", headers=auth_headers)
     assert response.status_code == 200
-    assert response.json()[0]["unrealizedPnlCents"] == 0
+    assert response.json()[0]["unrealizedPnlCents"] is None
 
 
 def test_seed_includes_strategy_threshold_keys(

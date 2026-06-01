@@ -414,11 +414,8 @@ export type components = {
             costBasisCents: number;
             /** Realizedpnlcents */
             realizedPnlCents?: number | null;
-            /**
-             * Unrealizedpnlcents
-             * @default 0
-             */
-            unrealizedPnlCents: number;
+            /** Unrealizedpnlcents */
+            unrealizedPnlCents?: number | null;
             /** Status */
             status: string;
         };

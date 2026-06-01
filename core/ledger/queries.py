@@ -4,6 +4,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
+from core.db.enums import PositionStatus
 from core.db.models import (
     AuditEventRow,
     CashEventRow,
@@ -12,6 +13,7 @@ from core.db.models import (
     StrategyInstanceRow,
     SystemStateRow,
 )
+from core.db.shared_models import RawMarketSnapshotRow
 from core.domain.audit import AuditEvent
 from core.domain.cash_event import CashEvent
 from core.domain.enums import (
@@ -25,7 +27,7 @@ from core.domain.enums import (
 from core.domain.strategy import StrategyConfig, StrategyInstance
 from core.domain.system import SystemEnvState
 from core.domain.trading import PaperPositionRecord, SignalRecord
-from core.features.queries import latest_market_snapshot
+from core.features.queries import latest_market_snapshots_by_ticker
 from core.utils.time import format_dt, parse_iso, utc_now
 
 
@@ -213,12 +215,12 @@ def position_from_row(
     row: PaperPositionRow,
     *,
     unrealized_pnl_cents: int | None = None,
+    computed_unrealized: bool = False,
 ) -> PaperPositionRecord:
-    unrealized = (
-        unrealized_pnl_cents
-        if unrealized_pnl_cents is not None
-        else row.unrealized_pnl_cents
-    )
+    if computed_unrealized:
+        unrealized = unrealized_pnl_cents
+    else:
+        unrealized = row.unrealized_pnl_cents
     status = row.status.value if hasattr(row.status, "value") else str(row.status)
     return PaperPositionRecord(
         id=row.id,
@@ -272,23 +274,18 @@ def _unrealized_pnl_cents(
 def _open_position_unrealized_pnl_cents(
     row: PaperPositionRow,
     *,
-    shared_session: Session,
+    snapshot: RawMarketSnapshotRow | None,
     strategy_configs: dict[str, dict[str, object]],
     now: datetime,
-) -> int:
-    config = strategy_configs.get(row.strategy_name, {})
-    snapshot = latest_market_snapshot(
-        shared_session,
-        ticker=row.ticker,
-        as_of=now,
-    )
+) -> int | None:
     if snapshot is None or snapshot.mid_yes is None:
-        return 0
+        return None
+    config = strategy_configs.get(row.strategy_name, {})
     max_age = _max_input_age_seconds(config)
     snapshot_as_of = _utc_aware(snapshot.as_of)
     as_of_cutoff = _utc_aware(now) - timedelta(seconds=max_age)
     if snapshot_as_of < as_of_cutoff:
-        return 0
+        return None
     side = PositionSide(row.side.value if hasattr(row.side, "value") else row.side)
     return _unrealized_pnl_cents(
         side=side,
@@ -317,27 +314,38 @@ def list_positions(
     rows = session.scalars(stmt).all()
 
     strategy_configs: dict[str, dict[str, object]] = {}
-    if shared_session is not None:
-        names = {row.strategy_name for row in rows if row.status.value == "open"}
+    snapshots_by_ticker: dict[str, RawMarketSnapshotRow] = {}
+    now = utc_now()
+    open_rows = [row for row in rows if row.status == PositionStatus.OPEN]
+    if shared_session is not None and open_rows:
+        names = {row.strategy_name for row in open_rows}
         if names:
             strategy_rows = session.scalars(
                 select(StrategyInstanceRow).where(StrategyInstanceRow.name.in_(names))
             ).all()
             strategy_configs = {row.name: row.config_jsonb for row in strategy_rows}
-        now = utc_now()
+        snapshots_by_ticker = latest_market_snapshots_by_ticker(
+            shared_session,
+            tickers={row.ticker for row in open_rows},
+            as_of=now,
+        )
 
     results: list[PaperPositionRecord] = []
     for row in rows:
-        unrealized: int | None = None
-        if (
-            shared_session is not None
-            and row.status.value == "open"
-        ):
+        if shared_session is not None and row.status == PositionStatus.OPEN:
             unrealized = _open_position_unrealized_pnl_cents(
                 row,
-                shared_session=shared_session,
+                snapshot=snapshots_by_ticker.get(row.ticker),
                 strategy_configs=strategy_configs,
                 now=now,
             )
-        results.append(position_from_row(row, unrealized_pnl_cents=unrealized))
+            results.append(
+                position_from_row(
+                    row,
+                    unrealized_pnl_cents=unrealized,
+                    computed_unrealized=True,
+                )
+            )
+        else:
+            results.append(position_from_row(row))
     return results

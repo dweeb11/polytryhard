@@ -52,5 +52,5 @@ class PaperPositionRecord(BaseModel):
     qty: int
     cost_basis_cents: int
     realized_pnl_cents: int | None = None
-    unrealized_pnl_cents: int = 0
+    unrealized_pnl_cents: int | None = None
     status: str

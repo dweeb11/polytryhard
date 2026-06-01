@@ -1133,9 +1133,15 @@
             "title": "Realizedpnlcents"
           },
           "unrealizedPnlCents": {
-            "type": "integer",
-            "title": "Unrealizedpnlcents",
-            "default": 0
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unrealizedpnlcents"
           },
           "status": {
             "type": "string",
