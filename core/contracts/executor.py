@@ -18,7 +18,7 @@ class Fill:
     fees_cents: int
 
 
-@dataclass
+@dataclass(frozen=True)
 class ExecutorContext:
     request_id: str
     session: Session

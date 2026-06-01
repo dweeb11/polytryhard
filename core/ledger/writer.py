@@ -249,11 +249,14 @@ def record_signal(
     features_snapshot: dict[str, object],
     outcome: SignalOutcome,
     rejection_reason: str | None,
+    actor: AuditActor,
     request_id: str,
 ) -> SignalRow:
+    _require_system_active(session)
     now = utc_now()
+    signal_id = _new_id()
     row = SignalRow(
-        id=_new_id(),
+        id=signal_id,
         strategy_name=strategy_name,
         ticker=signal.ticker,
         evaluated_at=now,
@@ -265,6 +268,23 @@ def record_signal(
         rejection_reason=rejection_reason,
     )
     session.add(row)
+    session.flush()
+    _append_audit(
+        session,
+        actor=actor,
+        action="record_signal",
+        target_type="signal",
+        target_id=signal_id,
+        before_state={},
+        after_state={
+            "signalId": signal_id,
+            "strategyName": strategy_name,
+            "ticker": signal.ticker,
+            "outcome": outcome.value,
+        },
+        reason=rejection_reason or f"signal outcome={outcome.value}",
+        request_id=request_id,
+    )
     session.flush()
     return row
 
@@ -284,6 +304,18 @@ def open_paper_position(
     actor: AuditActor,
     request_id: str,
 ) -> tuple[PaperPositionRow, PaperFillRow]:
+    _require_system_active(session)
+    if qty <= 0:
+        raise LedgerError("Quantity must be positive")
+    if cost_basis_cents <= 0:
+        raise LedgerError("Cost basis must be positive")
+    if fees_cents < 0:
+        raise LedgerError("Fees must be non-negative")
+    free = free_cash_cents(session, strategy_name)
+    total_cost = cost_basis_cents + fees_cents
+    if total_cost > free:
+        raise LedgerError(f"Position exceeds free cash ({free} cents available)")
+
     now = utc_now()
     position = PaperPositionRow(
         id=_new_id(),
@@ -314,6 +346,22 @@ def open_paper_position(
     )
     session.add(fill)
     session.flush()
+    _append_audit(
+        session,
+        actor=actor,
+        action="open_paper_position",
+        target_type="paper_position",
+        target_id=position.id,
+        before_state={},
+        after_state={
+            "positionId": position.id,
+            "fillId": fill.id,
+            "costBasisCents": cost_basis_cents,
+            "feesCents": fees_cents,
+        },
+        reason=f"paper fill position={position.id}",
+        request_id=request_id,
+    )
     if fees_cents > 0:
         strategy = _get_strategy_row(session, strategy_name)
         before = {"bankrollCents": strategy.bankroll_cents}

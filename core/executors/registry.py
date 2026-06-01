@@ -10,4 +10,5 @@ def registered_executors() -> tuple[Executor, ...]:
 
 
 def default_executor(settings: Settings) -> Executor:
-    return PaperExecutor()
+    del settings
+    return _ALL_EXECUTORS[0]
