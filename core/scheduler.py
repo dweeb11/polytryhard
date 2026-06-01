@@ -18,6 +18,7 @@ from core.sources.persistence import (
     SourceHealthTracker,
     load_locations,
     load_markets,
+    load_resolved_tickers,
     persist_fetch_result,
 )
 from core.sources.registry import enabled_sources, registered_sources
@@ -189,12 +190,14 @@ class Scheduler:
             with shared_session(self.settings) as session:
                 locations = load_locations(session)
                 markets = load_markets(session)
+                resolved_tickers = load_resolved_tickers(session)
             ctx = SourceContext(
                 request_id=request_id,
                 settings=self.settings,
                 locations=locations,
                 markets=markets,
                 http=HttpxClient(self._http),
+                resolved_tickers=resolved_tickers,
             )
             result = await source.fetch(self.clock, ctx)
             finished_at = self.clock.now()
