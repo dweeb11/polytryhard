@@ -16,7 +16,12 @@ from sqlalchemy import (
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.types import JSON
 
-from core.db.shared_enums import FeatureSubjectKind, ForecastSource, SourceRunStatus
+from core.db.shared_enums import (
+    ContractResolution,
+    FeatureSubjectKind,
+    ForecastSource,
+    SourceRunStatus,
+)
 from core.db.types import str_enum_column
 
 
@@ -49,6 +54,18 @@ class ReferenceMarketRow(SharedBase):
     settlement_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(32))
     raw_jsonb: Mapped[dict[str, object]] = mapped_column(JSON)
+
+
+class ContractResolutionRow(SharedBase):
+    __tablename__ = "contract_resolution"
+
+    ticker: Mapped[str] = mapped_column(
+        String(128), ForeignKey("reference_market.ticker"), primary_key=True
+    )
+    resolved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    resolution: Mapped[ContractResolution] = mapped_column(str_enum_column(ContractResolution))
+    settlement_value: Mapped[Decimal] = mapped_column(Numeric(12, 6))
+    source_evidence_jsonb: Mapped[dict[str, object]] = mapped_column(JSON)
 
 
 class RawMarketSnapshotRow(SharedBase):
