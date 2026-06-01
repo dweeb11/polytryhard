@@ -225,6 +225,7 @@ async def test_kalshi_spread_from_snapshot(per_env_sqlite_urls: tuple[str, str])
             raw_jsonb={},
         )
     )
+    session.flush()
     from core.db.shared_models import RawMarketSnapshotRow
 
     session.add(

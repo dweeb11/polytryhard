@@ -226,6 +226,7 @@ def test_list_positions_unrealized_from_snapshot_mid(
                 raw_jsonb={},
             )
         )
+    shared.flush()
     shared.add(
         RawMarketSnapshotRow(
             id="snap-ny",
@@ -353,6 +354,7 @@ def test_list_positions_unrealized_fail_closed_when_snapshot_stale(
             raw_jsonb={},
         )
     )
+    shared.flush()
     shared.add(
         RawMarketSnapshotRow(
             id="snap-stale",

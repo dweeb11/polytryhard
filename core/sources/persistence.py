@@ -7,9 +7,14 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from core.contracts.source import FetchResult, ReferenceLocation, ReferenceMarketUpsert
+from core.contracts.source import (
+    FetchResult,
+    ReferenceLocation,
+    ReferenceMarketUpsert,
+)
 from core.db.shared_enums import SourceRunStatus
 from core.db.shared_models import (
+    ContractResolutionRow,
     RawForecastRunRow,
     RawMarketSnapshotRow,
     ReferenceLocationRow,
@@ -36,6 +41,11 @@ def load_locations(session: Session) -> tuple[ReferenceLocation, ...]:
         )
         for row in rows
     )
+
+
+def load_resolved_tickers(session: Session) -> frozenset[str]:
+    rows = session.scalars(select(ContractResolutionRow.ticker)).all()
+    return frozenset(rows)
 
 
 def load_markets(session: Session) -> tuple[ReferenceMarketUpsert, ...]:
@@ -94,6 +104,19 @@ def persist_fetch_result(
             existing.settlement_time = upsert.settlement_time
             existing.status = upsert.status
             existing.raw_jsonb = upsert.raw_jsonb
+
+    for resolution in result.resolutions:
+        if session.get(ContractResolutionRow, resolution.ticker) is not None:
+            continue
+        session.add(
+            ContractResolutionRow(
+                ticker=resolution.ticker,
+                resolved_at=resolution.resolved_at,
+                resolution=resolution.resolution,
+                settlement_value=resolution.settlement_value,
+                source_evidence_jsonb=resolution.source_evidence_jsonb,
+            )
+        )
 
     for snapshot in result.market_snapshots:
         session.add(

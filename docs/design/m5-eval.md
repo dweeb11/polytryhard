@@ -47,7 +47,7 @@ Rationale for this cut over the other M4-deferred candidates:
 Behaviour:
 - Targets markets with a `reference_market` row not yet resolved whose `close_time` has passed (and/or markets with open `paper_position` rows — see §10 open knob).
 - Calls Kalshi market status; on `settled`/`finalized`, parses the result into `yes` / `no` / `void` and a `settlement_value`, captures the raw payload as `source_evidence_jsonb`.
-- Writes a `contract_resolution` row, **idempotent on `ticker` PK** (one resolution per market). Updates `reference_market.status` and `settlement_time`.
+- Writes a `contract_resolution` row, **idempotent on `ticker` PK** (one resolution per market). Rows are **immutable** once written — M5 has no revision table; correcting a bad resolution requires manual DB intervention. Updates `reference_market.status` and `settlement_time`.
 - Reports health and last-fetch like other sources.
 - **Fail closed:** unreachable, non-settled, or ambiguous/unparseable result → write nothing, log, surface degraded health. Never guess a settlement.
 
