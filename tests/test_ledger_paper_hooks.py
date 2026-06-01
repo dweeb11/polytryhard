@@ -117,6 +117,27 @@ def test_activate_blocked_when_kill_switch_active(
     session.close()
 
 
+def test_bootstrap_activate_succeeds_when_kill_switch_active(
+    per_env_session_factory: sessionmaker[Session],
+) -> None:
+    session = per_env_session_factory()
+    seed_strategies_if_needed(session, request_id="seed-test")
+    name = "weather_ensemble_disagreement"
+    row = session.get(StrategyInstanceRow, name)
+    assert row is not None
+    row.state = DbStrategyState.SEEDED
+    writer.apply_kill_switch(session, "incident", AuditActor.USER, "kill-bootstrap")
+    session.commit()
+
+    writer.bootstrap_activate_strategy(
+        session, name, "initial seed activation", AuditActor.SYSTEM, "bootstrap-req"
+    )
+    session.commit()
+
+    assert row.state == DbStrategyState.ACTIVE
+    session.close()
+
+
 def test_open_paper_position_rejects_insufficient_free_cash(
     per_env_session_factory: sessionmaker[Session],
 ) -> None:

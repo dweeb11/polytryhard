@@ -524,19 +524,20 @@ def set_kelly_fraction(
 
 @dataclass(frozen=True)
 class _LifecycleTransition:
-    """A single operator-driven strategy state change.
+    """A single strategy state change.
 
-    All four transitions share the same shape: validate reason, require an
-    active system (kill switch closed), guard the source state, then write the
-    new state plus an audit row. Only the per-transition fields below differ.
+    Operator transitions require an active system (kill switch closed).
+    Bootstrap activation uses the same audit shape but skips that gate so
+    seed can finish while paused.
     """
 
     action: str
-    target: StrategyState
+    target_fn: Callable[[], StrategyState]
     verb: str
     can_transition: Callable[[StrategyState], bool] | None = None
     reason_error: str = "Reason is required"
     disable: bool = False
+    require_system_active: bool = True
 
 
 def _apply_lifecycle_transition(
@@ -550,18 +551,20 @@ def _apply_lifecycle_transition(
 ) -> None:
     if not reason.strip():
         raise LedgerError(transition.reason_error)
-    _require_system_active(session)
+    if transition.require_system_active:
+        _require_system_active(session)
     strategy = _get_strategy_row(session, strategy_name)
     state = StrategyState(strategy.state)
     if transition.can_transition is not None and not transition.can_transition(state):
         raise LedgerError(f"Cannot {transition.verb} from state {state.value}")
+    target = transition.target_fn()
     before: dict[str, Any] = {"state": strategy.state}
-    after: dict[str, Any] = {"state": transition.target.value}
+    after: dict[str, Any] = {"state": target.value}
     if transition.disable:
         before["enabled"] = strategy.enabled
         strategy.enabled = False
         after["enabled"] = False
-    _touch_strategy(strategy, state=transition.target)
+    _touch_strategy(strategy, state=target)
     _append_audit(
         session,
         actor=actor,
@@ -578,29 +581,49 @@ def _apply_lifecycle_transition(
 
 _ACTIVATE = _LifecycleTransition(
     action="activate_strategy",
-    target=StrategyState.ACTIVE,
+    target_fn=lambda: StrategyState.ACTIVE,
     verb="activate",
     can_transition=can_activate,
 )
+_BOOTSTRAP_ACTIVATE = _LifecycleTransition(
+    action="activate_strategy",
+    target_fn=lambda: StrategyState.ACTIVE,
+    verb="activate",
+    can_transition=can_activate,
+    require_system_active=False,
+)
 _PAUSE = _LifecycleTransition(
     action="pause_strategy",
-    target=pause_target_state(),
+    target_fn=pause_target_state,
     verb="pause",
     can_transition=can_pause,
 )
 _RESUME = _LifecycleTransition(
     action="resume_strategy",
-    target=resume_target_state(),
+    target_fn=resume_target_state,
     verb="resume",
     can_transition=can_resume,
     reason_error="Reason is required to resume",
 )
 _DECOMMISSION = _LifecycleTransition(
     action="decommission",
-    target=StrategyState.DECOMMISSIONED,
+    target_fn=lambda: StrategyState.DECOMMISSIONED,
     verb="decommission",
     disable=True,
 )
+
+
+def bootstrap_activate_strategy(
+    session: Session,
+    strategy_name: str,
+    reason: str,
+    actor: AuditActor,
+    request_id: str,
+) -> None:
+    """Activate during seed/bootstrap; skips kill-switch check."""
+    _apply_lifecycle_transition(
+        session, strategy_name, reason, actor, request_id, transition=_BOOTSTRAP_ACTIVATE
+    )
 
 
 def activate_strategy(

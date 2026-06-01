@@ -74,7 +74,7 @@ def seed_strategies_if_needed(session: Session, *, request_id: str) -> None:
             AuditActor.SYSTEM,
             request_id,
         )
-        writer.activate_strategy(
+        writer.bootstrap_activate_strategy(
             session,
             name,
             "initial seed activation",
