@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
+from core.db.shared_enums import FeatureSubjectKind
 from core.domain.feature import FeatureStatus, FeatureValue
 from core.domain.market import MarketState
 from core.features.queries import latest_market_snapshot, list_open_markets
@@ -39,12 +40,12 @@ def index_features(features: list[FeatureValue]) -> dict[str, FeatureValue]:
     return indexed
 
 
-def _aggregate_ensemble_mean_temp(
+def _aggregate_location_parts(
     parts: list[FeatureValue],
     *,
     location_id: str,
 ) -> FeatureValue | None:
-    """Unweighted arithmetic mean of per-model ensemble_mean_temp parts."""
+    """Unweighted arithmetic mean of a provider's per-model location parts."""
     numerics: list[Decimal] = []
     as_ofs: list[datetime] = []
     template: FeatureValue | None = None
@@ -78,30 +79,32 @@ def features_for_market(
     location_id: str | None,
     ticker: str,
 ) -> dict[str, FeatureValue]:
-    """Scope indexed features to one market.
+    """Scope indexed features to one market by subject kind, not provider name.
 
-    Provider names are unique in the returned dict; when multiple rows share a
-    provider at the same location, the first matching row wins (stable index order).
+    Market-subject features match the market ticker; location-subject features
+    match the market's location. Per-model location parts (subject_id
+    ``"<location>:<model>"``) are aggregated into a single location rollup when
+    the provider did not already emit one. Provider names are unique in the
+    returned dict; the first matching row wins (stable index order).
     """
     by_name: dict[str, FeatureValue] = {}
-    ensemble_parts: list[FeatureValue] = []
+    parts_by_provider: dict[str, list[FeatureValue]] = {}
     for feature in indexed.values():
-        if feature.provider_name == "kalshi_spread" and feature.subject_id == ticker:
-            if feature.provider_name not in by_name:
-                by_name[feature.provider_name] = feature
-        elif location_id and feature.subject_id == location_id:
-            if feature.provider_name not in by_name:
-                by_name[feature.provider_name] = feature
-        elif (
-            location_id
-            and feature.provider_name == "ensemble_mean_temp"
-            and feature.subject_id.startswith(f"{location_id}:")
-        ):
-            ensemble_parts.append(feature)
-    if "ensemble_mean_temp" not in by_name and location_id and ensemble_parts:
-        aggregated = _aggregate_ensemble_mean_temp(ensemble_parts, location_id=location_id)
-        if aggregated is not None:
-            by_name["ensemble_mean_temp"] = aggregated
+        if feature.subject_kind == FeatureSubjectKind.MARKET.value:
+            if feature.subject_id == ticker:
+                by_name.setdefault(feature.provider_name, feature)
+        elif location_id and feature.subject_kind == FeatureSubjectKind.LOCATION.value:
+            if feature.subject_id == location_id:
+                by_name.setdefault(feature.provider_name, feature)
+            elif feature.subject_id.startswith(f"{location_id}:"):
+                parts_by_provider.setdefault(feature.provider_name, []).append(feature)
+    if location_id is not None:
+        for provider_name, parts in parts_by_provider.items():
+            if provider_name in by_name:
+                continue
+            aggregated = _aggregate_location_parts(parts, location_id=location_id)
+            if aggregated is not None:
+                by_name[provider_name] = aggregated
     return by_name
 
 
