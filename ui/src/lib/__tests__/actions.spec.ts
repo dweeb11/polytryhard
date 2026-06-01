@@ -85,6 +85,25 @@ describe('deposit', () => {
 		expect(after.state).toBe('active');
 		expect(after.bankrollCents).toBe(11_000);
 	});
+
+	it.each(['drawdown_paused', 'operator_paused'] as const)(
+		'does not auto-resume %s on deposit even when crossing minBankrollCents',
+		async (state) => {
+			setStrategy(STRATEGY, {
+				state,
+				bankrollCents: 5_000,
+				config: {
+					...FIXTURE.strategies[0].config,
+					autoResumeOnDeposit: true,
+					minBankrollCents: 10_000
+				}
+			});
+			await deposit(STRATEGY, 6_000, 'top up');
+			const after = get(strategies).find((s) => s.name === STRATEGY)!;
+			expect(after.state).toBe(state);
+			expect(after.bankrollCents).toBe(11_000);
+		}
+	);
 });
 
 describe('withdraw', () => {

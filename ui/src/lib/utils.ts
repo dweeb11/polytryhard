@@ -64,6 +64,10 @@ export const RESUMABLE_STATES = [
 	'drawdown_paused',
 	'operator_paused'
 ] as const;
+// Mirrors backend AUTO_RESUME_ON_DEPOSIT_STATES: only a low-bankroll pause
+// clears automatically on deposit. Drawdown/operator pauses require an
+// explicit resume even when a deposit crosses the bankroll floor.
+export const AUTO_RESUME_ON_DEPOSIT_STATES = ['low_bankroll_paused'] as const;
 
 export function strategyStateLabel(state: string): string {
 	return state.replace(/_/g, ' ');
