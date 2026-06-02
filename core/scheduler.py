@@ -241,12 +241,18 @@ class Scheduler:
             return SourceRunStatus.ERROR
 
     async def _run_engine_tick(self, request_id: str) -> None:
+        from core.engine.resolution import run_resolution_tick
         from core.engine.tick import run_engine_tick
 
         with shared_session(self.settings) as shared, per_env_session(self.settings) as per_env:
             await run_engine_tick(
                 settings=self.settings,
                 clock=self.clock,
+                shared_session=shared,
+                per_env_session=per_env,
+                request_id=request_id,
+            )
+            run_resolution_tick(
                 shared_session=shared,
                 per_env_session=per_env,
                 request_id=request_id,
