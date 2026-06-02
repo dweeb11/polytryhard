@@ -9,7 +9,12 @@ from sqlalchemy.orm import Session
 from core.db.enums import EvalWindow
 from core.db.models import EvalMetricSnapshotRow, StrategyInstanceRow
 from core.eval.metrics import EvalMetrics, compute_metrics
-from core.eval.queries import bankroll_balance_series, resolved_trades
+from core.eval.queries import (
+    balances_for_window,
+    bankroll_cash_events,
+    resolved_trade_records,
+    trades_for_window,
+)
 
 _WINDOWS: tuple[EvalWindow, ...] = (EvalWindow.D7, EvalWindow.D30, EvalWindow.ALL)
 _DEFAULT_TAU = 0.5
@@ -64,20 +69,19 @@ def recompute_strategy(
     if strategy is None:
         return
     tau = _strategy_tau(strategy)
+    trade_records = resolved_trade_records(
+        per_env_session=per_env_session,
+        shared_session=shared_session,
+        strategy_name=strategy_name,
+        now=now,
+    )
+    cash_events = bankroll_cash_events(
+        per_env_session=per_env_session,
+        strategy_name=strategy_name,
+    )
     for window in _WINDOWS:
-        trades = resolved_trades(
-            per_env_session=per_env_session,
-            shared_session=shared_session,
-            strategy_name=strategy_name,
-            window=window.value,
-            now=now,
-        )
-        balances = bankroll_balance_series(
-            per_env_session=per_env_session,
-            strategy_name=strategy_name,
-            window=window.value,
-            now=now,
-        )
+        trades = trades_for_window(trade_records, window, now)
+        balances = balances_for_window(cash_events, window, now)
         metrics = compute_metrics(trades, balances=balances, tau=tau)
         write_snapshot(
             per_env_session,

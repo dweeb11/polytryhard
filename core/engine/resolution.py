@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -12,7 +13,6 @@ from core.db.shared_enums import ContractResolution
 from core.db.shared_models import ContractResolutionRow
 from core.domain.enums import AuditActor
 from core.ledger import writer
-from core.utils.time import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +25,7 @@ def run_resolution_tick(
     *,
     shared_session: Session,
     per_env_session: Session,
+    now: datetime,
     request_id: str | None = None,
 ) -> dict[str, int]:
     tick_id = request_id or _resolution_request_id()
@@ -58,7 +59,6 @@ def run_resolution_tick(
         if affected:
             from core.eval.snapshot import recompute_strategy
 
-            now = utc_now()
             for strategy_name in sorted(affected):
                 recompute_strategy(
                     per_env_session=per_env_session,

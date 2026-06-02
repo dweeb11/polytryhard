@@ -202,7 +202,7 @@ class Scheduler:
             except TimeoutError:
                 pass
             try:
-                self.run_nightly_recompute()
+                await asyncio.to_thread(self.run_nightly_recompute)
             except Exception:
                 logger.exception("nightly eval recompute failed")
 
@@ -280,5 +280,6 @@ class Scheduler:
             run_resolution_tick(
                 shared_session=shared,
                 per_env_session=per_env,
+                now=self.clock.now(),
                 request_id=request_id,
             )
