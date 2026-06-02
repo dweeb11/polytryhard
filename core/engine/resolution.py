@@ -12,6 +12,7 @@ from core.db.shared_enums import ContractResolution
 from core.db.shared_models import ContractResolutionRow
 from core.domain.enums import AuditActor
 from core.ledger import writer
+from core.utils.time import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ def run_resolution_tick(
                 select(ContractResolutionRow).where(ContractResolutionRow.ticker.in_(tickers))
             ).all()
         }
+        affected: set[str] = set()
         for position in open_positions:
             res = resolutions_by_ticker.get(position.ticker)
             if res is None:
@@ -51,7 +53,19 @@ def run_resolution_tick(
                 actor=AuditActor.SCHEDULER,
                 request_id=tick_id,
             )
+            affected.add(position.strategy_name)
             resolved += 1
+        if affected:
+            from core.eval.snapshot import recompute_strategy
+
+            now = utc_now()
+            for strategy_name in sorted(affected):
+                recompute_strategy(
+                    per_env_session=per_env_session,
+                    shared_session=shared_session,
+                    strategy_name=strategy_name,
+                    now=now,
+                )
     per_env_session.commit()
     logger.info("resolution tick complete request_id=%s resolved=%s", tick_id, resolved)
     return {"resolved": resolved}
