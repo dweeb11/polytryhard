@@ -457,7 +457,7 @@ def resolve_position(
 ) -> None:
     if position.status != DbPositionStatus.OPEN:
         return
-    side = PositionSide(position.side.value if hasattr(position.side, "value") else position.side)
+    side = PositionSide(position.side.value)
     payout = _resolution_payout_cents(
         side=side,
         qty=position.qty,

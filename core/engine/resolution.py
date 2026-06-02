@@ -27,16 +27,22 @@ def run_resolution_tick(
     request_id: str | None = None,
 ) -> dict[str, int]:
     tick_id = request_id or _resolution_request_id()
-    resolutions = shared_session.scalars(select(ContractResolutionRow)).all()
+    open_positions = per_env_session.scalars(
+        select(PaperPositionRow).where(PaperPositionRow.status == DbPositionStatus.OPEN)
+    ).all()
     resolved = 0
-    for res in resolutions:
-        open_positions = per_env_session.scalars(
-            select(PaperPositionRow).where(
-                PaperPositionRow.ticker == res.ticker,
-                PaperPositionRow.status == DbPositionStatus.OPEN,
-            )
-        ).all()
+    if open_positions:
+        tickers = {position.ticker for position in open_positions}
+        resolutions_by_ticker = {
+            row.ticker: row
+            for row in shared_session.scalars(
+                select(ContractResolutionRow).where(ContractResolutionRow.ticker.in_(tickers))
+            ).all()
+        }
         for position in open_positions:
+            res = resolutions_by_ticker.get(position.ticker)
+            if res is None:
+                continue
             writer.resolve_position(
                 per_env_session,
                 position=position,
