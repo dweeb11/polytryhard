@@ -50,3 +50,8 @@ def test_identical_rois_stay_finite() -> None:
 def test_is_frozen_dataclass() -> None:
     edge = posterior_edge([0.1, 0.2], tau=0.5)
     assert isinstance(edge, PosteriorEdge)
+
+
+def test_posterior_rejects_non_positive_tau() -> None:
+    with pytest.raises(ValueError, match="tau must be > 0"):
+        posterior_edge([], tau=0)

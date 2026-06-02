@@ -23,6 +23,8 @@ def posterior_edge(rois: list[float], *, tau: float = 0.5) -> PosteriorEdge:
       n == 1 -> prior-scale variance (tau^2): shrinks toward 0, stays wide
       n >= 2 -> sample variance (ddof=1), floored to stay finite
     """
+    if tau <= 0:
+        raise ValueError(f"tau must be > 0, got {tau}")
     prior_precision = 1.0 / (tau**2)
     n = len(rois)
     if n == 0:

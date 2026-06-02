@@ -16,12 +16,19 @@ class Trade:
     prob_yes: the originating signal's predicted P(market resolves YES), in [0, 1].
     outcome_yes: the realized market outcome from the contract resolution (1 if YES, 0 if NO).
     realized_pnl_cents / cost_basis_cents: per-position P&L and reserved cost basis.
+    cost_basis_cents must be > 0 (ledger rejects zero at open); ROI metrics divide by it.
     """
 
     prob_yes: float
     outcome_yes: int
     realized_pnl_cents: int
     cost_basis_cents: int
+
+    def __post_init__(self) -> None:
+        if self.cost_basis_cents <= 0:
+            raise ValueError(
+                f"cost_basis_cents must be > 0 for ROI metrics, got {self.cost_basis_cents}"
+            )
 
 
 @dataclass(frozen=True)
@@ -44,6 +51,11 @@ class CalibrationBin:
 
 @dataclass(frozen=True)
 class EvalMetrics:
+    """Aggregated metrics for a strategy × window.
+
+    n_wins: trades with realized_pnl_cents > 0 (P&L-based, not outcome_yes).
+    """
+
     n_trades: int
     n_wins: int
     hit_rate: float | None
@@ -63,10 +75,12 @@ def n_trades(trades: list[Trade]) -> int:
 
 
 def n_wins(trades: list[Trade]) -> int:
+    """Trades with positive realized P&L (not outcome_yes-based wins)."""
     return sum(1 for t in trades if t.realized_pnl_cents > 0)
 
 
 def hit_rate(trades: list[Trade]) -> float | None:
+    """n_wins / n_trades; None when there are no trades."""
     total = len(trades)
     if total == 0:
         return None
@@ -94,7 +108,8 @@ def pnl_cents(trades: list[Trade]) -> int:
 
 
 def _rois(trades: list[Trade]) -> list[float]:
-    return [t.realized_pnl_cents / t.cost_basis_cents for t in trades if t.cost_basis_cents]
+    """Per-trade ROI; every trade must have cost_basis_cents > 0 (enforced on Trade)."""
+    return [t.realized_pnl_cents / t.cost_basis_cents for t in trades]
 
 
 def sharpe_proxy(trades: list[Trade]) -> float | None:
@@ -120,6 +135,8 @@ def max_drawdown_cents(balances: list[int]) -> int:
 
 
 def calibration_bins(trades: list[Trade], *, n_bins: int = 10) -> list[CalibrationBin]:
+    if n_bins <= 0:
+        raise ValueError(f"n_bins must be > 0, got {n_bins}")
     if not trades:
         return []
     width = 1.0 / n_bins
@@ -154,6 +171,10 @@ def compute_metrics(
     tau: float = 0.5,
     n_bins: int = 10,
 ) -> EvalMetrics:
+    if tau <= 0:
+        raise ValueError(f"tau must be > 0, got {tau}")
+    if n_bins <= 0:
+        raise ValueError(f"n_bins must be > 0, got {n_bins}")
     edge = posterior_edge(_rois(trades), tau=tau)
     return EvalMetrics(
         n_trades=n_trades(trades),

@@ -11,6 +11,11 @@ def test_empty_trades_no_bins() -> None:
     assert calibration_bins([]) == []
 
 
+def test_calibration_bins_rejects_non_positive_n_bins() -> None:
+    with pytest.raises(ValueError, match="n_bins must be > 0"):
+        calibration_bins([_t(0.5, 1)], n_bins=0)
+
+
 def test_bins_group_by_decile_and_omit_empty() -> None:
     trades = [_t(0.62, 1), _t(0.66, 0), _t(0.71, 1)]
     bins = calibration_bins(trades, n_bins=10)

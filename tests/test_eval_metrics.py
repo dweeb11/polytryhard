@@ -40,6 +40,21 @@ def test_zero_pnl_is_not_a_win() -> None:
     assert n_wins([_trade(0.5, 1, 0)]) == 0
 
 
+def test_trade_rejects_non_positive_cost_basis() -> None:
+    with pytest.raises(ValueError, match="cost_basis_cents must be > 0"):
+        _trade(0.5, 1, 10, cost=0)
+
+
+def test_compute_metrics_rejects_non_positive_tau() -> None:
+    with pytest.raises(ValueError, match="tau must be > 0"):
+        compute_metrics([], balances=[10000], tau=0)
+
+
+def test_compute_metrics_rejects_non_positive_n_bins() -> None:
+    with pytest.raises(ValueError, match="n_bins must be > 0"):
+        compute_metrics([], balances=[10000], n_bins=0)
+
+
 def test_brier_hand_computed() -> None:
     trades = [_trade(0.6, 1, 60), _trade(0.4, 0, -40), _trade(0.7, 1, 30)]
     assert brier(trades) == pytest.approx((0.16 + 0.16 + 0.09) / 3)
