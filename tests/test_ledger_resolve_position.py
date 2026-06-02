@@ -146,6 +146,28 @@ def test_resolve_void_refunds(session: Session) -> None:
     assert free_cash_cents(session, name) == 100_00
 
 
+def test_resolve_void_emits_single_zero_realized_pnl_event(session: Session) -> None:
+    name = "strat_void_pnl"
+    _create_strategy(session, name)
+    pos = _open(session, name=name, side=PositionSide.YES, qty=10, price="0.40")
+    writer.resolve_position(
+        session,
+        position=pos,
+        resolution=ContractResolution.VOID,
+        settlement_value=Decimal("0"),
+        actor=AuditActor.SCHEDULER,
+        request_id="req-res",
+    )
+    session.flush()
+    pnl_events = [
+        e
+        for e in session.query(CashEventRow).all()
+        if e.kind == CashEventKind.REALIZED_PNL.value and e.ref_position_id == pos.id
+    ]
+    assert len(pnl_events) == 1
+    assert pnl_events[0].amount_cents == 0
+
+
 def test_resolve_is_idempotent(session: Session) -> None:
     name = "strat_d"
     _create_strategy(session, name)

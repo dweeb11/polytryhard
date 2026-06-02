@@ -123,3 +123,48 @@ def test_resolution_tick_settles_open_positions(
         )
     assert stats2["resolved"] == 0
     per_env.close()
+
+
+def test_resolution_tick_skips_open_without_resolution(
+    per_env_sqlite_urls: tuple[str, str],
+    per_env_session_factory: sessionmaker[Session],
+) -> None:
+    shared_url, _ = per_env_sqlite_urls
+    shared_engine = create_engine(shared_url)
+    ticker = "KXT-NO-RES"
+
+    per_env = per_env_session_factory()
+    name = "strat_open"
+    _create_strategy(per_env, name)
+    pos, _ = writer.open_paper_position(
+        per_env,
+        strategy_name=name,
+        order_ticker=ticker,
+        side=PositionSide.YES,
+        qty=10,
+        price=Decimal("0.40"),
+        cost_basis_cents=400,
+        signal_id=None,
+        fees_cents=0,
+        simulator_assumptions={},
+        actor=AuditActor.SCHEDULER,
+        request_id="rq-open",
+    )
+    per_env.commit()
+
+    with Session(shared_engine) as shared:
+        stats = run_resolution_tick(
+            shared_session=shared,
+            per_env_session=per_env,
+            request_id="res-tick-no-res",
+        )
+
+    assert stats["resolved"] == 0
+    refreshed = per_env.get(PaperPositionRow, pos.id)
+    assert refreshed is not None
+    assert refreshed.status == PositionStatus.OPEN
+    assert refreshed.realized_pnl_cents is None
+    strat = per_env.get(StrategyInstanceRow, name)
+    assert strat is not None
+    assert strat.bankroll_cents == 100_00
+    per_env.close()
