@@ -69,6 +69,7 @@ def test_resolution_tick_settles_open_positions(
                 raw_jsonb={},
             )
         )
+        shared.flush()
         shared.add(
             ContractResolutionRow(
                 ticker=ticker,
