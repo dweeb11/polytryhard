@@ -34,6 +34,9 @@ def _cycle_request_id() -> str:
     return f"cycle_{uuid4().hex[:12]}"
 
 
+_NIGHTLY_INTERVAL_SECONDS = 86_400.0
+
+
 def _cycle_interval_seconds(sources: list[IngestionSource]) -> float:
     """Sleep between full ingest+tick cycles.
 
@@ -106,6 +109,7 @@ class Scheduler:
             return
         self._http = httpx.AsyncClient(timeout=30.0)
         self._tasks.append(asyncio.create_task(self._run_cycle_loop()))
+        self._tasks.append(asyncio.create_task(self._run_nightly_loop()))
 
     async def stop(self) -> None:
         self._stop.set()
@@ -139,6 +143,15 @@ class Scheduler:
             self._mark_cycle_failure(str(exc))
             raise
         self._mark_cycle_success()
+
+    def run_nightly_recompute(self) -> None:
+        """Recompute eval metric snapshots for every strategy (PDD §8.4)."""
+        from core.eval.snapshot import recompute_all
+
+        now = self.clock.now()
+        with shared_session(self.settings) as shared, per_env_session(self.settings) as per_env:
+            recompute_all(per_env_session=per_env, shared_session=shared, now=now)
+            per_env.commit()
 
     def health_snapshots(self) -> list[SourceHealthSnapshot]:
         snapshots: list[SourceHealthSnapshot] = []
@@ -180,6 +193,18 @@ class Scheduler:
                 await asyncio.wait_for(self._stop.wait(), timeout=wait_for)
             except TimeoutError:
                 continue
+
+    async def _run_nightly_loop(self) -> None:
+        while not self._stop.is_set():
+            try:
+                await asyncio.wait_for(self._stop.wait(), timeout=_NIGHTLY_INTERVAL_SECONDS)
+                return
+            except TimeoutError:
+                pass
+            try:
+                await asyncio.to_thread(self.run_nightly_recompute)
+            except Exception:
+                logger.exception("nightly eval recompute failed")
 
     async def _ingest_source(self, source: IngestionSource) -> SourceRunStatus:
         request_id = _tick_request_id(source.name)
@@ -255,5 +280,6 @@ class Scheduler:
             run_resolution_tick(
                 shared_session=shared,
                 per_env_session=per_env,
+                now=self.clock.now(),
                 request_id=request_id,
             )
