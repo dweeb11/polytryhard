@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from decimal import Decimal
 from typing import Any
 
@@ -14,28 +15,32 @@ from core.db.shared_enums import ContractResolution, SourceRunStatus
 from core.settings import Settings
 from core.sources.kalshi.auth import auth_headers
 
-_SETTLED_STATUSES = {"settled", "finalized"}
-_UNRESOLVED_REFERENCE_STATUSES = {"settled", "finalized"}
+logger = logging.getLogger(__name__)
+
+_KALSHI_SETTLED_STATUSES = frozenset({"settled", "finalized"})
 
 
 def parse_market_result(payload: dict[str, Any]) -> tuple[ContractResolution, Decimal] | None:
     """Pure: decode a Kalshi market payload into (resolution, yes-settlement-price).
 
-    Returns None when the market is not yet settled or the payload is malformed.
+    Returns None when the market is not yet settled, the payload is malformed,
+    or the result field is missing or unrecognized (fail closed — never guess).
     Settlement value is the YES settlement price in [0, 1]: 1 for yes, 0 otherwise.
     """
     market = payload.get("market")
     if not isinstance(market, dict):
         return None
     status = market.get("status")
-    if status not in _SETTLED_STATUSES:
+    if status not in _KALSHI_SETTLED_STATUSES:
         return None
     result = market.get("result")
     if result == "yes":
         return ContractResolution.YES, Decimal("1")
     if result == "no":
         return ContractResolution.NO, Decimal("0")
-    return ContractResolution.VOID, Decimal("0")
+    if result == "":
+        return ContractResolution.VOID, Decimal("0")
+    return None
 
 
 class KalshiResolutionSource(IngestionSource):
@@ -60,15 +65,15 @@ class KalshiResolutionSource(IngestionSource):
         assert settings.kalshi_api_key_id is not None
         assert settings.kalshi_private_key is not None
 
-        candidates = [
-            m for m in ctx.markets if m.status not in _UNRESOLVED_REFERENCE_STATUSES
-        ]
+        candidates = [m for m in ctx.markets if m.ticker not in ctx.resolved_tickers]
         if not candidates:
             return FetchResult(status=SourceRunStatus.OK)
 
         api_base = settings.kalshi_api_base_url
         result = FetchResult()
         resolved_at = clock.now()
+        successful_fetches = 0
+        http_errors: list[str] = []
         for market in candidates:
             path = f"/trade-api/v2/markets/{market.ticker}"
             url = f"{api_base}{path}"
@@ -80,10 +85,11 @@ class KalshiResolutionSource(IngestionSource):
             )
             response = await ctx.http.get(url, headers=headers)
             if response.status_code >= 400:
-                return FetchResult(
-                    status=SourceRunStatus.DEGRADED,
-                    error_text=f"Kalshi HTTP {response.status_code} for {market.ticker}",
-                )
+                msg = f"Kalshi HTTP {response.status_code} for {market.ticker}"
+                logger.warning("%s request_id=%s", msg, ctx.request_id)
+                http_errors.append(msg)
+                continue
+            successful_fetches += 1
             payload = response.json()
             parsed = parse_market_result(payload)
             if parsed is None:
@@ -98,4 +104,13 @@ class KalshiResolutionSource(IngestionSource):
                     source_evidence_jsonb=payload.get("market", {}),
                 )
             )
+        if successful_fetches == 0:
+            fallback = "Kalshi resolution fetch produced no successful responses"
+            return FetchResult(
+                status=SourceRunStatus.DEGRADED,
+                error_text="; ".join(http_errors) or fallback,
+            )
+        if http_errors:
+            result.status = SourceRunStatus.DEGRADED
+            result.error_text = "; ".join(http_errors)
         return result

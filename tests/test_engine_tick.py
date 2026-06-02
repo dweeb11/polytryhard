@@ -34,6 +34,7 @@ def _add_open_market_with_snapshot(
             raw_jsonb={},
         )
     )
+    session.flush()
     session.add(
         RawMarketSnapshotRow(
             id=snap_id,

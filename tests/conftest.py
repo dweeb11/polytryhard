@@ -1,9 +1,12 @@
 import os
 from collections.abc import Generator
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, event
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from core.api.main import create_app
@@ -13,6 +16,14 @@ from core.settings import Settings
 # Tests run without real Postgres unless Testcontainers provides URLs.
 os.environ.setdefault("REQUIRE_DBS", "0")
 os.environ.setdefault("CONTROL_PLANE_TOKEN", "dev-token")
+
+
+@event.listens_for(Engine, "connect")
+def _sqlite_enable_foreign_keys(dbapi_connection: Any, connection_record: Any) -> None:
+    if dbapi_connection.__class__.__module__.startswith("sqlite3"):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
 
 @pytest.fixture
@@ -27,8 +38,6 @@ def per_env_sqlite_urls(tmp_path: Path) -> tuple[str, str]:
 @pytest.fixture
 def per_env_session_factory(per_env_sqlite_urls: tuple[str, str]) -> sessionmaker[Session]:
     _, per_env_url = per_env_sqlite_urls
-    from sqlalchemy import create_engine
-
     engine = create_engine(per_env_url)
     return sessionmaker(bind=engine, expire_on_commit=False)
 

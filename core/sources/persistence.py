@@ -43,6 +43,11 @@ def load_locations(session: Session) -> tuple[ReferenceLocation, ...]:
     )
 
 
+def load_resolved_tickers(session: Session) -> frozenset[str]:
+    rows = session.scalars(select(ContractResolutionRow.ticker)).all()
+    return frozenset(rows)
+
+
 def load_markets(session: Session) -> tuple[ReferenceMarketUpsert, ...]:
     rows = session.scalars(select(ReferenceMarketRow).order_by(ReferenceMarketRow.ticker)).all()
     return tuple(

@@ -102,6 +102,7 @@ class SourceContext:
     locations: tuple[ReferenceLocation, ...]
     markets: tuple[ReferenceMarketUpsert, ...]
     http: HttpClient
+    resolved_tickers: frozenset[str] = field(default_factory=frozenset)
 
 
 class IngestionSource(ABC):
