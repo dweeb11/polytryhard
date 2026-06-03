@@ -3,12 +3,15 @@ from sqlalchemy.orm import Session
 
 from core.api.v1.deps import get_request_id, per_env_db, shared_db, verify_bearer_token
 from core.api.v1.schemas import AmountReasonBody, ReasonBody, SetKellyBody, SourceHealthEntry
+from core.db.models import StrategyInstanceRow
 from core.domain.audit import AuditEvent
 from core.domain.cash_event import CashEvent
 from core.domain.enums import AuditActor
+from core.domain.eval import EvalRosterEntry, StrategyEval
 from core.domain.strategy import StrategyInstance
 from core.domain.system import SystemEnvState
 from core.domain.trading import PaperPositionRecord, SignalRecord
+from core.eval.read import roster_summary, strategy_eval
 from core.ledger import writer
 from core.ledger.errors import LedgerError
 from core.ledger.queries import (
@@ -293,3 +296,17 @@ def list_positions_route(
         limit=limit,
         before=parse_before_cursor(before),
     )
+
+
+@router.get("/eval", response_model=list[EvalRosterEntry])
+def list_eval_route(session: Session = Depends(per_env_db)) -> list[EvalRosterEntry]:
+    return roster_summary(session)
+
+
+@router.get("/eval/{strategy}", response_model=StrategyEval)
+def get_eval_route(
+    strategy: str, session: Session = Depends(per_env_db)
+) -> StrategyEval:
+    if session.get(StrategyInstanceRow, strategy) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="strategy not found")
+    return strategy_eval(session, strategy)
