@@ -31,13 +31,32 @@
 		PAUSABLE_STATES,
 		RESUMABLE_STATES
 	} from '$lib/utils';
+	import { evalByStrategy } from '$lib/stores';
+	import { hydrateStrategyEval, mapCalibrationBins } from '$lib/api/hydrate';
+	import { apiMode } from '$lib/api/mode';
 
 	const name = $derived($page.params.name ?? '');
 	const strat = $derived($strategies.find((s) => s.name === name));
 	const stratSignals = $derived($signals.filter((s) => s.strategyName === name));
 	const history = $derived($bankrollHistoryByStrategy[name] ?? []);
-	const calibration = $derived($calibrationByStrategy[name] ?? []);
 	const stratCash = $derived($cashEvents.filter((c) => c.strategyName === name).slice(0, 10));
+
+	let selectedWindow: string = $state('30d');
+
+	$effect(() => {
+		if (name && $apiMode === 'live') hydrateStrategyEval(name).catch(() => {});
+	});
+
+	const evalWindows = $derived($evalByStrategy[name]?.windows ?? []);
+	const activeSnapshot = $derived(
+		evalWindows.find((w) => w.window === selectedWindow) ?? evalWindows[0]
+	);
+
+	const calibration = $derived(
+		activeSnapshot
+			? mapCalibrationBins(activeSnapshot.calibrationBins)
+			: ($calibrationByStrategy[name] ?? [])
+	);
 	const freeCash = $derived(strat ? freeCashCents(strat, $positions) : 0);
 
 	let depositModal = $state(false);
@@ -91,7 +110,31 @@
 		</div>
 		<div class="rounded border border-[var(--color-border)] p-3">
 			<h2 class="mb-2 text-xs uppercase text-slate-500">Calibration (10 buckets)</h2>
+			<div class="mb-2 flex items-center gap-2 text-xs">
+				<span class="uppercase text-slate-500">Window</span>
+				<select class="rounded border border-[var(--color-border)] bg-slate-900 px-2 py-0.5" bind:value={selectedWindow}>
+					<option value="7d">7d</option>
+					<option value="30d">30d</option>
+					<option value="all">all</option>
+				</select>
+			</div>
 			<CalibrationChart buckets={calibration} legendId="strategy-calibration-legend" />
+			{#if activeSnapshot}
+				<table class="mt-3 w-full text-xs">
+					<tbody class="[&_td]:py-0.5">
+						<tr><td class="text-slate-500">Trades</td><td class="tabular-nums">{activeSnapshot.nTrades} ({activeSnapshot.nWins} won)</td></tr>
+						<tr><td class="text-slate-500">Hit rate</td><td class="tabular-nums">{activeSnapshot.hitRate == null ? '—' : (activeSnapshot.hitRate * 100).toFixed(1) + '%'}</td></tr>
+						<tr><td class="text-slate-500">Brier</td><td class="tabular-nums">{activeSnapshot.brierScore == null ? '—' : activeSnapshot.brierScore.toFixed(3)}</td></tr>
+						<tr><td class="text-slate-500">Log loss</td><td class="tabular-nums">{activeSnapshot.logLoss == null ? '—' : activeSnapshot.logLoss.toFixed(3)}</td></tr>
+						<tr><td class="text-slate-500">P&amp;L</td><td class="tabular-nums">{formatCents(activeSnapshot.pnlCents)}</td></tr>
+						<tr><td class="text-slate-500">Max drawdown</td><td class="tabular-nums">{formatCents(activeSnapshot.maxDrawdownCents)}</td></tr>
+						<tr><td class="text-slate-500">Sharpe proxy</td><td class="tabular-nums">{activeSnapshot.sharpeProxy == null ? '—' : activeSnapshot.sharpeProxy.toFixed(2)}</td></tr>
+						<tr><td class="text-slate-500">Posterior edge</td><td class="tabular-nums">{(activeSnapshot.posteriorEdgeMean * 100).toFixed(1)}% [{(activeSnapshot.posteriorEdgeCiLow * 100).toFixed(1)}, {(activeSnapshot.posteriorEdgeCiHigh * 100).toFixed(1)}]</td></tr>
+					</tbody>
+				</table>
+			{:else}
+				<p class="mt-3 text-xs text-slate-500">No eval data yet — needs resolved trades.</p>
+			{/if}
 			<details id="strategy-calibration-legend-desc" class="group mt-2 text-xs text-slate-500">
 				<summary
 					class="cursor-pointer list-none font-medium text-slate-400 marker:content-none hover:text-slate-300 [&::-webkit-details-marker]:hidden"
@@ -124,7 +167,7 @@
 							(over-confident).
 						</li>
 					</ul>
-					{#if $isDeveloperMode}
+					{#if $isDeveloperMode && $apiMode === 'mock'}
 						<p class="text-[10px] text-slate-600">
 							Prototype: buckets are simulated fixture data, not computed from live Kalshi
 							resolutions.

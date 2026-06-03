@@ -1,8 +1,21 @@
-import { audit, positions, signals, sources, strategies, system } from '$lib/stores';
+import {
+	audit,
+	bankrollHistoryByStrategy,
+	calibrationByStrategy,
+	evalByStrategy,
+	positions,
+	signals,
+	sources,
+	strategies,
+	system
+} from '$lib/stores';
 import { tradingHydration } from '$lib/api/tradingHydration';
 import { compareIsoDesc } from '$lib/utils';
 import type {
 	AuditEvent,
+	BankrollPoint,
+	CalibrationBucket,
+	EvalSnapshotView,
 	KnownSignalOutcome,
 	PaperPosition,
 	PositionStatus,
@@ -112,6 +125,48 @@ export function mapPositionRecord(entry: Record<string, unknown>): PaperPosition
 			typeof entry.unrealizedPnlCents === 'number' ? entry.unrealizedPnlCents : null,
 		status: (status === 'closed' || status === 'resolved' ? status : 'open') as PositionStatus
 	};
+}
+
+export function mapCalibrationBins(
+	bins: Array<Record<string, unknown>>
+): CalibrationBucket[] {
+	return bins.map((b, i) => ({
+		bucket: i,
+		predicted: Number(b.predictedMean ?? 0),
+		actual: Number(b.observedFreq ?? 0),
+		count: Number(b.count ?? 0)
+	}));
+}
+
+export function mapCashEventsToBankroll(
+	events: Array<Record<string, unknown>>
+): BankrollPoint[] {
+	return events
+		.map((e) => ({
+			at: String(e.occurredAt ?? ''),
+			bankrollCents: Number(e.balanceAfterCents ?? 0)
+		}))
+		.sort((a, b) => -compareIsoDesc(a.at, b.at));
+}
+
+export async function hydrateStrategyEval(name: string): Promise<void> {
+	const detail = (await apiGet(`/v1/eval/${name}`)) as {
+		strategyName: string;
+		windows: EvalSnapshotView[];
+	};
+	evalByStrategy.update((m) => ({ ...m, [name]: detail }));
+
+	// Seed calibration from the first window; the Task 8 window selector drives the displayed window.
+	const latest = detail.windows[0];
+	if (latest) {
+		const bins = (latest.calibrationBins as Array<Record<string, unknown>>) ?? [];
+		calibrationByStrategy.update((m) => ({ ...m, [name]: mapCalibrationBins(bins) }));
+	}
+
+	const events = (await apiGet(`/v1/strategies/${name}/cash-events`)) as Array<
+		Record<string, unknown>
+	>;
+	bankrollHistoryByStrategy.update((m) => ({ ...m, [name]: mapCashEventsToBankroll(events) }));
 }
 
 export async function hydrateLedgerFromApi(): Promise<void> {

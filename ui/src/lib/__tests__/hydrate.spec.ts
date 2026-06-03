@@ -3,6 +3,9 @@ import { get } from 'svelte/store';
 
 import {
 	hydrateLedgerFromApi,
+	hydrateStrategyEval,
+	mapCalibrationBins,
+	mapCashEventsToBankroll,
 	mapPositionRecord,
 	mapSignalRecord,
 	parseSignalOutcome,
@@ -10,7 +13,17 @@ import {
 	sortSignalsByEvaluatedAt
 } from '$lib/api/hydrate';
 import { tradingHydration } from '$lib/api/tradingHydration';
-import { audit, positions, signals, sources, strategies, system } from '$lib/stores';
+import {
+	audit,
+	bankrollHistoryByStrategy,
+	calibrationByStrategy,
+	evalByStrategy,
+	positions,
+	signals,
+	sources,
+	strategies,
+	system
+} from '$lib/stores';
 import { FIXTURE } from '$lib/mocks/fixtures';
 
 const { apiGetMock } = vi.hoisted(() => ({
@@ -235,5 +248,74 @@ describe('hydrateLedgerFromApi', () => {
 		expect(get(signals)[0]?.id).toBe('remote-sig');
 		expect(get(positions)[0]?.id).toBe('local-pos');
 		expect(get(tradingHydration)).toEqual({ signals: 'fresh', positions: 'stale' });
+	});
+});
+
+describe('mapCashEventsToBankroll', () => {
+	it('builds an ascending balance timeline from cash events', () => {
+		const events = [
+			{ occurredAt: '2026-06-02T00:00:00Z', balanceAfterCents: 11000 },
+			{ occurredAt: '2026-06-01T00:00:00Z', balanceAfterCents: 10000 }
+		];
+		const points = mapCashEventsToBankroll(events);
+		expect(points).toEqual([
+			{ at: '2026-06-01T00:00:00Z', bankrollCents: 10000 },
+			{ at: '2026-06-02T00:00:00Z', bankrollCents: 11000 }
+		]);
+	});
+
+	it('returns [] when there are no events', () => {
+		expect(mapCashEventsToBankroll([])).toEqual([]);
+	});
+});
+
+describe('mapCalibrationBins', () => {
+	it('maps API bins to chart buckets', () => {
+		const bins = [
+			{ lower: 0.0, upper: 0.1, predictedMean: 0.05, observedFreq: 0.0, count: 3 },
+			{ lower: 0.5, upper: 0.6, predictedMean: 0.55, observedFreq: 0.5, count: 4 }
+		];
+		const buckets = mapCalibrationBins(bins);
+		expect(buckets).toEqual([
+			{ bucket: 0, predicted: 0.05, actual: 0.0, count: 3 },
+			{ bucket: 1, predicted: 0.55, actual: 0.5, count: 4 }
+		]);
+	});
+
+	it('returns [] for empty bins', () => {
+		expect(mapCalibrationBins([])).toEqual([]);
+	});
+});
+
+describe('hydrateStrategyEval', () => {
+	it('populates eval + calibration + bankroll stores for a strategy in live mode', async () => {
+		const name = 'weather_ensemble_disagreement';
+		apiGetMock.mockImplementation((path: string) => {
+			if (path === `/v1/eval/${name}`)
+				return Promise.resolve({
+					strategyName: name,
+					windows: [
+						{
+							window: '30d', computedAt: '2026-06-01T00:00:00Z', nTrades: 4, nWins: 2,
+							hitRate: 0.5, brierScore: 0.2, logLoss: 0.6, pnlCents: 300,
+							sharpeProxy: 0.3, maxDrawdownCents: -40, posteriorEdgeMean: 0.05,
+							posteriorEdgeCiLow: 0.0, posteriorEdgeCiHigh: 0.1,
+							calibrationBins: [{ lower: 0.5, upper: 0.6, predictedMean: 0.55, observedFreq: 0.5, count: 4 }]
+						}
+					]
+				});
+			if (path === `/v1/strategies/${name}/cash-events`)
+				return Promise.resolve([
+					{ occurredAt: '2026-06-01T00:00:00Z', balanceAfterCents: 10300 }
+				]);
+			return Promise.reject(new Error(`unexpected path: ${path}`));
+		});
+
+		await hydrateStrategyEval(name);
+
+		expect(get(evalByStrategy)[name].strategyName).toBe(name);
+		expect(get(evalByStrategy)[name].windows[0].window).toBe('30d');
+		expect(get(calibrationByStrategy)[name][0].predicted).toBe(0.55);
+		expect(get(bankrollHistoryByStrategy)[name][0].bankrollCents).toBe(10300);
 	});
 });

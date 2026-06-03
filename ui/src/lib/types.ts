@@ -167,6 +167,29 @@ export interface EnvSnapshot {
 	bankrollHistory: Record<string, BankrollPoint[]>;
 }
 
+export interface EvalSnapshotView {
+	window: string;
+	computedAt: string;
+	nTrades: number;
+	nWins: number;
+	hitRate: number | null;
+	brierScore: number | null;
+	logLoss: number | null;
+	pnlCents: number;
+	sharpeProxy: number | null;
+	maxDrawdownCents: number;
+	posteriorEdgeMean: number;
+	posteriorEdgeCiLow: number;
+	posteriorEdgeCiHigh: number;
+	calibrationBins: Array<{
+		lower: number;
+		upper: number;
+		predictedMean: number;
+		observedFreq: number;
+		count: number;
+	}>;
+}
+
 export type ActionResult<T = Record<string, unknown>> =
 	| { ok: true; data?: T }
 	| { ok: false; reason: string };
