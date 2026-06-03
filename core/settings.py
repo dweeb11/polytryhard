@@ -1,3 +1,4 @@
+import json
 from functools import lru_cache
 from typing import Any
 
@@ -35,6 +36,14 @@ class Settings(BaseSettings):
         default="KXHIGHNY",
         alias="KALSHI_SERIES_PREFIXES",
     )
+    paper_initial_bankroll_cents: int = Field(
+        default=10_000,
+        alias="PAPER_INITIAL_BANKROLL_CENTS",
+    )
+    paper_strategy_bankroll_cents: dict[str, int] = Field(
+        default_factory=dict,
+        alias="PAPER_STRATEGY_BANKROLL_CENTS_JSON",
+    )
 
     @field_validator("control_plane_token", mode="before")
     @classmethod
@@ -51,6 +60,35 @@ class Settings(BaseSettings):
     @classmethod
     def normalize_database_url(cls, value: Any) -> Any:
         return _empty_to_none(value)
+
+    @field_validator("paper_strategy_bankroll_cents", mode="before")
+    @classmethod
+    def normalize_strategy_bankroll_overrides(cls, value: Any) -> Any:
+        if value is None:
+            return {}
+        if isinstance(value, str) and not value.strip():
+            return {}
+        if isinstance(value, str):
+            return json.loads(value)
+        return value
+
+    @field_validator("paper_initial_bankroll_cents")
+    @classmethod
+    def validate_initial_bankroll(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("PAPER_INITIAL_BANKROLL_CENTS must be positive")
+        return value
+
+    @field_validator("paper_strategy_bankroll_cents")
+    @classmethod
+    def validate_strategy_bankroll_overrides(cls, value: dict[str, int]) -> dict[str, int]:
+        invalid = [name for name, amount in value.items() if amount <= 0]
+        if invalid:
+            raise ValueError(
+                "PAPER_STRATEGY_BANKROLL_CENTS_JSON values must be positive: "
+                + ", ".join(sorted(invalid))
+            )
+        return value
 
 
     @property

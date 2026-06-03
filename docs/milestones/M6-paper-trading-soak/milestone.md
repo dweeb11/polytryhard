@@ -275,10 +275,14 @@ Acceptance:
 
 - Desired starting bankroll per strategy for the soak.
 - Whether to reset current staging per-env DB before the soak or adjust the existing empty ledger in place.
-- Whether initial HWM should equal initial bankroll. Recommended: yes.
 - Whether to add a staging-only canary strategy/debug trade path if real strategies are too quiet.
 - Whether the two-week soak should use Kalshi demo/sandbox API or production read-only market data with paper execution.
 - Expected source cadence for the soak: hourly is simplest with current scheduler behavior; faster Kalshi polling requires scheduler cadence changes.
+
+## Decision Log
+
+- M6.1: Initial high-water mark equals the initial paper bankroll for newly seeded strategies.
+- M6.1: `PAPER_INITIAL_BANKROLL_CENTS` and `PAPER_STRATEGY_BANKROLL_CENTS_JSON` apply only when creating missing strategy rows. Startup skips existing rows and never rewrites an existing ledger.
 
 ## Verification Commands
 

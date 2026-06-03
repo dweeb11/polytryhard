@@ -6,6 +6,7 @@ from core.db.enums import StrategyState as DbStrategyState
 from core.db.models import StrategyInstanceRow
 from core.domain.enums import AuditActor
 from core.ledger import writer
+from core.settings import Settings, get_settings
 from core.utils.time import utc_now
 
 SEED_STRATEGIES: tuple[tuple[str, dict[str, object]], ...] = (
@@ -39,10 +40,21 @@ SEED_STRATEGIES: tuple[tuple[str, dict[str, object]], ...] = (
 INITIAL_DEPOSIT_CENTS = 10_000
 
 
-def seed_strategies_if_needed(session: Session, *, request_id: str) -> None:
+def _initial_deposit_cents(settings: Settings, strategy_name: str) -> int:
+    return settings.paper_strategy_bankroll_cents.get(
+        strategy_name,
+        settings.paper_initial_bankroll_cents,
+    )
+
+
+def seed_strategies_if_needed(
+    session: Session, *, request_id: str, settings: Settings | None = None
+) -> None:
+    resolved_settings = settings or get_settings()
     for name, config in SEED_STRATEGIES:
         if session.get(StrategyInstanceRow, name) is not None:
             continue
+        initial_deposit_cents = _initial_deposit_cents(resolved_settings, name)
         now = utc_now()
         session.add(
             StrategyInstanceRow(
@@ -50,8 +62,8 @@ def seed_strategies_if_needed(session: Session, *, request_id: str) -> None:
                 enabled=True,
                 state=DbStrategyState.SEEDED,
                 bankroll_cents=0,
-                initial_deposit_cents=INITIAL_DEPOSIT_CENTS,
-                bankroll_hwm_cents=0,
+                initial_deposit_cents=initial_deposit_cents,
+                bankroll_hwm_cents=initial_deposit_cents,
                 hwm_reset_at=None,
                 kelly_fraction=(
                     Decimal("0.25")
@@ -69,7 +81,7 @@ def seed_strategies_if_needed(session: Session, *, request_id: str) -> None:
         writer.deposit(
             session,
             name,
-            INITIAL_DEPOSIT_CENTS,
+            initial_deposit_cents,
             "initial seed",
             AuditActor.SYSTEM,
             request_id,
