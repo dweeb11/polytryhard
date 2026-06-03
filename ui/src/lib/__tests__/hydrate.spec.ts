@@ -18,6 +18,7 @@ import {
 	bankrollHistoryByStrategy,
 	calibrationByStrategy,
 	evalByStrategy,
+	evalRoster,
 	positions,
 	signals,
 	sources,
@@ -45,6 +46,11 @@ function mockCoreHydrate(): void {
 		if (path === '/v1/system') return Promise.resolve(SYSTEM_STATE);
 		if (path === '/v1/audit') return Promise.resolve(AUDIT_EVENTS);
 		if (path === '/v1/sources') return Promise.resolve(SOURCE_ENTRIES);
+		if (path === '/v1/eval')
+			return Promise.resolve([
+				{ strategyName: 'weather_ensemble_disagreement', nTrades: 5, hitRate: 0.6, brierScore: 0.2, pnlCents: 400, posteriorEdgeCiLow: 0.01 },
+				{ strategyName: 'weather_stale_quote', nTrades: 0, hitRate: null, brierScore: null, pnlCents: 0, posteriorEdgeCiLow: null }
+			]);
 		return Promise.reject(new Error(`unexpected path: ${path}`));
 	});
 }
@@ -248,6 +254,17 @@ describe('hydrateLedgerFromApi', () => {
 		expect(get(signals)[0]?.id).toBe('remote-sig');
 		expect(get(positions)[0]?.id).toBe('local-pos');
 		expect(get(tradingHydration)).toEqual({ signals: 'fresh', positions: 'stale' });
+	});
+
+	it('hydrates the eval roster store', async () => {
+		mockCoreHydrate();
+		await hydrateLedgerFromApi();
+		const roster = get(evalRoster);
+		expect(roster['weather_ensemble_disagreement']).toEqual({
+			strategyName: 'weather_ensemble_disagreement', nTrades: 5, hitRate: 0.6, brierScore: 0.2, pnlCents: 400, posteriorEdgeCiLow: 0.01
+		});
+		expect(roster['weather_stale_quote'].brierScore).toBeNull();
+		expect(roster['weather_stale_quote'].posteriorEdgeCiLow).toBeNull();
 	});
 });
 

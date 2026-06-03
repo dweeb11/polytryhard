@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { strategies, signals, sources, systemPaused } from '$lib/stores';
+	import { strategies, signals, sources, systemPaused, evalRoster } from '$lib/stores';
 	import StateBadge from '$lib/components/StateBadge.svelte';
 	import {
 		compareIsoDesc,
@@ -13,6 +13,10 @@
 	} from '$lib/utils';
 	import { isDeveloperMode } from '$lib/stores/uiMode';
 	import { pauseStrategy, resumeStrategy, probeSource } from '$lib/actions';
+
+	function fmtNum(v: number | null | undefined, digits = 3): string {
+		return v == null ? '—' : v.toFixed(digits);
+	}
 
 	const recentSignals = $derived(
 		[...$signals].sort((a, b) => compareIsoDesc(a.evaluatedAt, b.evaluatedAt)).slice(0, 12)
@@ -32,11 +36,15 @@
 					<th class="px-3 py-2">Bankroll</th>
 					<th class="px-3 py-2">Drawdown</th>
 					<th class="px-3 py-2">Today P&L</th>
+					<th class="px-3 py-2">Brier</th>
+					<th class="px-3 py-2">Edge CI-low</th>
+					<th class="px-3 py-2">P&amp;L (all)</th>
 					<th class="px-3 py-2"></th>
 				</tr>
 			</thead>
 			<tbody>
 				{#each $strategies as s (s.name)}
+					{@const ev = $evalRoster[s.name]}
 					<tr class="border-t border-[var(--color-border)] hover:bg-slate-800/40">
 						<td class="px-3 py-2">
 							<a href="/strategies/{s.name}" class="font-medium text-blue-400 hover:underline">{s.name}</a>
@@ -51,6 +59,9 @@
 						>
 							{formatCents(s.todayPnlCents)}
 						</td>
+						<td class="px-3 py-2 tabular-nums">{fmtNum(ev?.brierScore)}</td>
+						<td class="px-3 py-2 tabular-nums">{ev?.posteriorEdgeCiLow == null ? '—' : (ev.posteriorEdgeCiLow * 100).toFixed(1) + '%'}</td>
+						<td class="px-3 py-2 tabular-nums">{ev ? formatCents(ev.pnlCents) : '—'}</td>
 						<td class="px-3 py-2">
 							{#if PAUSABLE_STATES.includes(s.state as typeof PAUSABLE_STATES[number])}
 								<button

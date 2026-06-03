@@ -167,6 +167,15 @@ export interface EnvSnapshot {
 	bankrollHistory: Record<string, BankrollPoint[]>;
 }
 
+export interface EvalRosterEntryView {
+	strategyName: string;
+	nTrades: number;
+	hitRate: number | null;
+	brierScore: number | null;
+	pnlCents: number;
+	posteriorEdgeCiLow: number | null;
+}
+
 export interface EvalSnapshotView {
 	window: string;
 	computedAt: string;
