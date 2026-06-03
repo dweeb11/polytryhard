@@ -3,6 +3,7 @@ import {
 	bankrollHistoryByStrategy,
 	calibrationByStrategy,
 	evalByStrategy,
+	evalRoster,
 	positions,
 	signals,
 	sources,
@@ -15,6 +16,7 @@ import type {
 	AuditEvent,
 	BankrollPoint,
 	CalibrationBucket,
+	EvalRosterEntryView,
 	EvalSnapshotView,
 	KnownSignalOutcome,
 	PaperPosition,
@@ -205,4 +207,11 @@ export async function hydrateLedgerFromApi(): Promise<void> {
 
 	if (signalRecords !== null) signals.set(signalRecords);
 	if (positionRecords !== null) positions.set(positionRecords);
+
+	try {
+		const rosterRows = (await apiGet('/v1/eval')) as EvalRosterEntryView[];
+		evalRoster.set(Object.fromEntries(rosterRows.map((r) => [r.strategyName, r])));
+	} catch {
+		// eval roster is non-critical; leave prior/mock values in place
+	}
 }

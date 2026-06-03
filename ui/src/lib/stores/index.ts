@@ -6,6 +6,7 @@ import type {
 	CalibrationBucket,
 	CashEvent,
 	EnvSnapshot,
+	EvalRosterEntryView,
 	EvalSnapshotView,
 	PaperPosition,
 	Plugin,
@@ -54,6 +55,7 @@ export const bankrollHistoryByStrategy = writable<Record<string, BankrollPoint[]
 	snapshot.bankrollHistory
 );
 export const evalByStrategy = writable<Record<string, { strategyName: string; windows: EvalSnapshotView[] }>>({});
+export const evalRoster = writable<Record<string, EvalRosterEntryView>>({});
 
 function syncFromSnapshot(): void {
 	strategies.set(snapshot.strategies);
