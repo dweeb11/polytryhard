@@ -3,6 +3,7 @@ import { tradingHydration } from '$lib/api/tradingHydration';
 import { compareIsoDesc } from '$lib/utils';
 import type {
 	AuditEvent,
+	CalibrationBucket,
 	KnownSignalOutcome,
 	PaperPosition,
 	PositionStatus,
@@ -112,6 +113,17 @@ export function mapPositionRecord(entry: Record<string, unknown>): PaperPosition
 			typeof entry.unrealizedPnlCents === 'number' ? entry.unrealizedPnlCents : null,
 		status: (status === 'closed' || status === 'resolved' ? status : 'open') as PositionStatus
 	};
+}
+
+export function mapCalibrationBins(
+	bins: Array<Record<string, unknown>>
+): CalibrationBucket[] {
+	return bins.map((b, i) => ({
+		bucket: i,
+		predicted: Number(b.predictedMean ?? 0),
+		actual: Number(b.observedFreq ?? 0),
+		count: Number(b.count ?? 0)
+	}));
 }
 
 export async function hydrateLedgerFromApi(): Promise<void> {

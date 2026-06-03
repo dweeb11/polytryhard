@@ -3,6 +3,7 @@ import { get } from 'svelte/store';
 
 import {
 	hydrateLedgerFromApi,
+	mapCalibrationBins,
 	mapPositionRecord,
 	mapSignalRecord,
 	parseSignalOutcome,
@@ -235,5 +236,23 @@ describe('hydrateLedgerFromApi', () => {
 		expect(get(signals)[0]?.id).toBe('remote-sig');
 		expect(get(positions)[0]?.id).toBe('local-pos');
 		expect(get(tradingHydration)).toEqual({ signals: 'fresh', positions: 'stale' });
+	});
+});
+
+describe('mapCalibrationBins', () => {
+	it('maps API bins to chart buckets', () => {
+		const bins = [
+			{ lower: 0.0, upper: 0.1, predictedMean: 0.05, observedFreq: 0.0, count: 3 },
+			{ lower: 0.5, upper: 0.6, predictedMean: 0.55, observedFreq: 0.5, count: 4 }
+		];
+		const buckets = mapCalibrationBins(bins);
+		expect(buckets).toEqual([
+			{ bucket: 0, predicted: 0.05, actual: 0.0, count: 3 },
+			{ bucket: 1, predicted: 0.55, actual: 0.5, count: 4 }
+		]);
+	});
+
+	it('returns [] for empty bins', () => {
+		expect(mapCalibrationBins([])).toEqual([]);
 	});
 });
