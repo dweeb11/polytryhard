@@ -21,7 +21,9 @@ def _settings(shared_url: str, per_env_url: str) -> Settings:
     )
 
 
-def _snap(strategy: str, window: EvalWindow, computed_at: datetime, **kw: object) -> EvalMetricSnapshotRow:
+def _snap(
+    strategy: str, window: EvalWindow, computed_at: datetime, **kw: object
+) -> EvalMetricSnapshotRow:
     base = dict(
         n_trades=8, n_wins=5, hit_rate=0.625, brier_score=0.18, log_loss=0.55,
         pnl_cents=420, sharpe_proxy=0.5, max_drawdown_cents=-90,

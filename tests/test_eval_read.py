@@ -9,7 +9,9 @@ from core.eval.read import latest_snapshots, roster_summary
 from core.ledger.seed import seed_strategies_if_needed
 
 
-def _snap(strategy: str, window: EvalWindow, computed_at: datetime, **kw) -> EvalMetricSnapshotRow:
+def _snap(
+    strategy: str, window: EvalWindow, computed_at: datetime, **kw: object
+) -> EvalMetricSnapshotRow:
     base = dict(
         n_trades=5, n_wins=3, hit_rate=0.6, brier_score=0.2, log_loss=0.6,
         pnl_cents=100, sharpe_proxy=0.3, max_drawdown_cents=-50,
@@ -80,7 +82,7 @@ def test_latest_snapshots_returns_one_row_per_window_latest_wins(
     ])
     session.commit()
     snaps = latest_snapshots(session, name)
-    by_window = {s.window: s for s in snaps}
+    by_window = {s.window.value: s for s in snaps}
     assert by_window["7d"].n_trades == 9      # latest D7 wins
     assert by_window["all"].n_trades == 20
     assert "30d" not in by_window             # no 30d row written
