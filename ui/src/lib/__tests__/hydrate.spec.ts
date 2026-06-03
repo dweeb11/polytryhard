@@ -4,6 +4,7 @@ import { get } from 'svelte/store';
 import {
 	hydrateLedgerFromApi,
 	mapCalibrationBins,
+	mapCashEventsToBankroll,
 	mapPositionRecord,
 	mapSignalRecord,
 	parseSignalOutcome,
@@ -236,6 +237,24 @@ describe('hydrateLedgerFromApi', () => {
 		expect(get(signals)[0]?.id).toBe('remote-sig');
 		expect(get(positions)[0]?.id).toBe('local-pos');
 		expect(get(tradingHydration)).toEqual({ signals: 'fresh', positions: 'stale' });
+	});
+});
+
+describe('mapCashEventsToBankroll', () => {
+	it('builds an ascending balance timeline from cash events', () => {
+		const events = [
+			{ occurredAt: '2026-06-02T00:00:00Z', balanceAfterCents: 11000 },
+			{ occurredAt: '2026-06-01T00:00:00Z', balanceAfterCents: 10000 }
+		];
+		const points = mapCashEventsToBankroll(events);
+		expect(points).toEqual([
+			{ at: '2026-06-01T00:00:00Z', bankrollCents: 10000 },
+			{ at: '2026-06-02T00:00:00Z', bankrollCents: 11000 }
+		]);
+	});
+
+	it('returns [] when there are no events', () => {
+		expect(mapCashEventsToBankroll([])).toEqual([]);
 	});
 });
 

@@ -3,6 +3,7 @@ import { tradingHydration } from '$lib/api/tradingHydration';
 import { compareIsoDesc } from '$lib/utils';
 import type {
 	AuditEvent,
+	BankrollPoint,
 	CalibrationBucket,
 	KnownSignalOutcome,
 	PaperPosition,
@@ -124,6 +125,17 @@ export function mapCalibrationBins(
 		actual: Number(b.observedFreq ?? 0),
 		count: Number(b.count ?? 0)
 	}));
+}
+
+export function mapCashEventsToBankroll(
+	events: Array<Record<string, unknown>>
+): BankrollPoint[] {
+	return events
+		.map((e) => ({
+			at: String(e.occurredAt ?? ''),
+			bankrollCents: Number(e.balanceAfterCents ?? 0)
+		}))
+		.sort((a, b) => -compareIsoDesc(a.at, b.at));
 }
 
 export async function hydrateLedgerFromApi(): Promise<void> {
