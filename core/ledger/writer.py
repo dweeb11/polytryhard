@@ -4,7 +4,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from core.db.enums import PositionSide as DbPositionSide
@@ -242,6 +242,104 @@ def withdraw(
         before_state=before,
         after_state=after,
     )
+
+
+def _require_pre_soak_strategy(session: Session, strategy_name: str) -> None:
+    signal_count = session.scalar(
+        select(func.count()).select_from(SignalRow).where(SignalRow.strategy_name == strategy_name)
+    )
+    position_count = session.scalar(
+        select(func.count())
+        .select_from(PaperPositionRow)
+        .where(PaperPositionRow.strategy_name == strategy_name)
+    )
+    fill_count = session.scalar(
+        select(func.count())
+        .select_from(PaperFillRow)
+        .join(PaperPositionRow, PaperFillRow.position_id == PaperPositionRow.id)
+        .where(PaperPositionRow.strategy_name == strategy_name)
+    )
+    if signal_count or position_count or fill_count:
+        raise LedgerError(
+            "Starting bankroll can only be set before signals, fills, or positions exist"
+        )
+
+
+def set_starting_bankroll(
+    session: Session,
+    strategy_name: str,
+    amount_cents: int,
+    reason: str,
+    actor: AuditActor,
+    request_id: str,
+) -> StrategyInstanceRow:
+    _require_system_active(session)
+    if amount_cents <= 0:
+        raise LedgerError("Amount must be positive")
+    if not reason.strip():
+        raise LedgerError("Reason is required")
+    strategy = _lock_strategy_row(session, strategy_name)
+    if StrategyState(strategy.state) == StrategyState.DECOMMISSIONED:
+        raise LedgerError("Strategy is decommissioned")
+    _require_pre_soak_strategy(session, strategy_name)
+
+    before = {
+        "bankrollCents": strategy.bankroll_cents,
+        "initialDepositCents": strategy.initial_deposit_cents,
+        "bankrollHwmCents": strategy.bankroll_hwm_cents,
+    }
+    delta = amount_cents - strategy.bankroll_cents
+    if delta > 0:
+        _write_bankroll_event(
+            session,
+            strategy=strategy,
+            kind=CashEventKind.DEPOSIT,
+            amount_cents=delta,
+            balance_after_cents=amount_cents,
+            reason=reason,
+            actor=actor,
+            request_id=request_id,
+            audit_action="set_starting_bankroll_deposit",
+            before_state={"bankrollCents": before["bankrollCents"]},
+            after_state={"bankrollCents": amount_cents},
+        )
+    elif delta < 0:
+        _write_bankroll_event(
+            session,
+            strategy=strategy,
+            kind=CashEventKind.WITHDRAW,
+            amount_cents=delta,
+            balance_after_cents=amount_cents,
+            reason=reason,
+            actor=actor,
+            request_id=request_id,
+            audit_action="set_starting_bankroll_withdraw",
+            before_state={"bankrollCents": before["bankrollCents"]},
+            after_state={"bankrollCents": amount_cents},
+        )
+
+    strategy.initial_deposit_cents = amount_cents
+    strategy.bankroll_hwm_cents = amount_cents
+    strategy.hwm_reset_at = None
+    _touch_strategy(strategy)
+    after = {
+        "bankrollCents": strategy.bankroll_cents,
+        "initialDepositCents": strategy.initial_deposit_cents,
+        "bankrollHwmCents": strategy.bankroll_hwm_cents,
+    }
+    _append_audit(
+        session,
+        actor=actor,
+        action="set_starting_bankroll",
+        target_type="strategy",
+        target_id=strategy_name,
+        before_state=before,
+        after_state=after,
+        reason=reason,
+        request_id=request_id,
+    )
+    session.flush()
+    return strategy
 
 
 def record_realized_pnl(
