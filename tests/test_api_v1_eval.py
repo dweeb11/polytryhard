@@ -100,3 +100,4 @@ def test_eval_detail_known_strategy_no_snapshots_returns_empty_windows(
 
 def test_eval_requires_auth(api_client: TestClient) -> None:
     assert api_client.get("/v1/eval").status_code == 401
+    assert api_client.get("/v1/eval/weather_ensemble_disagreement").status_code == 401
