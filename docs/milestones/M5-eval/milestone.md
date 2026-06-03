@@ -6,9 +6,9 @@
 - [x] Vision — `docs/PDD.md` §1.4, §5.2, §7.5
 - [x] Design — `docs/design/m5-eval.md`
 - [x] Milestone — this doc
-- [ ] **Implement** <- current stage
-- [ ] Verify
-- [ ] Ship — ordered PRs to `staging`
+- [x] Implement
+- [ ] **Verify** <- current stage — automated gate green across all slices; UI manual acceptance on deployed staging pending
+- [ ] Ship — ordered PRs to `staging` (all M5.1–M5.7 slices merged; staging soak + promotion to `main` pending)
 
 ## Tasks (PR slices, ordered)
 - [x] M5.1 Shared schema `004` — `contract_resolution` table + `ContractResolution` enum + model
@@ -16,8 +16,8 @@
 - [x] M5.3 Resolution tick + `resolve_position` / `record_realized_pnl` ledger writers + per-env tests
 - [x] M5.4 `core/eval` pure metrics (hit rate, Brier, log-loss, drawdown, sharpe proxy, posterior edge, calibration bins) + unit tests
 - [x] M5.5 `eval_metric_snapshot` writer + post-resolution & nightly recompute + integration test
-- [ ] M5.6 `/v1/eval` endpoints + schemas + OpenAPI/TS regen
-- [ ] M5.7 Read-only Calibration & P&L UI panel + `regen-api-types`
+- [x] M5.6 `/v1/eval` endpoints + schemas + OpenAPI/TS regen (#60)
+- [x] M5.7 Read-only Calibration & P&L UI panel + `regen-api-types` (M5.7a panel #61, M5.7b roster columns #62)
 
 ## Out of scope (M6+)
 - Live (real-money) Kalshi executor — graduation criteria informed by M5 metrics, promotion is a later milestone
@@ -39,3 +39,5 @@
 - Builds on existing scaffolding: `record_realized_pnl` stub (`core/ledger/writer.py:246`), `PaperPositionRow.status='resolved'` + nullable `realized_pnl_cents`, `reference_market.settlement_time/status`. `contract_resolution` is new (specced in PDD §5.1).
 - Cost basis is reserved (not spent) at open → resolution moves bankroll by net P&L only; keeps `bankroll == Σ cash_event`.
 - Linear: create milestone **M5 — Resolution & Evaluation** in the `polytryhard` project (team Apps); issues in dependency order M5.1→M5.7.
+- M5.6/M5.7 design + plan: `docs/design/m5-eval-api-ui.md`, `docs/milestones/M5-eval/plan-3-eval-api-ui.md` (#59). Delivered as 3 slices: M5.6 read API (#60), M5.7a per-strategy panel (#61), M5.7b roster columns (#62).
+- Eval contract note: roster (`GET /v1/eval`) returns `posterior_edge_ci_low`/`hit_rate`/`brier_score` as **nullable** (null for un-evaluated strategies — UI renders `—`); the per-strategy detail (`GET /v1/eval/{strategy}`) returns the non-null posterior CI triple. Roster summarizes the `all` window.
