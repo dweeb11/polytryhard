@@ -282,6 +282,40 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/v1/eval": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Eval Route */
+        get: operations["list_eval_route_v1_eval_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/eval/{strategy}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Eval Route */
+        get: operations["get_eval_route_v1_eval__strategy__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -344,6 +378,19 @@ export type components = {
             /** Requestid */
             requestId: string;
         };
+        /** CalibrationBin */
+        CalibrationBin: {
+            /** Lower */
+            lower: number;
+            /** Upper */
+            upper: number;
+            /** Predictedmean */
+            predictedMean: number;
+            /** Observedfreq */
+            observedFreq: number;
+            /** Count */
+            count: number;
+        };
         /** CashEvent */
         CashEvent: {
             /** Id */
@@ -367,6 +414,52 @@ export type components = {
          * @enum {string}
          */
         CashEventKind: "deposit" | "withdraw" | "realized_pnl" | "fee" | "transfer_in" | "transfer_out";
+        /** EvalRosterEntry */
+        EvalRosterEntry: {
+            /** Strategyname */
+            strategyName: string;
+            /** Ntrades */
+            nTrades: number;
+            /** Hitrate */
+            hitRate?: number | null;
+            /** Brierscore */
+            brierScore?: number | null;
+            /** Pnlcents */
+            pnlCents: number;
+            /** Posterioredgecilow */
+            posteriorEdgeCiLow?: number | null;
+        };
+        /** EvalSnapshot */
+        EvalSnapshot: {
+            /** Window */
+            window: string;
+            /** Computedat */
+            computedAt: string;
+            /** Ntrades */
+            nTrades: number;
+            /** Nwins */
+            nWins: number;
+            /** Hitrate */
+            hitRate?: number | null;
+            /** Brierscore */
+            brierScore?: number | null;
+            /** Logloss */
+            logLoss?: number | null;
+            /** Pnlcents */
+            pnlCents: number;
+            /** Sharpeproxy */
+            sharpeProxy?: number | null;
+            /** Maxdrawdowncents */
+            maxDrawdownCents: number;
+            /** Posterioredgemean */
+            posteriorEdgeMean: number;
+            /** Posterioredgecilow */
+            posteriorEdgeCiLow: number;
+            /** Posterioredgecihigh */
+            posteriorEdgeCiHigh: number;
+            /** Calibrationbins */
+            calibrationBins: components["schemas"]["CalibrationBin"][];
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -510,6 +603,13 @@ export type components = {
             autoResumeOnDeposit: boolean;
             /** Maxinputageseconds */
             maxInputAgeSeconds: number;
+        };
+        /** StrategyEval */
+        StrategyEval: {
+            /** Strategyname */
+            strategyName: string;
+            /** Windows */
+            windows: components["schemas"]["EvalSnapshot"][];
         };
         /** StrategyInstance */
         StrategyInstance: {
@@ -1055,6 +1155,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaperPositionRecord"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_eval_route_v1_eval_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalRosterEntry"][];
+                };
+            };
+        };
+    };
+    get_eval_route_v1_eval__strategy__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                strategy: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StrategyEval"];
                 };
             };
             /** @description Validation Error */

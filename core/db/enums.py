@@ -41,6 +41,9 @@ class EvalWindow(StrEnum):
     ALL = "all"
 
 
+EVAL_WINDOWS: tuple[EvalWindow, ...] = (EvalWindow.D7, EvalWindow.D30, EvalWindow.ALL)
+
+
 class SignalOutcome(StrEnum):
     ORDER_PLACED = "order_placed"
     REJECTED_KELLY_ZERO = "rejected_kelly_zero"

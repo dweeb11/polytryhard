@@ -819,6 +819,67 @@
         }
       }
     },
+    "/v1/eval": {
+      "get": {
+        "summary": "List Eval Route",
+        "operationId": "list_eval_route_v1_eval_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EvalRosterEntry"
+                  },
+                  "type": "array",
+                  "title": "Response List Eval Route V1 Eval Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/eval/{strategy}": {
+      "get": {
+        "summary": "Get Eval Route",
+        "operationId": "get_eval_route_v1_eval__strategy__get",
+        "parameters": [
+          {
+            "name": "strategy",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Strategy"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StrategyEval"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "summary": "Healthz",
@@ -941,6 +1002,39 @@
         ],
         "title": "AuditEvent"
       },
+      "CalibrationBin": {
+        "properties": {
+          "lower": {
+            "type": "number",
+            "title": "Lower"
+          },
+          "upper": {
+            "type": "number",
+            "title": "Upper"
+          },
+          "predictedMean": {
+            "type": "number",
+            "title": "Predictedmean"
+          },
+          "observedFreq": {
+            "type": "number",
+            "title": "Observedfreq"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lower",
+          "upper",
+          "predictedMean",
+          "observedFreq",
+          "count"
+        ],
+        "title": "CalibrationBin"
+      },
       "CashEvent": {
         "properties": {
           "id": {
@@ -1006,6 +1100,167 @@
           "transfer_out"
         ],
         "title": "CashEventKind"
+      },
+      "EvalRosterEntry": {
+        "properties": {
+          "strategyName": {
+            "type": "string",
+            "title": "Strategyname"
+          },
+          "nTrades": {
+            "type": "integer",
+            "title": "Ntrades"
+          },
+          "hitRate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hitrate"
+          },
+          "brierScore": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brierscore"
+          },
+          "pnlCents": {
+            "type": "integer",
+            "title": "Pnlcents"
+          },
+          "posteriorEdgeCiLow": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posterioredgecilow"
+          }
+        },
+        "type": "object",
+        "required": [
+          "strategyName",
+          "nTrades",
+          "pnlCents"
+        ],
+        "title": "EvalRosterEntry"
+      },
+      "EvalSnapshot": {
+        "properties": {
+          "window": {
+            "type": "string",
+            "title": "Window"
+          },
+          "computedAt": {
+            "type": "string",
+            "title": "Computedat"
+          },
+          "nTrades": {
+            "type": "integer",
+            "title": "Ntrades"
+          },
+          "nWins": {
+            "type": "integer",
+            "title": "Nwins"
+          },
+          "hitRate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hitrate"
+          },
+          "brierScore": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brierscore"
+          },
+          "logLoss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logloss"
+          },
+          "pnlCents": {
+            "type": "integer",
+            "title": "Pnlcents"
+          },
+          "sharpeProxy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpeproxy"
+          },
+          "maxDrawdownCents": {
+            "type": "integer",
+            "title": "Maxdrawdowncents"
+          },
+          "posteriorEdgeMean": {
+            "type": "number",
+            "title": "Posterioredgemean"
+          },
+          "posteriorEdgeCiLow": {
+            "type": "number",
+            "title": "Posterioredgecilow"
+          },
+          "posteriorEdgeCiHigh": {
+            "type": "number",
+            "title": "Posterioredgecihigh"
+          },
+          "calibrationBins": {
+            "items": {
+              "$ref": "#/components/schemas/CalibrationBin"
+            },
+            "type": "array",
+            "title": "Calibrationbins"
+          }
+        },
+        "type": "object",
+        "required": [
+          "window",
+          "computedAt",
+          "nTrades",
+          "nWins",
+          "pnlCents",
+          "maxDrawdownCents",
+          "posteriorEdgeMean",
+          "posteriorEdgeCiLow",
+          "posteriorEdgeCiHigh",
+          "calibrationBins"
+        ],
+        "title": "EvalSnapshot"
       },
       "HTTPValidationError": {
         "properties": {
@@ -1451,6 +1706,27 @@
           "maxInputAgeSeconds"
         ],
         "title": "StrategyConfig"
+      },
+      "StrategyEval": {
+        "properties": {
+          "strategyName": {
+            "type": "string",
+            "title": "Strategyname"
+          },
+          "windows": {
+            "items": {
+              "$ref": "#/components/schemas/EvalSnapshot"
+            },
+            "type": "array",
+            "title": "Windows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "strategyName",
+          "windows"
+        ],
+        "title": "StrategyEval"
       },
       "StrategyInstance": {
         "properties": {
