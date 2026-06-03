@@ -45,7 +45,10 @@ def test_eval_roster_empty_returns_seeded_strategies_with_null_metrics(
     resp = api_client.get("/v1/eval", headers=auth_headers)
     assert resp.status_code == 200
     rows = resp.json()
-    assert len(rows) >= 1
+    assert {r["strategyName"] for r in rows} == {
+        "weather_ensemble_disagreement",
+        "weather_stale_quote",
+    }
     assert all(r["nTrades"] == 0 and r["hitRate"] is None for r in rows)
 
 

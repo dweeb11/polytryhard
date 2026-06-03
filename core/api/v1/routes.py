@@ -308,5 +308,5 @@ def get_eval_route(
     strategy: str, session: Session = Depends(per_env_db)
 ) -> StrategyEval:
     if session.get(StrategyInstanceRow, strategy) is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="strategy not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Strategy not found")
     return strategy_eval(session, strategy)
