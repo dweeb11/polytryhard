@@ -1,12 +1,12 @@
 from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
+from helpers import eval_metric_snapshot_row
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from core.api.main import create_app
 from core.db.enums import EvalWindow
-from core.db.models import EvalMetricSnapshotRow
 from core.ledger.seed import seed_strategies_if_needed
 from core.settings import Settings
 
@@ -21,24 +21,6 @@ def _settings(shared_url: str, per_env_url: str) -> Settings:
     )
 
 
-def _snap(
-    strategy: str, window: EvalWindow, computed_at: datetime, **kw: object
-) -> EvalMetricSnapshotRow:
-    base = dict(
-        n_trades=8, n_wins=5, hit_rate=0.625, brier_score=0.18, log_loss=0.55,
-        pnl_cents=420, sharpe_proxy=0.5, max_drawdown_cents=-90,
-        posterior_edge_mean=0.06, posterior_edge_ci_low=0.01, posterior_edge_ci_high=0.11,
-        calibration_bins_jsonb=[
-            {"lower": 0.5, "upper": 0.6, "predicted_mean": 0.55, "observed_freq": 0.5, "count": 4}
-        ],
-    )
-    base.update(kw)
-    return EvalMetricSnapshotRow(
-        id=f"{strategy}-{window.value}-{computed_at.isoformat()}",
-        strategy_name=strategy, computed_at=computed_at, window=window, **base,
-    )
-
-
 def test_eval_roster_empty_returns_seeded_strategies_with_null_metrics(
     api_client: TestClient, auth_headers: dict[str, str]
 ) -> None:
@@ -49,7 +31,10 @@ def test_eval_roster_empty_returns_seeded_strategies_with_null_metrics(
         "weather_ensemble_disagreement",
         "weather_stale_quote",
     }
-    assert all(r["nTrades"] == 0 and r["hitRate"] is None for r in rows)
+    assert all(
+        r["nTrades"] == 0 and r["hitRate"] is None and r["posteriorEdgeCiLow"] is None
+        for r in rows
+    )
 
 
 def test_eval_roster_and_detail_with_snapshots(
@@ -61,9 +46,23 @@ def test_eval_roster_and_detail_with_snapshots(
     name = "weather_ensemble_disagreement"
     now = datetime(2026, 6, 1, tzinfo=UTC)
     per_env.add_all([
-        _snap(name, EvalWindow.D7, now, n_trades=3),
-        _snap(name, EvalWindow.D30, now, n_trades=8),
-        _snap(name, EvalWindow.ALL, now, n_trades=20),
+        eval_metric_snapshot_row(name, EvalWindow.D7, now, n_trades=3),
+        eval_metric_snapshot_row(name, EvalWindow.D30, now, n_trades=8),
+        eval_metric_snapshot_row(
+            name,
+            EvalWindow.ALL,
+            now,
+            n_trades=20,
+            calibration_bins_jsonb=[
+                {
+                    "lower": 0.5,
+                    "upper": 0.6,
+                    "predicted_mean": 0.55,
+                    "observed_freq": 0.5,
+                    "count": 4,
+                }
+            ],
+        ),
     ])
     per_env.commit()
     per_env.close()

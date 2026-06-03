@@ -3,8 +3,9 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
+from core.db.enums import EvalWindow
 from core.db.enums import StrategyState as DbStrategyState
-from core.db.models import StrategyInstanceRow
+from core.db.models import EvalMetricSnapshotRow, StrategyInstanceRow
 from core.db.shared_enums import ContractResolution
 from core.db.shared_models import ContractResolutionRow, ReferenceMarketRow
 from core.domain.enums import AuditActor
@@ -20,6 +21,36 @@ DEFAULT_STRATEGY_CONFIG: dict[str, object] = {
     "auto_resume_on_deposit": True,
     "max_input_age_seconds": 900,
 }
+
+
+def eval_metric_snapshot_row(
+    strategy: str,
+    window: EvalWindow,
+    computed_at: datetime,
+    **kw: object,
+) -> EvalMetricSnapshotRow:
+    base: dict[str, object] = {
+        "n_trades": 5,
+        "n_wins": 3,
+        "hit_rate": 0.6,
+        "brier_score": 0.2,
+        "log_loss": 0.6,
+        "pnl_cents": 100,
+        "sharpe_proxy": 0.3,
+        "max_drawdown_cents": -50,
+        "posterior_edge_mean": 0.04,
+        "posterior_edge_ci_low": -0.01,
+        "posterior_edge_ci_high": 0.1,
+        "calibration_bins_jsonb": [],
+    }
+    base.update(kw)
+    return EvalMetricSnapshotRow(
+        id=f"{strategy}-{window.value}-{computed_at.isoformat()}",
+        strategy_name=strategy,
+        computed_at=computed_at,
+        window=window,
+        **base,
+    )
 
 
 def create_funded_strategy(

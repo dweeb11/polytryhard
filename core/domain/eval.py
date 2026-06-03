@@ -5,11 +5,9 @@ from pydantic import BaseModel, ConfigDict
 from core.domain.serde import to_camel
 
 
-class _ApiModel(BaseModel):
+class CalibrationBin(BaseModel):
     model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
 
-
-class CalibrationBin(_ApiModel):
     lower: float
     upper: float
     predicted_mean: float
@@ -17,7 +15,9 @@ class CalibrationBin(_ApiModel):
     count: int
 
 
-class EvalSnapshot(_ApiModel):
+class EvalSnapshot(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
     window: str
     computed_at: str
     n_trades: int
@@ -34,17 +34,21 @@ class EvalSnapshot(_ApiModel):
     calibration_bins: list[CalibrationBin]
 
 
-class StrategyEval(_ApiModel):
+class StrategyEval(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
     strategy_name: str
     windows: list[EvalSnapshot]
 
 
 # Deliberately minimal one-line summary for the roster view; the full
 # posterior CI triple lives in EvalSnapshot (the per-strategy detail endpoint).
-class EvalRosterEntry(_ApiModel):
+class EvalRosterEntry(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
     strategy_name: str
     n_trades: int
     hit_rate: float | None = None
     brier_score: float | None = None
     pnl_cents: int
-    posterior_edge_ci_low: float
+    posterior_edge_ci_low: float | None = None

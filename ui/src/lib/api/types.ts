@@ -427,7 +427,7 @@ export type components = {
             /** Pnlcents */
             pnlCents: number;
             /** Posterioredgecilow */
-            posteriorEdgeCiLow: number;
+            posteriorEdgeCiLow?: number | null;
         };
         /** EvalSnapshot */
         EvalSnapshot: {

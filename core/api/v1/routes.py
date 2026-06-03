@@ -3,7 +3,6 @@ from sqlalchemy.orm import Session
 
 from core.api.v1.deps import get_request_id, per_env_db, shared_db, verify_bearer_token
 from core.api.v1.schemas import AmountReasonBody, ReasonBody, SetKellyBody, SourceHealthEntry
-from core.db.models import StrategyInstanceRow
 from core.domain.audit import AuditEvent
 from core.domain.cash_event import CashEvent
 from core.domain.enums import AuditActor
@@ -307,6 +306,6 @@ def list_eval_route(session: Session = Depends(per_env_db)) -> list[EvalRosterEn
 def get_eval_route(
     strategy: str, session: Session = Depends(per_env_db)
 ) -> StrategyEval:
-    if session.get(StrategyInstanceRow, strategy) is None:
+    if get_strategy(session, strategy) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Strategy not found")
     return strategy_eval(session, strategy)

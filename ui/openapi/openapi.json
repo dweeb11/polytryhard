@@ -1138,7 +1138,14 @@
             "title": "Pnlcents"
           },
           "posteriorEdgeCiLow": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Posterioredgecilow"
           }
         },
@@ -1146,8 +1153,7 @@
         "required": [
           "strategyName",
           "nTrades",
-          "pnlCents",
-          "posteriorEdgeCiLow"
+          "pnlCents"
         ],
         "title": "EvalRosterEntry"
       },

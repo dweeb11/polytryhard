@@ -6,7 +6,7 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from core.db.enums import EvalWindow
+from core.db.enums import EVAL_WINDOWS, EvalWindow
 from core.db.models import EvalMetricSnapshotRow, StrategyInstanceRow
 from core.eval.metrics import EvalMetrics, compute_metrics
 from core.eval.queries import (
@@ -16,7 +16,6 @@ from core.eval.queries import (
     trades_for_window,
 )
 
-_WINDOWS: tuple[EvalWindow, ...] = (EvalWindow.D7, EvalWindow.D30, EvalWindow.ALL)
 _DEFAULT_TAU = 0.5
 
 
@@ -79,7 +78,7 @@ def recompute_strategy(
         per_env_session=per_env_session,
         strategy_name=strategy_name,
     )
-    for window in _WINDOWS:
+    for window in EVAL_WINDOWS:
         trades = trades_for_window(trade_records, window, now)
         balances = balances_for_window(cash_events, window, now)
         metrics = compute_metrics(trades, balances=balances, tau=tau)
