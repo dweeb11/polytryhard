@@ -460,3 +460,65 @@ async def test_kalshi_unconfigured_reports_degraded() -> None:
     )
     result = await source.fetch(clock, ctx)
     assert result.status == SourceRunStatus.DEGRADED
+
+
+@pytest.mark.asyncio
+async def test_run_nightly_recompute_writes_snapshots_for_all_strategies(
+    per_env_sqlite_urls: tuple[str, str],
+) -> None:
+    from sqlalchemy import create_engine, select
+    from sqlalchemy.orm import Session
+
+    from core.db.enums import StrategyState as DbStrategyState
+    from core.db.models import EvalMetricSnapshotRow, StrategyInstanceRow
+    from core.domain.enums import AuditActor
+    from core.ledger import writer
+    from core.utils.time import utc_now
+
+    shared_url, per_env_url = per_env_sqlite_urls
+    settings = Settings(
+        REQUIRE_DBS=False,
+        CONTROL_PLANE_TOKEN="dev-token",
+        DATABASE_URL_SHARED=shared_url,
+        DATABASE_URL_PER_ENV=per_env_url,
+        SCHEDULER_ENABLED=False,
+    )
+    engine = create_engine(per_env_url)
+    with Session(engine) as session:
+        now = utc_now()
+        session.add(
+            StrategyInstanceRow(
+                name="s1",
+                enabled=True,
+                state=DbStrategyState.SEEDED,
+                bankroll_cents=0,
+                initial_deposit_cents=0,
+                bankroll_hwm_cents=0,
+                hwm_reset_at=None,
+                kelly_fraction=0.25,
+                config_jsonb={
+                    "min_bankroll_cents": 10_000,
+                    "min_tradeable_bankroll_cents": 5_000,
+                    "max_drawdown_pct_from_hwm": 30,
+                    "auto_resume_on_deposit": True,
+                    "max_input_age_seconds": 900,
+                },
+                consecutive_min_position_rejections=0,
+                last_state_change_at=now,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        session.commit()
+        writer.deposit(session, "s1", 100_00, "seed", AuditActor.USER, "rq")
+        writer.activate_strategy(session, "s1", "setup", AuditActor.USER, "rq")
+        session.commit()
+
+    scheduler = Scheduler.create(
+        settings, clock=FakeClock(start=datetime(2026, 6, 2, 12, 0, tzinfo=UTC))
+    )
+    scheduler.run_nightly_recompute()
+
+    with Session(engine) as session:
+        rows = session.scalars(select(EvalMetricSnapshotRow)).all()
+    assert len(rows) == 3

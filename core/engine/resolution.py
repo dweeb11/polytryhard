@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -24,6 +25,7 @@ def run_resolution_tick(
     *,
     shared_session: Session,
     per_env_session: Session,
+    now: datetime,
     request_id: str | None = None,
 ) -> dict[str, int]:
     tick_id = request_id or _resolution_request_id()
@@ -39,6 +41,7 @@ def run_resolution_tick(
                 select(ContractResolutionRow).where(ContractResolutionRow.ticker.in_(tickers))
             ).all()
         }
+        affected: set[str] = set()
         for position in open_positions:
             res = resolutions_by_ticker.get(position.ticker)
             if res is None:
@@ -51,7 +54,18 @@ def run_resolution_tick(
                 actor=AuditActor.SCHEDULER,
                 request_id=tick_id,
             )
+            affected.add(position.strategy_name)
             resolved += 1
+        if affected:
+            from core.eval.snapshot import recompute_strategy
+
+            for strategy_name in sorted(affected):
+                recompute_strategy(
+                    per_env_session=per_env_session,
+                    shared_session=shared_session,
+                    strategy_name=strategy_name,
+                    now=now,
+                )
     per_env_session.commit()
     logger.info("resolution tick complete request_id=%s resolved=%s", tick_id, resolved)
     return {"resolved": resolved}

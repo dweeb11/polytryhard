@@ -5,6 +5,7 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     DateTime,
+    Float,
     ForeignKey,
     Integer,
     Numeric,
@@ -16,6 +17,7 @@ from sqlalchemy.types import JSON
 
 from core.db.enums import (
     CashEventKind,
+    EvalWindow,
     PositionSide,
     PositionStatus,
     SignalOutcome,
@@ -141,3 +143,26 @@ class SystemStateRow(Base):
         DateTime(timezone=True), nullable=True
     )
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class EvalMetricSnapshotRow(Base):
+    __tablename__ = "eval_metric_snapshot"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    strategy_name: Mapped[str] = mapped_column(
+        String(128), ForeignKey("strategy_instance.name"), index=True
+    )
+    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    window: Mapped[EvalWindow] = mapped_column(str_enum_column(EvalWindow))
+    n_trades: Mapped[int] = mapped_column(Integer)
+    n_wins: Mapped[int] = mapped_column(Integer)
+    hit_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    brier_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    log_loss: Mapped[float | None] = mapped_column(Float, nullable=True)
+    pnl_cents: Mapped[int] = mapped_column(BigInteger)
+    sharpe_proxy: Mapped[float | None] = mapped_column(Float, nullable=True)
+    max_drawdown_cents: Mapped[int] = mapped_column(BigInteger)
+    posterior_edge_mean: Mapped[float] = mapped_column(Float)
+    posterior_edge_ci_low: Mapped[float] = mapped_column(Float)
+    posterior_edge_ci_high: Mapped[float] = mapped_column(Float)
+    calibration_bins_jsonb: Mapped[list[dict[str, object]]] = mapped_column(JSON)

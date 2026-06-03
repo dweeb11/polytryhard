@@ -35,6 +35,12 @@ class CashEventKind(StrEnum):
     TRANSFER_OUT = "transfer_out"
 
 
+class EvalWindow(StrEnum):
+    D7 = "7d"
+    D30 = "30d"
+    ALL = "all"
+
+
 class SignalOutcome(StrEnum):
     ORDER_PLACED = "order_placed"
     REJECTED_KELLY_ZERO = "rejected_kelly_zero"
