@@ -12,6 +12,12 @@ class StrategyConfig(BaseModel):
     max_drawdown_pct_from_hwm: float
     auto_resume_on_deposit: bool
     max_input_age_seconds: int
+    confidence_floor: float | None = None
+    disagreement_threshold: float | None = None
+    spread_margin_multiplier: float | None = None
+    wide_spread_threshold: float | None = None
+    exposure_cap_pct: float | None = None
+    correlation_cap_pct: float | None = None
 
 
 class StrategyInstance(BaseModel):

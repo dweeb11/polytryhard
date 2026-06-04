@@ -603,6 +603,18 @@ export type components = {
             autoResumeOnDeposit: boolean;
             /** Maxinputageseconds */
             maxInputAgeSeconds: number;
+            /** Confidencefloor */
+            confidenceFloor?: number | null;
+            /** Disagreementthreshold */
+            disagreementThreshold?: number | null;
+            /** Spreadmarginmultiplier */
+            spreadMarginMultiplier?: number | null;
+            /** Widespreadthreshold */
+            wideSpreadThreshold?: number | null;
+            /** Exposurecappct */
+            exposureCapPct?: number | null;
+            /** Correlationcappct */
+            correlationCapPct?: number | null;
         };
         /** StrategyEval */
         StrategyEval: {

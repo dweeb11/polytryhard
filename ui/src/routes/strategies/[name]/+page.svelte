@@ -69,6 +69,14 @@
 	let kellyPct = $state(25);
 	let outcomeFilter = $state('all');
 
+	function formatConfigNumber(value: number | null | undefined, decimals = 2): string {
+		return value == null ? '—' : value.toFixed(decimals);
+	}
+
+	function formatConfigPct(value: number | null | undefined): string {
+		return value == null ? '—' : `${(value * 100).toFixed(1)}%`;
+	}
+
 	function parseAmountCents(): number | null {
 		const parsed = Math.round(Number(amountDollars) * 100);
 		if (!Number.isFinite(parsed) || parsed <= 0) {
@@ -83,6 +91,23 @@
 		outcomeFilter === 'all'
 			? stratSignals
 			: stratSignals.filter((s) => s.outcome === outcomeFilter)
+	);
+
+	const configRows = $derived(
+		strat
+			? [
+					['Min bankroll', formatCents(strat.config.minBankrollCents)],
+					['Tradeable floor', formatCents(strat.config.minTradeableBankrollCents)],
+					['Max drawdown from HWM', `${strat.config.maxDrawdownPctFromHwm.toFixed(1)}%`],
+					['Max input age', `${strat.config.maxInputAgeSeconds}s`],
+					['Confidence floor', formatConfigPct(strat.config.confidenceFloor)],
+					['Disagreement threshold', formatConfigNumber(strat.config.disagreementThreshold, 1)],
+					['Spread multiplier', formatConfigNumber(strat.config.spreadMarginMultiplier, 1)],
+					['Wide spread threshold', formatConfigPct(strat.config.wideSpreadThreshold)],
+					['Exposure cap', formatConfigPct(strat.config.exposureCapPct)],
+					['Correlation cap', formatConfigPct(strat.config.correlationCapPct)]
+				]
+			: []
 	);
 
 	$effect(() => {
@@ -258,6 +283,15 @@
 					placeholder="Reason for pause/resume"
 					bind:value={reason}
 				/>
+				<div class="mt-3 border-t border-[var(--color-border)] pt-3">
+					<h3 class="mb-2 text-xs uppercase text-slate-500">Soak config</h3>
+					<dl class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 text-xs">
+						{#each configRows as row}
+							<dt class="truncate text-slate-500">{row[0]}</dt>
+							<dd class="text-right tabular-nums text-slate-300">{row[1]}</dd>
+						{/each}
+					</dl>
+				</div>
 			</div>
 		</div>
 

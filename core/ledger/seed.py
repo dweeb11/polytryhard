@@ -20,6 +20,8 @@ SEED_STRATEGIES: tuple[tuple[str, dict[str, object]], ...] = (
             "disagreementThreshold": 2.0,
             "spreadMarginMultiplier": 1.5,
             "confidenceFloor": 0.55,
+            "exposureCapPct": 0.10,
+            "correlationCapPct": 0.05,
         },
     ),
     (
@@ -32,6 +34,8 @@ SEED_STRATEGIES: tuple[tuple[str, dict[str, object]], ...] = (
             "max_input_age_seconds": 900,
             "wideSpreadThreshold": 0.08,
             "confidenceFloor": 0.55,
+            "exposureCapPct": 0.10,
+            "correlationCapPct": 0.05,
         },
     ),
 )
