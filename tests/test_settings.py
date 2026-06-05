@@ -63,3 +63,40 @@ def test_settings_raises_when_control_plane_token_missing() -> None:
             DATABASE_URL_PER_ENV="postgresql+psycopg://localhost/per_env",
             CONTROL_PLANE_TOKEN=None,
         )
+
+
+def test_paper_strategy_bankroll_overrides_parse_json() -> None:
+    settings = Settings(
+        REQUIRE_DBS=False,
+        PAPER_STRATEGY_BANKROLL_CENTS_JSON='{"weather_stale_quote":15000}',
+    )
+    assert settings.paper_strategy_bankroll_cents == {"weather_stale_quote": 15_000}
+
+
+def test_paper_initial_bankroll_must_be_positive() -> None:
+    with pytest.raises(ValueError, match="PAPER_INITIAL_BANKROLL_CENTS"):
+        Settings(REQUIRE_DBS=False, PAPER_INITIAL_BANKROLL_CENTS=0)
+
+
+def test_paper_strategy_bankroll_overrides_must_be_positive() -> None:
+    with pytest.raises(ValueError, match="PAPER_STRATEGY_BANKROLL_CENTS_JSON"):
+        Settings(
+            REQUIRE_DBS=False,
+            PAPER_STRATEGY_BANKROLL_CENTS_JSON={"weather_stale_quote": 0},
+        )
+
+
+def test_paper_strategy_bankroll_overrides_reject_malformed_json() -> None:
+    with pytest.raises(ValueError, match="PAPER_STRATEGY_BANKROLL_CENTS_JSON must be valid JSON"):
+        Settings(
+            REQUIRE_DBS=False,
+            PAPER_STRATEGY_BANKROLL_CENTS_JSON="{not-json",
+        )
+
+
+def test_paper_strategy_bankroll_overrides_reject_unknown_strategy() -> None:
+    with pytest.raises(ValueError, match="unknown strategy names"):
+        Settings(
+            REQUIRE_DBS=False,
+            PAPER_STRATEGY_BANKROLL_CENTS_JSON={"weather_stale_quotes": 15_000},
+        )
