@@ -45,7 +45,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if settings.database_url_per_env:
         run_upgrade("per_env", settings.database_url_per_env)
         with per_env_session(settings) as session:
-            seed_strategies_if_needed(session, request_id="startup_seed", settings=settings)
+            seed_strategies_if_needed(
+                session,
+                request_id="startup_seed",
+                initial_bankroll_cents=settings.paper_initial_bankroll_cents,
+                strategy_bankroll_overrides=settings.paper_strategy_bankroll_cents,
+            )
     if settings.database_url_shared and settings.scheduler_enabled:
         scheduler = Scheduler.create(settings)
         app.state.scheduler = scheduler

@@ -84,3 +84,19 @@ def test_paper_strategy_bankroll_overrides_must_be_positive() -> None:
             REQUIRE_DBS=False,
             PAPER_STRATEGY_BANKROLL_CENTS_JSON={"weather_stale_quote": 0},
         )
+
+
+def test_paper_strategy_bankroll_overrides_reject_malformed_json() -> None:
+    with pytest.raises(ValueError, match="PAPER_STRATEGY_BANKROLL_CENTS_JSON must be valid JSON"):
+        Settings(
+            REQUIRE_DBS=False,
+            PAPER_STRATEGY_BANKROLL_CENTS_JSON="{not-json",
+        )
+
+
+def test_paper_strategy_bankroll_overrides_reject_unknown_strategy() -> None:
+    with pytest.raises(ValueError, match="unknown strategy names"):
+        Settings(
+            REQUIRE_DBS=False,
+            PAPER_STRATEGY_BANKROLL_CENTS_JSON={"weather_stale_quotes": 15_000},
+        )

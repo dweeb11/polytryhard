@@ -3,7 +3,6 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from core.db.models import CashEventRow, StrategyInstanceRow
 from core.ledger.seed import seed_strategies_if_needed
-from core.settings import Settings
 
 
 def _session(factory: sessionmaker[Session]) -> Session:
@@ -17,7 +16,7 @@ def test_seed_uses_default_paper_bankroll(
         seed_strategies_if_needed(
             session,
             request_id="test_seed",
-            settings=Settings(REQUIRE_DBS=False, PAPER_INITIAL_BANKROLL_CENTS=25_000),
+            initial_bankroll_cents=25_000,
         )
 
         rows = session.scalars(select(StrategyInstanceRow)).all()
@@ -29,6 +28,8 @@ def test_seed_uses_default_paper_bankroll(
             assert row.bankroll_cents == 25_000
             assert row.initial_deposit_cents == 25_000
             assert row.bankroll_hwm_cents == 25_000
+            assert row.config_jsonb["min_bankroll_cents"] == 25_000
+            assert row.config_jsonb["min_tradeable_bankroll_cents"] == 5_000
 
 
 def test_seed_uses_per_strategy_bankroll_override(
@@ -38,13 +39,8 @@ def test_seed_uses_per_strategy_bankroll_override(
         seed_strategies_if_needed(
             session,
             request_id="test_seed",
-            settings=Settings(
-                REQUIRE_DBS=False,
-                PAPER_INITIAL_BANKROLL_CENTS=25_000,
-                PAPER_STRATEGY_BANKROLL_CENTS_JSON={
-                    "weather_stale_quote": 15_000,
-                },
-            ),
+            initial_bankroll_cents=25_000,
+            strategy_bankroll_overrides={"weather_stale_quote": 15_000},
         )
 
         ensemble = session.get(StrategyInstanceRow, "weather_ensemble_disagreement")
@@ -54,9 +50,46 @@ def test_seed_uses_per_strategy_bankroll_override(
         assert ensemble.bankroll_cents == 25_000
         assert ensemble.initial_deposit_cents == 25_000
         assert ensemble.bankroll_hwm_cents == 25_000
+        assert ensemble.config_jsonb["min_bankroll_cents"] == 25_000
         assert stale.bankroll_cents == 15_000
         assert stale.initial_deposit_cents == 15_000
         assert stale.bankroll_hwm_cents == 15_000
+        assert stale.config_jsonb["min_bankroll_cents"] == 15_000
+
+
+def test_seed_derives_config_thresholds_for_sub_default_bankroll(
+    per_env_session_factory: sessionmaker[Session],
+) -> None:
+    with _session(per_env_session_factory) as session:
+        seed_strategies_if_needed(
+            session,
+            request_id="test_seed",
+            initial_bankroll_cents=8_000,
+        )
+
+        row = session.get(StrategyInstanceRow, "weather_ensemble_disagreement")
+        assert row is not None
+        assert row.bankroll_cents == 8_000
+        assert row.bankroll_cents >= row.config_jsonb["min_bankroll_cents"]
+        assert row.config_jsonb["min_bankroll_cents"] == 8_000
+        assert row.config_jsonb["min_tradeable_bankroll_cents"] == 5_000
+
+
+def test_seed_scales_min_tradeable_below_default_floor(
+    per_env_session_factory: sessionmaker[Session],
+) -> None:
+    with _session(per_env_session_factory) as session:
+        seed_strategies_if_needed(
+            session,
+            request_id="test_seed",
+            initial_bankroll_cents=3_000,
+        )
+
+        row = session.get(StrategyInstanceRow, "weather_ensemble_disagreement")
+        assert row is not None
+        assert row.bankroll_cents == 3_000
+        assert row.config_jsonb["min_bankroll_cents"] == 3_000
+        assert row.config_jsonb["min_tradeable_bankroll_cents"] == 3_000
 
 
 def test_seed_writes_initial_deposit_cash_event(
@@ -66,7 +99,7 @@ def test_seed_writes_initial_deposit_cash_event(
         seed_strategies_if_needed(
             session,
             request_id="test_seed",
-            settings=Settings(REQUIRE_DBS=False, PAPER_INITIAL_BANKROLL_CENTS=12_345),
+            initial_bankroll_cents=12_345,
         )
 
         events = session.scalars(
@@ -86,12 +119,12 @@ def test_seed_is_idempotent_and_does_not_rewrite_existing_ledger(
         seed_strategies_if_needed(
             session,
             request_id="test_seed_1",
-            settings=Settings(REQUIRE_DBS=False, PAPER_INITIAL_BANKROLL_CENTS=10_000),
+            initial_bankroll_cents=10_000,
         )
         seed_strategies_if_needed(
             session,
             request_id="test_seed_2",
-            settings=Settings(REQUIRE_DBS=False, PAPER_INITIAL_BANKROLL_CENTS=50_000),
+            initial_bankroll_cents=50_000,
         )
 
         strategy = session.get(StrategyInstanceRow, "weather_ensemble_disagreement")

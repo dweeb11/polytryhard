@@ -283,6 +283,8 @@ Acceptance:
 
 - M6.1: Initial high-water mark equals the initial paper bankroll for newly seeded strategies.
 - M6.1: `PAPER_INITIAL_BANKROLL_CENTS` and `PAPER_STRATEGY_BANKROLL_CENTS_JSON` apply only when creating missing strategy rows. Startup skips existing rows and never rewrites an existing ledger.
+- M6.1: At seed time, `min_bankroll_cents` equals the seeded initial deposit and `min_tradeable_bankroll_cents` equals min(initial deposit, $50). This preserves prior behavior at the default $100 seed; PDD §7.3 percentage defaults apply to post-seed operator tuning, not startup derivation.
+- M6.1: Unknown keys in `PAPER_STRATEGY_BANKROLL_CENTS_JSON` fail settings validation at startup.
 
 ## Verification Commands
 

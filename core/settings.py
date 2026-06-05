@@ -5,6 +5,8 @@ from typing import Any
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from core.ledger.seed import SEED_STRATEGY_NAMES
+
 
 def _empty_to_none(value: object) -> object:
     if value is None:
@@ -69,7 +71,12 @@ class Settings(BaseSettings):
         if isinstance(value, str) and not value.strip():
             return {}
         if isinstance(value, str):
-            return json.loads(value)
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    "PAPER_STRATEGY_BANKROLL_CENTS_JSON must be valid JSON"
+                ) from exc
         return value
 
     @field_validator("paper_initial_bankroll_cents")
@@ -82,6 +89,12 @@ class Settings(BaseSettings):
     @field_validator("paper_strategy_bankroll_cents")
     @classmethod
     def validate_strategy_bankroll_overrides(cls, value: dict[str, int]) -> dict[str, int]:
+        unknown = [name for name in value if name not in SEED_STRATEGY_NAMES]
+        if unknown:
+            raise ValueError(
+                "PAPER_STRATEGY_BANKROLL_CENTS_JSON contains unknown strategy names: "
+                + ", ".join(sorted(unknown))
+            )
         invalid = [name for name, amount in value.items() if amount <= 0]
         if invalid:
             raise ValueError(
