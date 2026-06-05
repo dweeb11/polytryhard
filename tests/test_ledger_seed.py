@@ -70,7 +70,6 @@ def test_seed_derives_config_thresholds_for_sub_default_bankroll(
         row = session.get(StrategyInstanceRow, "weather_ensemble_disagreement")
         assert row is not None
         assert row.bankroll_cents == 8_000
-        assert row.bankroll_cents >= row.config_jsonb["min_bankroll_cents"]
         assert row.config_jsonb["min_bankroll_cents"] == 8_000
         assert row.config_jsonb["min_tradeable_bankroll_cents"] == 5_000
 
