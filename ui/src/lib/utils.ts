@@ -46,8 +46,11 @@ export function formatIsoDateTime(iso: string): string {
 	return new Date(ms).toLocaleString();
 }
 
-export function formatAge(iso: string): string {
-	const sec = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+export function formatAge(iso: string | null | undefined): string {
+	if (!iso) return '—';
+	const ms = Date.parse(iso);
+	if (Number.isNaN(ms)) return '—';
+	const sec = Math.max(0, Math.floor((Date.now() - ms) / 1000));
 	if (sec < 60) return `${sec}s ago`;
 	if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
 	if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
