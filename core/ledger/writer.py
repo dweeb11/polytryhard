@@ -4,7 +4,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from core.db.enums import PositionSide as DbPositionSide
@@ -42,12 +42,14 @@ from core.domain.state_machine import (
     should_auto_resume_on_deposit,
 )
 from core.domain.strategy import StrategyConfig
+from core.ledger.baseline import apply_starting_baseline
 from core.ledger.errors import LedgerError
 from core.ledger.queries import (
     cash_event_from_row,
     free_cash_cents,
     free_cash_for_strategy,
     get_system_state,
+    strategy_has_trading_activity,
 )
 from core.utils.time import utc_now
 
@@ -121,7 +123,7 @@ def _touch_strategy(row: StrategyInstanceRow, *, state: StrategyState | None = N
         row.state = DbStrategyState(state)
 
 
-def _write_bankroll_event(
+def _append_cash_event(
     session: Session,
     *,
     strategy: StrategyInstanceRow,
@@ -129,11 +131,6 @@ def _write_bankroll_event(
     amount_cents: int,
     balance_after_cents: int,
     reason: str,
-    actor: AuditActor,
-    request_id: str,
-    audit_action: str,
-    before_state: dict[str, Any],
-    after_state: dict[str, Any],
     ref_position_id: str | None = None,
 ) -> CashEvent:
     now = utc_now()
@@ -149,6 +146,34 @@ def _write_bankroll_event(
     )
     session.add(event_row)
     strategy.bankroll_cents = balance_after_cents
+    session.flush()
+    return cash_event_from_row(event_row)
+
+
+def _write_bankroll_event(
+    session: Session,
+    *,
+    strategy: StrategyInstanceRow,
+    kind: CashEventKind,
+    amount_cents: int,
+    balance_after_cents: int,
+    reason: str,
+    actor: AuditActor,
+    request_id: str,
+    audit_action: str,
+    before_state: dict[str, Any],
+    after_state: dict[str, Any],
+    ref_position_id: str | None = None,
+) -> CashEvent:
+    event = _append_cash_event(
+        session,
+        strategy=strategy,
+        kind=kind,
+        amount_cents=amount_cents,
+        balance_after_cents=balance_after_cents,
+        reason=reason,
+        ref_position_id=ref_position_id,
+    )
     _touch_strategy(strategy)
     _append_audit(
         session,
@@ -162,7 +187,16 @@ def _write_bankroll_event(
         request_id=request_id,
     )
     session.flush()
-    return cash_event_from_row(event_row)
+    return event
+
+
+def _starting_baseline_state(strategy: StrategyInstanceRow) -> dict[str, Any]:
+    return {
+        "bankrollCents": strategy.bankroll_cents,
+        "initialDepositCents": strategy.initial_deposit_cents,
+        "bankrollHwmCents": strategy.bankroll_hwm_cents,
+        "minBankrollCents": strategy.config_jsonb.get("min_bankroll_cents"),
+    }
 
 
 def deposit(
@@ -244,27 +278,6 @@ def withdraw(
     )
 
 
-def _require_pre_soak_strategy(session: Session, strategy_name: str) -> None:
-    signal_count = session.scalar(
-        select(func.count()).select_from(SignalRow).where(SignalRow.strategy_name == strategy_name)
-    )
-    position_count = session.scalar(
-        select(func.count())
-        .select_from(PaperPositionRow)
-        .where(PaperPositionRow.strategy_name == strategy_name)
-    )
-    fill_count = session.scalar(
-        select(func.count())
-        .select_from(PaperFillRow)
-        .join(PaperPositionRow, PaperFillRow.position_id == PaperPositionRow.id)
-        .where(PaperPositionRow.strategy_name == strategy_name)
-    )
-    if signal_count or position_count or fill_count:
-        raise LedgerError(
-            "Starting bankroll can only be set before signals, fills, or positions exist"
-        )
-
-
 def set_starting_bankroll(
     session: Session,
     strategy_name: str,
@@ -281,52 +294,27 @@ def set_starting_bankroll(
     strategy = _lock_strategy_row(session, strategy_name)
     if StrategyState(strategy.state) == StrategyState.DECOMMISSIONED:
         raise LedgerError("Strategy is decommissioned")
-    _require_pre_soak_strategy(session, strategy_name)
+    if strategy_has_trading_activity(session, strategy_name):
+        raise LedgerError(
+            "Starting bankroll can only be set before signals, fills, or positions exist"
+        )
 
-    before = {
-        "bankrollCents": strategy.bankroll_cents,
-        "initialDepositCents": strategy.initial_deposit_cents,
-        "bankrollHwmCents": strategy.bankroll_hwm_cents,
-    }
+    before = _starting_baseline_state(strategy)
     delta = amount_cents - strategy.bankroll_cents
-    if delta > 0:
-        _write_bankroll_event(
+    if delta:
+        kind = CashEventKind.DEPOSIT if delta > 0 else CashEventKind.WITHDRAW
+        _append_cash_event(
             session,
             strategy=strategy,
-            kind=CashEventKind.DEPOSIT,
+            kind=kind,
             amount_cents=delta,
             balance_after_cents=amount_cents,
             reason=reason,
-            actor=actor,
-            request_id=request_id,
-            audit_action="set_starting_bankroll_deposit",
-            before_state={"bankrollCents": before["bankrollCents"]},
-            after_state={"bankrollCents": amount_cents},
-        )
-    elif delta < 0:
-        _write_bankroll_event(
-            session,
-            strategy=strategy,
-            kind=CashEventKind.WITHDRAW,
-            amount_cents=delta,
-            balance_after_cents=amount_cents,
-            reason=reason,
-            actor=actor,
-            request_id=request_id,
-            audit_action="set_starting_bankroll_withdraw",
-            before_state={"bankrollCents": before["bankrollCents"]},
-            after_state={"bankrollCents": amount_cents},
         )
 
-    strategy.initial_deposit_cents = amount_cents
-    strategy.bankroll_hwm_cents = amount_cents
-    strategy.hwm_reset_at = None
+    apply_starting_baseline(strategy, amount_cents)
     _touch_strategy(strategy)
-    after = {
-        "bankrollCents": strategy.bankroll_cents,
-        "initialDepositCents": strategy.initial_deposit_cents,
-        "bankrollHwmCents": strategy.bankroll_hwm_cents,
-    }
+    after = _starting_baseline_state(strategy)
     _append_audit(
         session,
         actor=actor,

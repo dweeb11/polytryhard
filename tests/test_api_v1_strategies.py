@@ -53,6 +53,8 @@ def test_set_starting_bankroll_updates_pre_soak_baseline(
     assert payload["bankrollCents"] == 25_000
     assert payload["initialDepositCents"] == 25_000
     assert payload["bankrollHwmCents"] == 25_000
+    assert payload["config"]["minBankrollCents"] == 25_000
+    assert payload["config"]["minTradeableBankrollCents"] == 5_000
 
 
 def test_set_starting_bankroll_rejects_after_signal(

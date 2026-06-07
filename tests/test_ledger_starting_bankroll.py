@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from core.db.models import AuditEventRow, CashEventRow, SignalRow, StrategyInstanceRow
-from core.domain.enums import AuditActor, SignalOutcome
+from core.domain.enums import AuditActor, CashEventKind, SignalOutcome
 from core.ledger import writer
 from core.ledger.errors import LedgerError
 from core.ledger.seed import seed_strategies_if_needed
@@ -37,6 +37,8 @@ def test_set_starting_bankroll_writes_delta_and_baseline(
     assert strategy.bankroll_cents == 25_000
     assert strategy.initial_deposit_cents == 25_000
     assert strategy.bankroll_hwm_cents == 25_000
+    assert strategy.config_jsonb["min_bankroll_cents"] == 25_000
+    assert strategy.config_jsonb["min_tradeable_bankroll_cents"] == 5_000
 
     events = session.scalars(
         select(CashEventRow)
@@ -51,8 +53,43 @@ def test_set_starting_bankroll_writes_delta_and_baseline(
             AuditEventRow.target_id == "weather_ensemble_disagreement"
         )
     ).all()
-    assert "set_starting_bankroll_deposit" in actions
     assert "set_starting_bankroll" in actions
+    assert "set_starting_bankroll_deposit" not in actions
+    assert "set_starting_bankroll_withdraw" not in actions
+    session.close()
+
+
+def test_set_starting_bankroll_writes_withdraw_delta(
+    per_env_session_factory: sessionmaker[Session],
+) -> None:
+    session = _seeded_session(per_env_session_factory)
+    writer.set_starting_bankroll(
+        session,
+        "weather_stale_quote",
+        5_000,
+        "lower pre-soak bankroll",
+        AuditActor.USER,
+        "rq-start",
+    )
+    session.commit()
+
+    strategy = session.get(StrategyInstanceRow, "weather_stale_quote")
+    assert strategy is not None
+    assert strategy.bankroll_cents == 5_000
+    assert strategy.initial_deposit_cents == 5_000
+    assert strategy.bankroll_hwm_cents == 5_000
+    assert strategy.config_jsonb["min_bankroll_cents"] == 5_000
+    assert strategy.config_jsonb["min_tradeable_bankroll_cents"] == 5_000
+
+    events = session.scalars(
+        select(CashEventRow)
+        .where(CashEventRow.strategy_name == "weather_stale_quote")
+        .order_by(CashEventRow.occurred_at)
+    ).all()
+    assert len(events) == 2
+    assert events[-1].kind == CashEventKind.WITHDRAW.value
+    assert events[-1].amount_cents == -5_000
+    assert events[-1].balance_after_cents == 5_000
     session.close()
 
 
@@ -60,6 +97,11 @@ def test_set_starting_bankroll_can_correct_hwm_without_delta(
     per_env_session_factory: sessionmaker[Session],
 ) -> None:
     session = _seeded_session(per_env_session_factory)
+    strategy = session.get(StrategyInstanceRow, "weather_stale_quote")
+    assert strategy is not None
+    strategy.bankroll_hwm_cents = 0
+    session.commit()
+
     writer.set_starting_bankroll(
         session,
         "weather_stale_quote",
@@ -75,6 +117,7 @@ def test_set_starting_bankroll_can_correct_hwm_without_delta(
     assert strategy.bankroll_cents == 10_000
     assert strategy.initial_deposit_cents == 10_000
     assert strategy.bankroll_hwm_cents == 10_000
+    assert strategy.config_jsonb["min_bankroll_cents"] == 10_000
     event_count = session.scalar(
         select(func.count())
         .select_from(CashEventRow)
