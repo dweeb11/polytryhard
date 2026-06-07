@@ -27,8 +27,17 @@ class ApiClient:
             url,
             headers={"Authorization": f"Bearer {self.token}"},
         )
-        with urllib.request.urlopen(request, timeout=20) as response:
-            return json.loads(response.read().decode("utf-8"))
+        try:
+            with urllib.request.urlopen(request, timeout=20) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            if exc.fp is not None:
+                body = exc.read().decode("utf-8")
+                if body:
+                    payload = json.loads(body)
+                    if exc.code == 503 and isinstance(payload, dict):
+                        return payload
+            raise
 
 
 def cents(value: int | float | None) -> str:
@@ -88,14 +97,26 @@ def render_snapshot(snapshot: dict[str, Any]) -> str:
     lines = [
         f"M6 staging soak snapshot @ {snapshot['captured_at']}",
         "",
-        "Health",
-        f"- API: {health.get('status')} shared_db={health.get('dbShared')} "
-        f"per_env_db={health.get('dbPerEnv')}",
     ]
-    scheduler = health.get("schedulerCycle")
+    if health.get("status") != "ok":
+        lines.extend(
+            [
+                f"*** DEGRADED: API status={health.get('status')} ***",
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            "Health",
+            f"- API: {health.get('status')} shared_db={health.get('db_shared')} "
+            f"per_env_db={health.get('db_per_env')}",
+        ]
+    )
+    scheduler = health.get("scheduler_cycle")
     if scheduler:
         lines.append(
-            f"- Scheduler: {scheduler.get('status')} last_success={scheduler.get('lastSuccessAt')}"
+            f"- Scheduler: {scheduler.get('status')} "
+            f"last_success={scheduler.get('last_success_at')}"
         )
 
     lines.extend(["", "Sources"])
