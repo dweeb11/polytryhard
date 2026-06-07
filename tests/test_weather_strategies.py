@@ -50,6 +50,25 @@ def _features(**overrides: Decimal) -> dict[str, FeatureValue]:
     return result
 
 
+def _baseline_config_jsonb(**overrides: object) -> dict[str, object]:
+    config: dict[str, object] = {
+        "min_bankroll_cents": 10_000,
+        "min_tradeable_bankroll_cents": 5_000,
+        "max_drawdown_pct_from_hwm": 30,
+        "auto_resume_on_deposit": True,
+        "max_input_age_seconds": 900,
+    }
+    config.update(overrides)
+    return config
+
+
+def _strategy_context(strategy_name: str, **config_overrides: object) -> StrategyContext:
+    return StrategyContext(
+        strategy_name=strategy_name,
+        config_jsonb=_baseline_config_jsonb(**config_overrides),
+    )
+
+
 def test_weather_strategies_registered() -> None:
     names = {strategy.name for strategy in registered_strategies()}
     assert names == {"weather_ensemble_disagreement", "weather_stale_quote"}
@@ -60,7 +79,7 @@ def test_weather_ensemble_disagreement_emits_on_divergence() -> None:
     signal = strategy.evaluate(
         _market(),
         _features(),
-        StrategyContext(strategy_name=strategy.name, config_jsonb={}),
+        _strategy_context(strategy.name),
     )
     assert signal is not None
     assert signal.side in {PositionSide.YES, PositionSide.NO}
@@ -71,7 +90,7 @@ def test_weather_ensemble_disagreement_rejects_low_disagreement() -> None:
     signal = strategy.evaluate(
         _market(),
         _features(forecast_disagreement=Decimal("0.5")),
-        StrategyContext(strategy_name=strategy.name, config_jsonb={}),
+        _strategy_context(strategy.name),
     )
     assert signal is None
 
@@ -86,7 +105,7 @@ def test_weather_ensemble_disagreement_rejects_insufficient_divergence() -> None
             forecast_disagreement=Decimal("5"),
             kalshi_spread=Decimal("0.15"),
         ),
-        StrategyContext(strategy_name=strategy.name, config_jsonb={}),
+        _strategy_context(strategy.name),
     )
     assert signal is None
 
@@ -104,7 +123,7 @@ def test_weather_ensemble_disagreement_rejects_missing_features() -> None:
     signal = strategy.evaluate(
         _market(),
         features,
-        StrategyContext(strategy_name=strategy.name, config_jsonb={}),
+        _strategy_context(strategy.name),
     )
     assert signal is None
 
@@ -114,7 +133,7 @@ def test_weather_stale_quote_emits_on_wide_spread() -> None:
     signal = strategy.evaluate(
         _market(mid_yes=Decimal("0.50")),
         _features(kalshi_spread=Decimal("0.12")),
-        StrategyContext(strategy_name=strategy.name, config_jsonb={}),
+        _strategy_context(strategy.name),
     )
     assert signal is not None
 
@@ -124,6 +143,6 @@ def test_weather_stale_quote_rejects_tight_spread() -> None:
     signal = strategy.evaluate(
         _market(mid_yes=Decimal("0.50")),
         _features(kalshi_spread=Decimal("0.02")),
-        StrategyContext(strategy_name=strategy.name, config_jsonb={}),
+        _strategy_context(strategy.name),
     )
     assert signal is None

@@ -2,6 +2,7 @@ import {
 	audit,
 	bankrollHistoryByStrategy,
 	calibrationByStrategy,
+	cashEvents,
 	evalByStrategy,
 	evalRoster,
 	positions,
@@ -16,6 +17,8 @@ import type {
 	AuditEvent,
 	BankrollPoint,
 	CalibrationBucket,
+	CashEvent,
+	CashEventKind,
 	EvalRosterEntryView,
 	EvalSnapshotView,
 	KnownSignalOutcome,
@@ -151,6 +154,24 @@ export function mapCashEventsToBankroll(
 		.sort((a, b) => -compareIsoDesc(a.at, b.at));
 }
 
+export function mapCashEventRecord(entry: Record<string, unknown>): CashEvent {
+	return {
+		id: String(entry.id ?? ''),
+		strategyName: String(entry.strategyName ?? ''),
+		occurredAt: String(entry.occurredAt ?? ''),
+		kind: String(entry.kind ?? 'deposit') as CashEventKind,
+		amountCents: Number(entry.amountCents ?? 0),
+		balanceAfterCents: Number(entry.balanceAfterCents ?? 0),
+		reason: String(entry.reason ?? ''),
+		refPositionId:
+			typeof entry.refPositionId === 'string'
+				? entry.refPositionId
+				: entry.refPositionId == null
+					? null
+					: String(entry.refPositionId)
+	};
+}
+
 export async function hydrateStrategyEval(name: string): Promise<void> {
 	const detail = (await apiGet(`/v1/eval/${name}`)) as {
 		strategyName: string;
@@ -168,6 +189,11 @@ export async function hydrateStrategyEval(name: string): Promise<void> {
 	const events = (await apiGet(`/v1/strategies/${name}/cash-events`)) as Array<
 		Record<string, unknown>
 	>;
+	const mappedEvents = events.map(mapCashEventRecord);
+	cashEvents.update((current) => [
+		...mappedEvents,
+		...current.filter((event) => event.strategyName !== name)
+	]);
 	bankrollHistoryByStrategy.update((m) => ({ ...m, [name]: mapCashEventsToBankroll(events) }));
 }
 

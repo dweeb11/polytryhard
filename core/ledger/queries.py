@@ -1,13 +1,14 @@
 from datetime import UTC, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, exists, func, or_, select
 from sqlalchemy.orm import Session
 
 from core.db.enums import PositionStatus
 from core.db.models import (
     AuditEventRow,
     CashEventRow,
+    PaperFillRow,
     PaperPositionRow,
     SignalRow,
     StrategyInstanceRow,
@@ -24,7 +25,7 @@ from core.domain.enums import (
     StrategyState,
     SystemState,
 )
-from core.domain.strategy import StrategyConfig, StrategyInstance
+from core.domain.strategy import StrategyConfig, StrategyInstance, effective_strategy_config
 from core.domain.system import SystemEnvState
 from core.domain.trading import PaperPositionRecord, SignalRecord
 from core.features.queries import latest_market_snapshots_by_ticker
@@ -32,8 +33,7 @@ from core.utils.time import format_dt, parse_iso, utc_now
 
 
 def _strategy_config(row: StrategyInstanceRow) -> StrategyConfig:
-    raw = row.config_jsonb
-    return StrategyConfig.model_validate(raw)
+    return effective_strategy_config(row.config_jsonb, strategy_name=row.name)
 
 
 def strategy_instance_from_row(row: StrategyInstanceRow) -> StrategyInstance:
@@ -91,6 +91,31 @@ def system_state_from_row(row: SystemStateRow) -> SystemEnvState:
 
 def get_strategy(session: Session, name: str) -> StrategyInstanceRow | None:
     return session.get(StrategyInstanceRow, name)
+
+
+def strategy_has_trading_activity(session: Session, strategy_name: str) -> bool:
+    stmt = (
+        select(1)
+        .where(
+            or_(
+                exists(
+                    select(SignalRow.id).where(SignalRow.strategy_name == strategy_name)
+                ),
+                exists(
+                    select(PaperPositionRow.id).where(
+                        PaperPositionRow.strategy_name == strategy_name
+                    )
+                ),
+                exists(
+                    select(PaperFillRow.id)
+                    .join(PaperPositionRow, PaperFillRow.position_id == PaperPositionRow.id)
+                    .where(PaperPositionRow.strategy_name == strategy_name)
+                ),
+            )
+        )
+        .limit(1)
+    )
+    return session.scalar(stmt) is not None
 
 
 def list_strategies(session: Session) -> list[StrategyInstance]:

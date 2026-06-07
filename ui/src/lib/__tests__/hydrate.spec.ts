@@ -17,6 +17,7 @@ import {
 	audit,
 	bankrollHistoryByStrategy,
 	calibrationByStrategy,
+	cashEvents,
 	evalByStrategy,
 	evalRoster,
 	positions,
@@ -323,10 +324,41 @@ describe('hydrateStrategyEval', () => {
 				});
 			if (path === `/v1/strategies/${name}/cash-events`)
 				return Promise.resolve([
-					{ occurredAt: '2026-06-01T00:00:00Z', balanceAfterCents: 10300 }
+					{
+						id: 'live-cash-1',
+						strategyName: name,
+						occurredAt: '2026-06-01T00:00:00Z',
+						kind: 'deposit',
+						amountCents: 10300,
+						balanceAfterCents: 10300,
+						reason: 'seed',
+						refPositionId: null
+					}
 				]);
 			return Promise.reject(new Error(`unexpected path: ${path}`));
 		});
+		cashEvents.set([
+			{
+				id: 'stale-fixture-cash',
+				strategyName: name,
+				occurredAt: '2026-05-01T00:00:00Z',
+				kind: 'realized_pnl',
+				amountCents: 25000,
+				balanceAfterCents: 125000,
+				reason: 'fixture',
+				refPositionId: null
+			},
+			{
+				id: 'other-strategy-cash',
+				strategyName: 'weather_stale_quote',
+				occurredAt: '2026-05-01T00:00:00Z',
+				kind: 'deposit',
+				amountCents: 10000,
+				balanceAfterCents: 10000,
+				reason: 'other',
+				refPositionId: null
+			}
+		]);
 
 		await hydrateStrategyEval(name);
 
@@ -334,5 +366,19 @@ describe('hydrateStrategyEval', () => {
 		expect(get(evalByStrategy)[name].windows[0].window).toBe('30d');
 		expect(get(calibrationByStrategy)[name][0].predicted).toBe(0.55);
 		expect(get(bankrollHistoryByStrategy)[name][0].bankrollCents).toBe(10300);
+		expect(get(cashEvents).filter((event) => event.strategyName === name)).toEqual([
+			{
+				id: 'live-cash-1',
+				strategyName: name,
+				occurredAt: '2026-06-01T00:00:00Z',
+				kind: 'deposit',
+				amountCents: 10300,
+				balanceAfterCents: 10300,
+				reason: 'seed',
+				refPositionId: null
+			}
+		]);
+		expect(get(cashEvents).some((event) => event.id === 'stale-fixture-cash')).toBe(false);
+		expect(get(cashEvents).some((event) => event.id === 'other-strategy-cash')).toBe(true);
 	});
 });
