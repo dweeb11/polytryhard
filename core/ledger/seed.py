@@ -7,10 +7,10 @@ from core.db.enums import StrategyState as DbStrategyState
 from core.db.models import StrategyInstanceRow
 from core.domain.enums import AuditActor
 from core.ledger import writer
+from core.ledger.baseline import config_with_starting_baseline
 from core.utils.time import utc_now
 
 DEFAULT_INITIAL_BANKROLL_CENTS = 10_000
-DEFAULT_MIN_TRADEABLE_BANKROLL_CENTS = 5_000
 
 SEED_STRATEGY_NAMES: tuple[str, ...] = (
     "weather_ensemble_disagreement",
@@ -42,16 +42,6 @@ SEED_STRATEGIES: tuple[tuple[str, dict[str, object]], ...] = (
 )
 
 
-def _seed_config(base: dict[str, object], initial_deposit_cents: int) -> dict[str, object]:
-    config = dict(base)
-    config["min_bankroll_cents"] = initial_deposit_cents
-    config["min_tradeable_bankroll_cents"] = min(
-        initial_deposit_cents,
-        DEFAULT_MIN_TRADEABLE_BANKROLL_CENTS,
-    )
-    return config
-
-
 def seed_strategies_if_needed(
     session: Session,
     *,
@@ -64,7 +54,7 @@ def seed_strategies_if_needed(
         if session.get(StrategyInstanceRow, name) is not None:
             continue
         initial_deposit_cents = overrides.get(name, initial_bankroll_cents)
-        config = _seed_config(base_config, initial_deposit_cents)
+        config = config_with_starting_baseline(base_config, initial_deposit_cents)
         now = utc_now()
         session.add(
             StrategyInstanceRow(
