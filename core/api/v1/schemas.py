@@ -21,6 +21,11 @@ class SetKellyBody(ApiModel):
     reason: str
 
 
+class SetStartingBankrollBody(ApiModel):
+    amount_cents: int = Field(gt=0)
+    reason: str
+
+
 class SourceHealthEntry(ApiModel):
     name: str
     enabled: bool

@@ -2,7 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from core.api.v1.deps import get_request_id, per_env_db, shared_db, verify_bearer_token
-from core.api.v1.schemas import AmountReasonBody, ReasonBody, SetKellyBody, SourceHealthEntry
+from core.api.v1.schemas import (
+    AmountReasonBody,
+    ReasonBody,
+    SetKellyBody,
+    SetStartingBankrollBody,
+    SourceHealthEntry,
+)
 from core.domain.audit import AuditEvent
 from core.domain.cash_event import CashEvent
 from core.domain.enums import AuditActor
@@ -113,6 +119,30 @@ def withdraw_route(
         check_bankroll_invariant(session, name)
         session.commit()
         return event
+    except LedgerError as exc:
+        session.rollback()
+        raise _ledger_error(exc) from exc
+
+
+@router.post("/strategies/{name}/set-starting-bankroll", response_model=StrategyInstance)
+def set_starting_bankroll_route(
+    name: str,
+    body: SetStartingBankrollBody,
+    session: Session = Depends(per_env_db),
+    request_id: str = Depends(get_request_id),
+) -> StrategyInstance:
+    try:
+        row = writer.set_starting_bankroll(
+            session,
+            name,
+            body.amount_cents,
+            body.reason,
+            AuditActor.USER,
+            request_id,
+        )
+        check_bankroll_invariant(session, name)
+        session.commit()
+        return strategy_instance_from_row(row)
     except LedgerError as exc:
         session.rollback()
         raise _ledger_error(exc) from exc

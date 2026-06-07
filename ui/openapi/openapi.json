@@ -235,6 +235,55 @@
         }
       }
     },
+    "/v1/strategies/{name}/set-starting-bankroll": {
+      "post": {
+        "summary": "Set Starting Bankroll Route",
+        "operationId": "set_starting_bankroll_route_v1_strategies__name__set_starting_bankroll_post",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetStartingBankrollBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StrategyInstance"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/strategies/{name}/pause": {
       "post": {
         "summary": "Pause Route",
@@ -1509,6 +1558,25 @@
         ],
         "title": "SetKellyBody"
       },
+      "SetStartingBankrollBody": {
+        "properties": {
+          "amountCents": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Amountcents"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "amountCents",
+          "reason"
+        ],
+        "title": "SetStartingBankrollBody"
+      },
       "SignalOutcome": {
         "type": "string",
         "enum": [
@@ -1695,6 +1763,72 @@
           "maxInputAgeSeconds": {
             "type": "integer",
             "title": "Maxinputageseconds"
+          },
+          "confidenceFloor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidencefloor"
+          },
+          "disagreementThreshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disagreementthreshold"
+          },
+          "spreadMarginMultiplier": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spreadmarginmultiplier"
+          },
+          "wideSpreadThreshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Widespreadthreshold"
+          },
+          "exposureCapPct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exposurecappct"
+          },
+          "correlationCapPct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correlationcappct"
           }
         },
         "type": "object",

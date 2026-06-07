@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from core.domain.feature import FeatureStatus, FeatureValue
 from core.domain.market import MarketState, SignalDraft
+from core.domain.strategy import StrategyConfig, effective_strategy_config
 from core.settings import Settings
 
 
@@ -13,6 +14,12 @@ class StrategyContext:
     strategy_name: str
     config_jsonb: dict[str, object]
     tolerate_missing_features: bool = False
+
+    def effective_config(self) -> StrategyConfig:
+        return effective_strategy_config(
+            self.config_jsonb,
+            strategy_name=self.strategy_name,
+        )
 
 
 class Strategy(ABC):

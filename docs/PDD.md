@@ -446,8 +446,8 @@ When a strategy graduates from staging to main, its track record is **re-derived
 
 | Parameter | Default | Effect |
 |---|---|---|
-| `min_bankroll_cents` | 10% of initial deposit | Below → auto-pause to `low_bankroll_paused` |
-| `min_tradeable_bankroll_cents` | max(min_bankroll, Kalshi min-order × 10) | Below → sizing returns `rejected_below_min_position`; auto-pause after N consecutive |
+| `min_bankroll_cents` | equals initial deposit at seed (M6.1); 10% of initial deposit is the long-term default target | Below → auto-pause to `low_bankroll_paused` |
+| `min_tradeable_bankroll_cents` | min(initial deposit, $50 paper floor) at seed (M6.1); max(min_bankroll, Kalshi min-order × 10) long-term | Below → sizing returns `rejected_below_min_position`; auto-pause after N consecutive |
 | `max_drawdown_pct_from_hwm` | 30% | Trip → auto-pause to `drawdown_paused` |
 | `auto_resume_on_deposit` | true | Deposit lifting bankroll above floor → auto-`active` |
 | `low_bankroll_consecutive_rejections` | 5 | Auto-pause threshold for repeated min-position rejections |

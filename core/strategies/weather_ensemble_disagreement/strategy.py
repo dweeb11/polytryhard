@@ -8,7 +8,6 @@ from core.domain.feature import FeatureValue
 from core.domain.market import MarketState, SignalDraft
 from core.settings import Settings
 from core.strategies.weather_utils import (
-    config_float,
     ensemble_to_prob,
     location_for_series,
     numeric_feature,
@@ -58,13 +57,10 @@ class WeatherEnsembleDisagreementStrategy(Strategy):
         if disagreement is None or spread is None or ensemble_mean is None or mid is None:
             return None
 
-        disagreement_threshold = Decimal(
-            str(config_float(ctx.config_jsonb, "disagreementThreshold", 2.0))
-        )
-        spread_margin = Decimal(
-            str(config_float(ctx.config_jsonb, "spreadMarginMultiplier", 1.5))
-        )
-        confidence_floor = Decimal(str(config_float(ctx.config_jsonb, "confidenceFloor", 0.55)))
+        config = ctx.effective_config()
+        disagreement_threshold = Decimal(str(config.disagreement_threshold))
+        spread_margin = Decimal(str(config.spread_margin_multiplier))
+        confidence_floor = Decimal(str(config.confidence_floor))
 
         if disagreement < disagreement_threshold:
             return None

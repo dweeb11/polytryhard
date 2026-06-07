@@ -54,6 +54,12 @@ export interface StrategyConfig {
 	maxDrawdownPctFromHwm: number;
 	autoResumeOnDeposit: boolean;
 	maxInputAgeSeconds: number;
+	confidenceFloor?: number | null;
+	disagreementThreshold?: number | null;
+	spreadMarginMultiplier?: number | null;
+	wideSpreadThreshold?: number | null;
+	exposureCapPct?: number | null;
+	correlationCapPct?: number | null;
 }
 
 export interface StrategyInstance {

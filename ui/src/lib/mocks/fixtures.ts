@@ -6,7 +6,21 @@ const defaultConfig = {
 	minTradeableBankrollCents: 5_000,
 	maxDrawdownPctFromHwm: 30,
 	autoResumeOnDeposit: true,
-	maxInputAgeSeconds: 900
+	maxInputAgeSeconds: 900,
+	confidenceFloor: 0.55,
+	exposureCapPct: 0.1,
+	correlationCapPct: 0.05
+};
+
+const ensembleConfig = {
+	...defaultConfig,
+	disagreementThreshold: 2.0,
+	spreadMarginMultiplier: 1.5
+};
+
+const staleQuoteConfig = {
+	...defaultConfig,
+	wideSpreadThreshold: 0.08
 };
 
 function hoursAgo(h: number): string {
@@ -164,7 +178,7 @@ function seedFixture(): EnvSnapshot {
 			bankrollHwmCents: 140_000,
 			initialDepositCents: 100_000,
 			kellyFraction: 0.25,
-			config: defaultConfig,
+			config: ensembleConfig,
 			lastStateChangeAt: hoursAgo(72),
 			todayPnlCents: 2_400
 		},
@@ -176,7 +190,7 @@ function seedFixture(): EnvSnapshot {
 			bankrollHwmCents: 100_000,
 			initialDepositCents: 80_000,
 			kellyFraction: 0.2,
-			config: defaultConfig,
+			config: staleQuoteConfig,
 			lastStateChangeAt: hoursAgo(12),
 			todayPnlCents: -1_100
 		},

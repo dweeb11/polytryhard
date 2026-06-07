@@ -9,13 +9,16 @@ from core.db.models import PaperPositionRow, StrategyInstanceRow
 from core.domain.enums import PositionSide, SignalOutcome, SystemState
 from core.domain.feature import FeatureStatus, FeatureValue
 from core.domain.market import MarketState, SignalDraft
-from core.domain.strategy import StrategyConfig
+from core.domain.strategy import (
+    DEFAULT_CORRELATION_CAP_PCT,
+    DEFAULT_EXPOSURE_CAP_PCT,
+    StrategyConfig,
+    effective_strategy_config,
+)
 from core.domain.system import SystemEnvState
 from core.domain.trading import Order, Rejection
 from core.strategies.weather_utils import location_for_series
 
-DEFAULT_EXPOSURE_CAP_PCT = 0.5
-DEFAULT_CONFIDENCE_FLOOR = 0.55
 MIN_QTY = 1
 PRICE_SCALE = Decimal("100")
 
@@ -36,20 +39,15 @@ def size_order(input_data: SizingInput) -> Order | Rejection:
     if input_data.system_state.state == SystemState.PAUSED:
         return Rejection(SignalOutcome.REJECTED_SYSTEM_PAUSED, "system paused")
 
-    config = StrategyConfig.model_validate(input_data.strategy.config_jsonb)
+    config = effective_strategy_config(
+        input_data.strategy.config_jsonb,
+        strategy_name=input_data.strategy.name,
+    )
     stale = _stale_feature(config.max_input_age_seconds, input_data.features, input_data.market)
     if stale is not None:
         return Rejection(SignalOutcome.REJECTED_STALE_INPUTS, stale)
 
-    confidence_floor = Decimal(
-        str(
-            _config_float(
-                input_data.strategy.config_jsonb,
-                "confidenceFloor",
-                DEFAULT_CONFIDENCE_FLOOR,
-            )
-        )
-    )
+    confidence_floor = Decimal(str(config.confidence_floor))
     if input_data.signal.confidence < confidence_floor:
         return Rejection(SignalOutcome.REJECTED_BELOW_THRESHOLD, "below confidence threshold")
 
@@ -85,10 +83,10 @@ def size_order(input_data: SizingInput) -> Order | Rejection:
     if cost_basis_cents > input_data.free_cash_cents:
         return Rejection(SignalOutcome.REJECTED_BELOW_MIN_POSITION, "insufficient free cash")
 
-    if _exposure_cap_exceeded(input_data, cost_basis_cents):
+    if _exposure_cap_exceeded(input_data, cost_basis_cents, config):
         return Rejection(SignalOutcome.REJECTED_EXPOSURE_CAP, "global exposure cap")
 
-    if _correlation_cap_exceeded(input_data, cost_basis_cents):
+    if _correlation_cap_exceeded(input_data, cost_basis_cents, config):
         return Rejection(SignalOutcome.REJECTED_CORRELATION_CAP, "correlation cap")
 
     return Order(
@@ -98,13 +96,6 @@ def size_order(input_data: SizingInput) -> Order | Rejection:
         limit_price=price,
         cost_basis_cents=cost_basis_cents,
     )
-
-
-def _config_float(config: dict[str, object], key: str, default: float) -> float:
-    raw = config.get(key, default)
-    if isinstance(raw, (int, float)):
-        return float(raw)
-    return default
 
 
 def _entry_price(side: PositionSide, market: MarketState) -> Decimal | None:
@@ -142,11 +133,15 @@ def _stale_feature(
     return None
 
 
-def _exposure_cap_exceeded(input_data: SizingInput, new_cost_basis_cents: int) -> bool:
-    cap_pct = _config_float(
-        input_data.strategy.config_jsonb,
-        "exposureCapPct",
-        DEFAULT_EXPOSURE_CAP_PCT,
+def _exposure_cap_exceeded(
+    input_data: SizingInput,
+    new_cost_basis_cents: int,
+    config: StrategyConfig,
+) -> bool:
+    cap_pct = (
+        config.exposure_cap_pct
+        if config.exposure_cap_pct is not None
+        else DEFAULT_EXPOSURE_CAP_PCT
     )
     open_cost = sum(
         pos.cost_basis_cents
@@ -158,7 +153,11 @@ def _exposure_cap_exceeded(input_data: SizingInput, new_cost_basis_cents: int) -
     return total_exposure > cap
 
 
-def _correlation_cap_exceeded(input_data: SizingInput, new_cost_basis_cents: int) -> bool:
+def _correlation_cap_exceeded(
+    input_data: SizingInput,
+    new_cost_basis_cents: int,
+    config: StrategyConfig,
+) -> bool:
     settlement_key = _settlement_key(input_data.market.ticker)
     if settlement_key is None:
         return False
@@ -167,10 +166,10 @@ def _correlation_cap_exceeded(input_data: SizingInput, new_cost_basis_cents: int
         for pos in input_data.open_positions
         if pos.status == PositionStatus.OPEN and _settlement_key(pos.ticker) == settlement_key
     )
-    cap_pct = _config_float(
-        input_data.strategy.config_jsonb,
-        "correlationCapPct",
-        DEFAULT_EXPOSURE_CAP_PCT,
+    cap_pct = (
+        config.correlation_cap_pct
+        if config.correlation_cap_pct is not None
+        else DEFAULT_CORRELATION_CAP_PCT
     )
     cap = int(input_data.strategy.bankroll_cents * cap_pct)
     return correlated_cost + new_cost_basis_cents > cap
