@@ -8,7 +8,7 @@ from core.domain.enums import AuditActor, StrategyState
 from core.ledger import writer
 from core.ledger.errors import LedgerError
 from core.ledger.reconcile import check_bankroll_invariant
-from core.ledger.seed import INITIAL_DEPOSIT_CENTS, seed_strategies_if_needed
+from core.ledger.seed import seed_strategies_if_needed
 from core.utils.time import utc_now
 
 
@@ -56,7 +56,7 @@ def test_seed_is_idempotent(per_env_session_factory: sessionmaker[Session]) -> N
     row = session.get(StrategyInstanceRow, "weather_ensemble_disagreement")
     assert row is not None
     assert row.state == DbStrategyState.ACTIVE
-    assert row.bankroll_cents == INITIAL_DEPOSIT_CENTS
+    assert row.bankroll_cents == row.initial_deposit_cents
     check_bankroll_invariant(session, row.name)
     activation = session.scalars(
         select(AuditEventRow).where(

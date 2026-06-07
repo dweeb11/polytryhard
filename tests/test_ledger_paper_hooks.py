@@ -13,7 +13,7 @@ from core.ledger import writer
 from core.ledger.errors import LedgerError
 from core.ledger.queries import free_cash_cents
 from core.ledger.reconcile import check_bankroll_invariant
-from core.ledger.seed import INITIAL_DEPOSIT_CENTS, seed_strategies_if_needed
+from core.ledger.seed import seed_strategies_if_needed
 
 
 def _expected_cost(qty: int, price: Decimal) -> int:
@@ -316,7 +316,9 @@ def test_open_paper_position_second_open_fails_when_reserved(
     seed_strategies_if_needed(session, request_id="seed-test")
     strategy_name = "weather_ensemble_disagreement"
     ticker = "KXHIGHNY-25MAY28-T72"
-    first_cost = INITIAL_DEPOSIT_CENTS // 2
+    row = session.get(StrategyInstanceRow, strategy_name)
+    assert row is not None
+    first_cost = row.initial_deposit_cents // 2
 
     writer.open_paper_position(
         session,
