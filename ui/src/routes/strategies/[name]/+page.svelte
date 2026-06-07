@@ -31,6 +31,10 @@
 		PAUSABLE_STATES,
 		RESUMABLE_STATES
 	} from '$lib/utils';
+	import {
+		strategyBaselineConfigRows,
+		strategySoakConfigRows
+	} from '$lib/strategyConfigDisplay';
 	import { evalByStrategy } from '$lib/stores';
 	import { hydrateStrategyEval, mapCalibrationBins } from '$lib/api/hydrate';
 	import { apiMode } from '$lib/api/mode';
@@ -83,6 +87,11 @@
 		outcomeFilter === 'all'
 			? stratSignals
 			: stratSignals.filter((s) => s.outcome === outcomeFilter)
+	);
+
+	const baselineConfigRows = $derived(strat ? strategyBaselineConfigRows(strat.config) : []);
+	const soakConfigRows = $derived(
+		strat ? strategySoakConfigRows(strat.name, strat.config) : []
 	);
 
 	$effect(() => {
@@ -258,6 +267,22 @@
 					placeholder="Reason for pause/resume"
 					bind:value={reason}
 				/>
+				<div class="mt-3 border-t border-[var(--color-border)] pt-3">
+					<h3 class="mb-2 text-xs uppercase text-slate-500">Baseline config</h3>
+					<dl class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 text-xs">
+						{#each baselineConfigRows as row}
+							<dt class="truncate text-slate-500">{row[0]}</dt>
+							<dd class="text-right tabular-nums text-slate-300">{row[1]}</dd>
+						{/each}
+					</dl>
+					<h3 class="mb-2 mt-3 text-xs uppercase text-slate-500">Soak knobs</h3>
+					<dl class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 text-xs">
+						{#each soakConfigRows as row}
+							<dt class="truncate text-slate-500">{row[0]}</dt>
+							<dd class="text-right tabular-nums text-slate-300">{row[1]}</dd>
+						{/each}
+					</dl>
+				</div>
 			</div>
 		</div>
 

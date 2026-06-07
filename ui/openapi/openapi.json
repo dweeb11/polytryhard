@@ -1763,6 +1763,72 @@
           "maxInputAgeSeconds": {
             "type": "integer",
             "title": "Maxinputageseconds"
+          },
+          "confidenceFloor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidencefloor"
+          },
+          "disagreementThreshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disagreementthreshold"
+          },
+          "spreadMarginMultiplier": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spreadmarginmultiplier"
+          },
+          "wideSpreadThreshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Widespreadthreshold"
+          },
+          "exposureCapPct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exposurecappct"
+          },
+          "correlationCapPct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correlationcappct"
           }
         },
         "type": "object",

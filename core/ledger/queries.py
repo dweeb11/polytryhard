@@ -25,7 +25,7 @@ from core.domain.enums import (
     StrategyState,
     SystemState,
 )
-from core.domain.strategy import StrategyConfig, StrategyInstance
+from core.domain.strategy import StrategyConfig, StrategyInstance, effective_strategy_config
 from core.domain.system import SystemEnvState
 from core.domain.trading import PaperPositionRecord, SignalRecord
 from core.features.queries import latest_market_snapshots_by_ticker
@@ -33,8 +33,7 @@ from core.utils.time import format_dt, parse_iso, utc_now
 
 
 def _strategy_config(row: StrategyInstanceRow) -> StrategyConfig:
-    raw = row.config_jsonb
-    return StrategyConfig.model_validate(raw)
+    return effective_strategy_config(row.config_jsonb, strategy_name=row.name)
 
 
 def strategy_instance_from_row(row: StrategyInstanceRow) -> StrategyInstance:

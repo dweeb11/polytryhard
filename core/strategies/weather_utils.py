@@ -53,13 +53,6 @@ def prob_to_temp(prob: Decimal) -> Decimal:
     return prob * Decimal("100") + Decimal("32")
 
 
-def config_float(config: dict[str, object], key: str, default: float) -> float:
-    raw = config.get(key, default)
-    if isinstance(raw, (int, float)):
-        return float(raw)
-    return default
-
-
 def numeric_feature(feature: FeatureValue | None) -> Decimal | None:
     if feature is None or feature.status.value != "present":
         return None
