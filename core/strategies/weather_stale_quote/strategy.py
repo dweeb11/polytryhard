@@ -8,7 +8,6 @@ from core.domain.feature import FeatureValue
 from core.domain.market import MarketState, SignalDraft
 from core.settings import Settings
 from core.strategies.weather_utils import (
-    config_float,
     location_for_series,
     numeric_feature,
     prob_to_temp,
@@ -63,10 +62,9 @@ class WeatherStaleQuoteStrategy(Strategy):
         if spread is None or ensemble_mean is None or mid is None:
             return None
 
-        wide_spread_threshold = Decimal(
-            str(config_float(ctx.config_jsonb, "wideSpreadThreshold", 0.08))
-        )
-        confidence_floor = Decimal(str(config_float(ctx.config_jsonb, "confidenceFloor", 0.55)))
+        config = ctx.effective_config()
+        wide_spread_threshold = Decimal(str(config.wide_spread_threshold))
+        confidence_floor = Decimal(str(config.confidence_floor))
 
         if spread < wide_spread_threshold:
             return None

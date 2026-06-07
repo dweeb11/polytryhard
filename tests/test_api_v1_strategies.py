@@ -2,9 +2,9 @@ from decimal import Decimal
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
-from core.db.models import SignalRow
+from core.db.models import SignalRow, StrategyInstanceRow
 from core.domain.enums import SignalOutcome
 from core.utils.time import utc_now
 
@@ -41,6 +41,29 @@ def test_list_strategies_exposes_effective_soak_config(
     assert stale["wideSpreadThreshold"] == 0.08
     assert stale["exposureCapPct"] == 0.10
     assert stale["correlationCapPct"] == 0.05
+
+
+def test_list_strategies_applies_runtime_defaults_for_legacy_rows(
+    api_client: TestClient,
+    auth_headers: dict[str, str],
+    per_env_session_factory: sessionmaker[Session],
+) -> None:
+    api_client.get("/v1/strategies", headers=auth_headers)
+    with per_env_session_factory() as session:
+        row = session.get(StrategyInstanceRow, "weather_ensemble_disagreement")
+        assert row is not None
+        config = dict(row.config_jsonb)
+        config.pop("exposureCapPct", None)
+        config.pop("correlationCapPct", None)
+        row.config_jsonb = config
+        session.commit()
+
+    response = api_client.get("/v1/strategies", headers=auth_headers)
+    assert response.status_code == 200
+    rows = {item["name"]: item for item in response.json()}
+    ensemble = rows["weather_ensemble_disagreement"]["config"]
+    assert ensemble["exposureCapPct"] == 0.5
+    assert ensemble["correlationCapPct"] == 0.5
 
 
 def test_deposit_mutation_updates_bankroll(
