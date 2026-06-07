@@ -1,9 +1,12 @@
+import importlib.util
 import io
 import json
 import sys
 import urllib.error
 from dataclasses import dataclass
+from email.message import Message
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 from unittest.mock import patch
 
@@ -13,17 +16,23 @@ from core.api.main import create_app
 from core.scheduler import CycleHealth, Scheduler
 from core.settings import Settings
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS_ROOT = REPO_ROOT / "scripts"
-if str(SCRIPTS_ROOT) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_ROOT))
 
-from staging_soak_snapshot import (  # noqa: E402
-    ApiClient,
-    cents,
-    fetch_snapshot,
-    render_snapshot,
-)
+def _load_snapshot_script() -> ModuleType:
+    path = Path(__file__).resolve().parents[1] / "scripts" / "staging_soak_snapshot.py"
+    spec = importlib.util.spec_from_file_location("staging_soak_snapshot", path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+_snapshot = _load_snapshot_script()
+ApiClient = _snapshot.ApiClient
+cents = _snapshot.cents
+fetch_snapshot = _snapshot.fetch_snapshot
+render_snapshot = _snapshot.render_snapshot
 
 
 @dataclass(frozen=True)
@@ -57,7 +66,7 @@ def test_api_client_returns_json_on_degraded_healthz() -> None:
         url="http://test/healthz",
         code=503,
         msg="Service Unavailable",
-        hdrs=None,
+        hdrs=Message(),
         fp=io.BytesIO(json.dumps(payload).encode()),
     )
     with patch("urllib.request.urlopen", side_effect=error):
