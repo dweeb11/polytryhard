@@ -1,13 +1,14 @@
 from datetime import UTC, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, exists, func, or_, select
 from sqlalchemy.orm import Session
 
 from core.db.enums import PositionStatus
 from core.db.models import (
     AuditEventRow,
     CashEventRow,
+    PaperFillRow,
     PaperPositionRow,
     SignalRow,
     StrategyInstanceRow,
@@ -91,6 +92,31 @@ def system_state_from_row(row: SystemStateRow) -> SystemEnvState:
 
 def get_strategy(session: Session, name: str) -> StrategyInstanceRow | None:
     return session.get(StrategyInstanceRow, name)
+
+
+def strategy_has_trading_activity(session: Session, strategy_name: str) -> bool:
+    stmt = (
+        select(1)
+        .where(
+            or_(
+                exists(
+                    select(SignalRow.id).where(SignalRow.strategy_name == strategy_name)
+                ),
+                exists(
+                    select(PaperPositionRow.id).where(
+                        PaperPositionRow.strategy_name == strategy_name
+                    )
+                ),
+                exists(
+                    select(PaperFillRow.id)
+                    .join(PaperPositionRow, PaperFillRow.position_id == PaperPositionRow.id)
+                    .where(PaperPositionRow.strategy_name == strategy_name)
+                ),
+            )
+        )
+        .limit(1)
+    )
+    return session.scalar(stmt) is not None
 
 
 def list_strategies(session: Session) -> list[StrategyInstance]:

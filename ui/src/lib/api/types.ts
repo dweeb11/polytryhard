@@ -95,6 +95,23 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/v1/strategies/{name}/set-starting-bankroll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set Starting Bankroll Route */
+        post: operations["set_starting_bankroll_route_v1_strategies__name__set_starting_bankroll_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/strategies/{name}/pause": {
         parameters: {
             query?: never;
@@ -543,6 +560,13 @@ export type components = {
             /** Reason */
             reason: string;
         };
+        /** SetStartingBankrollBody */
+        SetStartingBankrollBody: {
+            /** Amountcents */
+            amountCents: number;
+            /** Reason */
+            reason: string;
+        };
         /**
          * SignalOutcome
          * @enum {string}
@@ -829,6 +853,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CashEvent"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_starting_bankroll_route_v1_strategies__name__set_starting_bankroll_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetStartingBankrollBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StrategyInstance"];
                 };
             };
             /** @description Validation Error */

@@ -42,12 +42,14 @@ from core.domain.state_machine import (
     should_auto_resume_on_deposit,
 )
 from core.domain.strategy import StrategyConfig
+from core.ledger.baseline import apply_starting_baseline
 from core.ledger.errors import LedgerError
 from core.ledger.queries import (
     cash_event_from_row,
     free_cash_cents,
     free_cash_for_strategy,
     get_system_state,
+    strategy_has_trading_activity,
 )
 from core.utils.time import utc_now
 
@@ -121,7 +123,7 @@ def _touch_strategy(row: StrategyInstanceRow, *, state: StrategyState | None = N
         row.state = DbStrategyState(state)
 
 
-def _write_bankroll_event(
+def _append_cash_event(
     session: Session,
     *,
     strategy: StrategyInstanceRow,
@@ -129,11 +131,6 @@ def _write_bankroll_event(
     amount_cents: int,
     balance_after_cents: int,
     reason: str,
-    actor: AuditActor,
-    request_id: str,
-    audit_action: str,
-    before_state: dict[str, Any],
-    after_state: dict[str, Any],
     ref_position_id: str | None = None,
 ) -> CashEvent:
     now = utc_now()
@@ -149,6 +146,34 @@ def _write_bankroll_event(
     )
     session.add(event_row)
     strategy.bankroll_cents = balance_after_cents
+    session.flush()
+    return cash_event_from_row(event_row)
+
+
+def _write_bankroll_event(
+    session: Session,
+    *,
+    strategy: StrategyInstanceRow,
+    kind: CashEventKind,
+    amount_cents: int,
+    balance_after_cents: int,
+    reason: str,
+    actor: AuditActor,
+    request_id: str,
+    audit_action: str,
+    before_state: dict[str, Any],
+    after_state: dict[str, Any],
+    ref_position_id: str | None = None,
+) -> CashEvent:
+    event = _append_cash_event(
+        session,
+        strategy=strategy,
+        kind=kind,
+        amount_cents=amount_cents,
+        balance_after_cents=balance_after_cents,
+        reason=reason,
+        ref_position_id=ref_position_id,
+    )
     _touch_strategy(strategy)
     _append_audit(
         session,
@@ -162,7 +187,16 @@ def _write_bankroll_event(
         request_id=request_id,
     )
     session.flush()
-    return cash_event_from_row(event_row)
+    return event
+
+
+def _starting_baseline_state(strategy: StrategyInstanceRow) -> dict[str, Any]:
+    return {
+        "bankrollCents": strategy.bankroll_cents,
+        "initialDepositCents": strategy.initial_deposit_cents,
+        "bankrollHwmCents": strategy.bankroll_hwm_cents,
+        "minBankrollCents": strategy.config_jsonb.get("min_bankroll_cents"),
+    }
 
 
 def deposit(
@@ -242,6 +276,58 @@ def withdraw(
         before_state=before,
         after_state=after,
     )
+
+
+def set_starting_bankroll(
+    session: Session,
+    strategy_name: str,
+    amount_cents: int,
+    reason: str,
+    actor: AuditActor,
+    request_id: str,
+) -> StrategyInstanceRow:
+    _require_system_active(session)
+    if amount_cents <= 0:
+        raise LedgerError("Amount must be positive")
+    if not reason.strip():
+        raise LedgerError("Reason is required")
+    strategy = _lock_strategy_row(session, strategy_name)
+    if StrategyState(strategy.state) == StrategyState.DECOMMISSIONED:
+        raise LedgerError("Strategy is decommissioned")
+    if strategy_has_trading_activity(session, strategy_name):
+        raise LedgerError(
+            "Starting bankroll can only be set before signals, fills, or positions exist"
+        )
+
+    before = _starting_baseline_state(strategy)
+    delta = amount_cents - strategy.bankroll_cents
+    if delta:
+        kind = CashEventKind.DEPOSIT if delta > 0 else CashEventKind.WITHDRAW
+        _append_cash_event(
+            session,
+            strategy=strategy,
+            kind=kind,
+            amount_cents=delta,
+            balance_after_cents=amount_cents,
+            reason=reason,
+        )
+
+    apply_starting_baseline(strategy, amount_cents)
+    _touch_strategy(strategy)
+    after = _starting_baseline_state(strategy)
+    _append_audit(
+        session,
+        actor=actor,
+        action="set_starting_bankroll",
+        target_type="strategy",
+        target_id=strategy_name,
+        before_state=before,
+        after_state=after,
+        reason=reason,
+        request_id=request_id,
+    )
+    session.flush()
+    return strategy
 
 
 def record_realized_pnl(
