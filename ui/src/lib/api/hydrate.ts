@@ -11,6 +11,7 @@ import {
 	strategies,
 	system
 } from '$lib/stores';
+import { liveDataRefresh } from '$lib/api/liveDataRefresh';
 import { tradingHydration } from '$lib/api/tradingHydration';
 import { compareIsoDesc } from '$lib/utils';
 import type {
@@ -197,17 +198,59 @@ export async function hydrateStrategyEval(name: string): Promise<void> {
 	bankrollHistoryByStrategy.update((m) => ({ ...m, [name]: mapCashEventsToBankroll(events) }));
 }
 
-export async function hydrateLedgerFromApi(): Promise<void> {
-	const [strategyList, systemState, auditEvents, sourceEntries] = await Promise.all([
-		apiGet('/v1/strategies') as Promise<StrategyInstance[]>,
-		apiGet('/v1/system') as Promise<SystemEnvState>,
-		apiGet('/v1/audit', { limit: '50' }) as Promise<AuditEvent[]>,
-		apiGet('/v1/sources') as Promise<Record<string, unknown>[]>
+export interface HydrateLedgerResult {
+	failedEndpoints: string[];
+}
+
+function logHydrateFailure(endpoint: string, error: unknown): void {
+	console.error(`Live data refresh failed: ${endpoint}`, error);
+}
+
+async function tryHydrate<T>(
+	endpoint: string,
+	fetch: () => Promise<T>,
+	apply: (value: T) => void,
+	failures: string[]
+): Promise<void> {
+	try {
+		const value = await fetch();
+		apply(value);
+	} catch (error) {
+		logHydrateFailure(endpoint, error);
+		failures.push(endpoint);
+	}
+}
+
+export async function hydrateLedgerFromApi(): Promise<HydrateLedgerResult> {
+	const failures: string[] = [];
+	liveDataRefresh.set({ status: 'refreshing', failedEndpoints: [] });
+
+	await Promise.all([
+		tryHydrate(
+			'/v1/strategies',
+			() => apiGet('/v1/strategies') as Promise<StrategyInstance[]>,
+			(value) => strategies.set(value),
+			failures
+		),
+		tryHydrate(
+			'/v1/system',
+			() => apiGet('/v1/system') as Promise<SystemEnvState>,
+			(value) => system.set(value),
+			failures
+		),
+		tryHydrate(
+			'/v1/audit',
+			() => apiGet('/v1/audit', { limit: '50' }) as Promise<AuditEvent[]>,
+			(value) => audit.set(value),
+			failures
+		),
+		tryHydrate(
+			'/v1/sources',
+			() => apiGet('/v1/sources') as Promise<Record<string, unknown>[]>,
+			(value) => sources.set(value.map(mapSourceEntry)),
+			failures
+		)
 	]);
-	strategies.set(strategyList);
-	system.set(systemState);
-	audit.set(auditEvents);
-	sources.set(sourceEntries.map(mapSourceEntry));
 
 	let signalRecords: Signal[] | null = null;
 	try {
@@ -216,7 +259,9 @@ export async function hydrateLedgerFromApi(): Promise<void> {
 		})) as Record<string, unknown>[];
 		signalRecords = sortSignalsByEvaluatedAt(rows.map(mapSignalRecord));
 		tradingHydration.update((state) => ({ ...state, signals: 'fresh' }));
-	} catch {
+	} catch (error) {
+		logHydrateFailure('/v1/signals', error);
+		failures.push('/v1/signals');
 		tradingHydration.update((state) => ({ ...state, signals: 'stale' }));
 	}
 
@@ -227,7 +272,9 @@ export async function hydrateLedgerFromApi(): Promise<void> {
 		})) as Record<string, unknown>[];
 		positionRecords = sortPositionsByOpenedAt(rows.map(mapPositionRecord));
 		tradingHydration.update((state) => ({ ...state, positions: 'fresh' }));
-	} catch {
+	} catch (error) {
+		logHydrateFailure('/v1/positions', error);
+		failures.push('/v1/positions');
 		tradingHydration.update((state) => ({ ...state, positions: 'stale' }));
 	}
 
@@ -237,7 +284,14 @@ export async function hydrateLedgerFromApi(): Promise<void> {
 	try {
 		const rosterRows = (await apiGet('/v1/eval')) as EvalRosterEntryView[];
 		evalRoster.set(Object.fromEntries(rosterRows.map((r) => [r.strategyName, r])));
-	} catch {
-		// eval roster is non-critical; leave prior/mock values in place
+	} catch (error) {
+		logHydrateFailure('/v1/eval', error);
+		failures.push('/v1/eval');
 	}
+
+	liveDataRefresh.set({
+		status: failures.length === 0 ? 'fresh' : 'stale',
+		failedEndpoints: failures
+	});
+	return { failedEndpoints: failures };
 }
