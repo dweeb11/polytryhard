@@ -77,6 +77,18 @@ def persist_fetch_result(
     result: FetchResult,
 ) -> SourceRunRow:
     source_run_id = _new_id()
+    run_row = SourceRunRow(
+        id=source_run_id,
+        source_name=source_name,
+        started_at=started_at,
+        finished_at=finished_at,
+        status=result.status,
+        rows_written=result.rows_written,
+        error_text=result.error_text,
+        request_id=request_id,
+    )
+    session.add(run_row)
+
     for upsert in result.market_upserts:
         existing = session.get(ReferenceMarketRow, upsert.ticker)
         if existing is None:
@@ -104,6 +116,8 @@ def persist_fetch_result(
             existing.settlement_time = upsert.settlement_time
             existing.status = upsert.status
             existing.raw_jsonb = upsert.raw_jsonb
+
+    session.flush()
 
     for resolution in result.resolutions:
         if session.get(ContractResolutionRow, resolution.ticker) is not None:
@@ -153,17 +167,6 @@ def persist_fetch_result(
             )
         )
 
-    run_row = SourceRunRow(
-        id=source_run_id,
-        source_name=source_name,
-        started_at=started_at,
-        finished_at=finished_at,
-        status=result.status,
-        rows_written=result.rows_written,
-        error_text=result.error_text,
-        request_id=request_id,
-    )
-    session.add(run_row)
     session.commit()
     return run_row
 
