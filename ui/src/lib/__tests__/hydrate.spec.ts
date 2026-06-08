@@ -12,6 +12,7 @@ import {
 	sortPositionsByOpenedAt,
 	sortSignalsByEvaluatedAt
 } from '$lib/api/hydrate';
+import { liveDataRefresh } from '$lib/api/liveDataRefresh';
 import { tradingHydration } from '$lib/api/tradingHydration';
 import {
 	audit,
@@ -40,6 +41,24 @@ const STRATEGY_LIST = FIXTURE.strategies;
 const SYSTEM_STATE = FIXTURE.system;
 const AUDIT_EVENTS = FIXTURE.audit.slice(0, 2);
 const SOURCE_ENTRIES = [{ name: 'kalshi_markets', status: 'ok', lastSuccessAt: '2026-06-01T12:00:00Z' }];
+const EVAL_ROSTER = [
+	{
+		strategyName: 'weather_ensemble_disagreement',
+		nTrades: 5,
+		hitRate: 0.6,
+		brierScore: 0.2,
+		pnlCents: 400,
+		posteriorEdgeCiLow: 0.01
+	},
+	{
+		strategyName: 'weather_stale_quote',
+		nTrades: 0,
+		hitRate: null,
+		brierScore: null,
+		pnlCents: 0,
+		posteriorEdgeCiLow: null
+	}
+];
 
 function mockCoreHydrate(): void {
 	apiGetMock.mockImplementation((path: string) => {
@@ -47,11 +66,7 @@ function mockCoreHydrate(): void {
 		if (path === '/v1/system') return Promise.resolve(SYSTEM_STATE);
 		if (path === '/v1/audit') return Promise.resolve(AUDIT_EVENTS);
 		if (path === '/v1/sources') return Promise.resolve(SOURCE_ENTRIES);
-		if (path === '/v1/eval')
-			return Promise.resolve([
-				{ strategyName: 'weather_ensemble_disagreement', nTrades: 5, hitRate: 0.6, brierScore: 0.2, pnlCents: 400, posteriorEdgeCiLow: 0.01 },
-				{ strategyName: 'weather_stale_quote', nTrades: 0, hitRate: null, brierScore: null, pnlCents: 0, posteriorEdgeCiLow: null }
-			]);
+		if (path === '/v1/eval') return Promise.resolve(EVAL_ROSTER);
 		return Promise.reject(new Error(`unexpected path: ${path}`));
 	});
 }
@@ -121,6 +136,7 @@ describe('hydrateLedgerFromApi', () => {
 		apiGetMock.mockReset();
 		localStorage.clear();
 		tradingHydration.set({ signals: 'fresh', positions: 'fresh' });
+		liveDataRefresh.set({ status: 'idle', failedEndpoints: [] });
 	});
 
 	it('hydrates core ledger and trading endpoints', async () => {
@@ -162,6 +178,7 @@ describe('hydrateLedgerFromApi', () => {
 			if (path === '/v1/system') return Promise.resolve(SYSTEM_STATE);
 			if (path === '/v1/audit') return Promise.resolve(AUDIT_EVENTS);
 			if (path === '/v1/sources') return Promise.resolve(SOURCE_ENTRIES);
+			if (path === '/v1/eval') return Promise.resolve(EVAL_ROSTER);
 			return Promise.reject(new Error(`unexpected path: ${path}`));
 		});
 
@@ -176,6 +193,7 @@ describe('hydrateLedgerFromApi', () => {
 		expect(get(positions)).toHaveLength(1);
 		expect(get(positions)[0]?.id).toBe('pos-new');
 		expect(get(tradingHydration)).toEqual({ signals: 'fresh', positions: 'fresh' });
+		expect(get(liveDataRefresh)).toEqual({ status: 'fresh', failedEndpoints: [] });
 	});
 
 	it('sorts hydrated signals newest-first', async () => {
@@ -200,6 +218,7 @@ describe('hydrateLedgerFromApi', () => {
 			if (path === '/v1/system') return Promise.resolve(SYSTEM_STATE);
 			if (path === '/v1/audit') return Promise.resolve(AUDIT_EVENTS);
 			if (path === '/v1/sources') return Promise.resolve(SOURCE_ENTRIES);
+			if (path === '/v1/eval') return Promise.resolve(EVAL_ROSTER);
 			return Promise.reject(new Error(`unexpected path: ${path}`));
 		});
 
@@ -220,6 +239,7 @@ describe('hydrateLedgerFromApi', () => {
 			if (path === '/v1/system') return Promise.resolve(SYSTEM_STATE);
 			if (path === '/v1/audit') return Promise.resolve(AUDIT_EVENTS);
 			if (path === '/v1/sources') return Promise.resolve(SOURCE_ENTRIES);
+			if (path === '/v1/eval') return Promise.resolve(EVAL_ROSTER);
 			return Promise.reject(new Error(`unexpected path: ${path}`));
 		});
 
@@ -231,6 +251,10 @@ describe('hydrateLedgerFromApi', () => {
 		expect(get(positions)).toHaveLength(1);
 		expect(get(positions)[0]?.id).toBe('local-pos');
 		expect(get(tradingHydration)).toEqual({ signals: 'stale', positions: 'stale' });
+		expect(get(liveDataRefresh)).toEqual({
+			status: 'stale',
+			failedEndpoints: ['/v1/signals', '/v1/positions']
+		});
 	});
 
 	it('updates signals but keeps positions when only positions endpoint fails', async () => {
@@ -247,6 +271,7 @@ describe('hydrateLedgerFromApi', () => {
 			if (path === '/v1/system') return Promise.resolve(SYSTEM_STATE);
 			if (path === '/v1/audit') return Promise.resolve(AUDIT_EVENTS);
 			if (path === '/v1/sources') return Promise.resolve(SOURCE_ENTRIES);
+			if (path === '/v1/eval') return Promise.resolve(EVAL_ROSTER);
 			return Promise.reject(new Error(`unexpected path: ${path}`));
 		});
 
@@ -255,6 +280,35 @@ describe('hydrateLedgerFromApi', () => {
 		expect(get(signals)[0]?.id).toBe('remote-sig');
 		expect(get(positions)[0]?.id).toBe('local-pos');
 		expect(get(tradingHydration)).toEqual({ signals: 'fresh', positions: 'stale' });
+		expect(get(liveDataRefresh)).toEqual({
+			status: 'stale',
+			failedEndpoints: ['/v1/positions']
+		});
+	});
+
+	it('keeps prior core ledger data when core endpoints fail', async () => {
+		strategies.set(STRATEGY_LIST);
+		system.set(SYSTEM_STATE);
+		mockCoreHydrate();
+		apiGetMock.mockImplementation((path: string) => {
+			if (path === '/v1/strategies' || path === '/v1/system') {
+				return Promise.reject(new Error('endpoint unavailable'));
+			}
+			if (path === '/v1/audit') return Promise.resolve(AUDIT_EVENTS);
+			if (path === '/v1/sources') return Promise.resolve(SOURCE_ENTRIES);
+			if (path === '/v1/signals') return Promise.resolve([]);
+			if (path === '/v1/positions') return Promise.resolve([]);
+			if (path === '/v1/eval') return Promise.resolve(EVAL_ROSTER);
+			return Promise.reject(new Error(`unexpected path: ${path}`));
+		});
+
+		const result = await hydrateLedgerFromApi();
+
+		expect(result.failedEndpoints).toEqual(['/v1/strategies', '/v1/system']);
+		expect(get(strategies)).toEqual(STRATEGY_LIST);
+		expect(get(system)).toEqual(SYSTEM_STATE);
+		expect(get(liveDataRefresh).status).toBe('stale');
+		expect(get(liveDataRefresh).failedEndpoints).toContain('/v1/strategies');
 	});
 
 	it('hydrates the eval roster store', async () => {
