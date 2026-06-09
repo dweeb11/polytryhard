@@ -65,19 +65,19 @@ class WeatherEnsembleDisagreementStrategy(Strategy):
         if disagreement < disagreement_threshold:
             return None
 
-        divergence = abs(mid - ensemble_to_prob(ensemble_mean))
+        model_prob_yes = ensemble_to_prob(ensemble_mean)
+        divergence = abs(mid - model_prob_yes)
         if divergence <= spread * spread_margin:
             return None
 
         side = PositionSide.YES if ensemble_mean >= prob_to_temp(mid) else PositionSide.NO
-        prob_yes = mid if side == PositionSide.YES else (Decimal("1") - mid)
         confidence = min(
             Decimal("1"),
             confidence_floor + (disagreement / Decimal("10")) + (divergence / Decimal("0.2")),
         )
         return SignalDraft(
             ticker=market.ticker,
-            prob_yes=prob_yes,
+            prob_yes=model_prob_yes,
             confidence=confidence,
             side=side,
         )

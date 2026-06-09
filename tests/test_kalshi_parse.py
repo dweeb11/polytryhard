@@ -51,6 +51,20 @@ def test_parse_market_from_discovery_cassette() -> None:
     )
 
 
+def test_parse_market_derives_series_from_live_active_ticker() -> None:
+    upsert = parse_market(
+        {
+            "ticker": "KXHIGHNY-26JUN08-B72.5",
+            "title": "NYC high temperature on Jun 8",
+            "status": "active",
+        }
+    )
+
+    assert upsert is not None
+    assert upsert.series == "KXHIGHNY"
+    assert upsert.status == "active"
+
+
 def test_parse_orderbook_from_fp_cassette() -> None:
     payload = _load_cassette("kalshi_orderbook.json")
     as_of = datetime(2026, 5, 28, 12, 0, tzinfo=UTC)

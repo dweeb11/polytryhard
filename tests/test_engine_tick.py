@@ -42,7 +42,7 @@ def _add_open_market_with_snapshot(
             as_of=as_of,
             bid_yes=Decimal("0.35"),
             ask_yes=Decimal("0.50"),
-            mid_yes=Decimal("0.70"),
+            mid_yes=Decimal("0.30"),
             bid_size=10,
             ask_size=10,
             last_trade_price=None,
@@ -176,7 +176,7 @@ async def test_engine_tick_second_market_hits_correlation_cap_after_first_fill(
     stale_row.config_jsonb = {
         **dict(stale_row.config_jsonb),
         "exposureCapPct": 1.0,
-        "correlationCapPct": 0.01,
+        "correlationCapPct": 0.02,
     }
     other = per_env.get(StrategyInstanceRow, "weather_ensemble_disagreement")
     assert other is not None

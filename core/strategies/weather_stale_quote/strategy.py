@@ -8,6 +8,7 @@ from core.domain.feature import FeatureValue
 from core.domain.market import MarketState, SignalDraft
 from core.settings import Settings
 from core.strategies.weather_utils import (
+    ensemble_to_prob,
     location_for_series,
     numeric_feature,
     prob_to_temp,
@@ -69,12 +70,12 @@ class WeatherStaleQuoteStrategy(Strategy):
         if spread < wide_spread_threshold:
             return None
 
+        model_prob_yes = ensemble_to_prob(ensemble_mean)
         side = PositionSide.YES if ensemble_mean >= prob_to_temp(mid) else PositionSide.NO
-        prob_yes = mid if side == PositionSide.YES else (Decimal("1") - mid)
         confidence = min(Decimal("1"), confidence_floor + spread)
         return SignalDraft(
             ticker=market.ticker,
-            prob_yes=prob_yes,
+            prob_yes=model_prob_yes,
             confidence=confidence,
             side=side,
         )

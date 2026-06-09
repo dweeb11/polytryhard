@@ -83,6 +83,7 @@ def test_weather_ensemble_disagreement_emits_on_divergence() -> None:
     )
     assert signal is not None
     assert signal.side in {PositionSide.YES, PositionSide.NO}
+    assert signal.prob_yes == Decimal("0.58")
 
 
 def test_weather_ensemble_disagreement_rejects_low_disagreement() -> None:
@@ -136,6 +137,22 @@ def test_weather_stale_quote_emits_on_wide_spread() -> None:
         _strategy_context(strategy.name),
     )
     assert signal is not None
+    assert signal.prob_yes == Decimal("0.58")
+
+
+def test_weather_stale_quote_no_side_keeps_yes_probability() -> None:
+    strategy = WeatherStaleQuoteStrategy()
+    signal = strategy.evaluate(
+        _market(mid_yes=Decimal("0.38")),
+        _features(
+            ensemble_mean_temp=Decimal("20"),
+            kalshi_spread=Decimal("0.12"),
+        ),
+        _strategy_context(strategy.name),
+    )
+    assert signal is not None
+    assert signal.side == PositionSide.NO
+    assert signal.prob_yes == Decimal("0.05")
 
 
 def test_weather_stale_quote_rejects_tight_spread() -> None:
