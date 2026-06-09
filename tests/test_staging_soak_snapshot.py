@@ -30,9 +30,13 @@ def _load_snapshot_script() -> ModuleType:
 
 _snapshot = _load_snapshot_script()
 ApiClient = _snapshot.ApiClient
+SoakState = _snapshot.SoakState
 cents = _snapshot.cents
+evaluate_snapshot = _snapshot.evaluate_snapshot
 fetch_snapshot = _snapshot.fetch_snapshot
 render_snapshot = _snapshot.render_snapshot
+update_soak_state = _snapshot.update_soak_state
+write_snapshot_artifacts = _snapshot.write_snapshot_artifacts
 
 
 @dataclass(frozen=True)
@@ -48,6 +52,67 @@ class LocalApiClient:
             return data
         response.raise_for_status()
         return data
+
+
+def _snapshot_payload(
+    *,
+    health_status: str = "ok",
+    scheduler_status: str = "ok",
+    source_status: str = "ok",
+    strategy_state: str = "active",
+    positions: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    return {
+        "captured_at": "2026-06-08T12:00:00+00:00",
+        "health": {
+            "status": health_status,
+            "db_shared": "ok",
+            "db_per_env": "ok",
+            "scheduler_cycle": {
+                "status": scheduler_status,
+                "last_success_at": "2026-06-08T12:00:00Z",
+            },
+        },
+        "sources": [
+            {
+                "name": "open_meteo",
+                "enabled": True,
+                "status": source_status,
+                "lastSuccessAt": "2026-06-08T12:00:00Z",
+                "rowsLastRun": 10,
+                "lastError": None,
+            },
+            {
+                "name": "kalshi_markets",
+                "enabled": True,
+                "status": "ok",
+                "lastSuccessAt": "2026-06-08T12:00:00Z",
+                "rowsLastRun": 10,
+                "lastError": None,
+            },
+            {
+                "name": "kalshi_resolution",
+                "enabled": True,
+                "status": "ok",
+                "lastSuccessAt": "2026-06-08T12:00:00Z",
+                "rowsLastRun": 1,
+                "lastError": None,
+            },
+        ],
+        "strategies": [
+            {
+                "name": "weather_ensemble_disagreement",
+                "state": strategy_state,
+                "bankrollCents": 25000,
+                "bankrollHwmCents": 25000,
+                "kellyFraction": 0.25,
+            }
+        ],
+        "signals": [],
+        "positions": positions or [],
+        "cash_events": {"weather_ensemble_disagreement": []},
+        "eval_roster": [],
+    }
 
 
 def test_cents_formats_none_and_values() -> None:
@@ -179,6 +244,116 @@ def test_render_snapshot_shows_degraded_banner() -> None:
 
     assert "DEGRADED" in output
     assert "shared_db=ok" in output
+
+
+def test_evaluate_snapshot_warns_then_intervenes_for_repeated_source_degradation() -> None:
+    snapshot = _snapshot_payload(source_status="degraded")
+
+    first_state = update_soak_state(snapshot, SoakState(source_unhealthy_checks={}))
+    first_findings = evaluate_snapshot(snapshot, first_state)
+    assert ("warning", "source-unhealthy") in {
+        (finding.severity, finding.code) for finding in first_findings
+    }
+
+    repeated_state = update_soak_state(
+        snapshot,
+        SoakState(source_unhealthy_checks={"open_meteo": 2}),
+    )
+    repeated_findings = evaluate_snapshot(snapshot, repeated_state)
+    assert ("intervention", "source-unhealthy") in {
+        (finding.severity, finding.code) for finding in repeated_findings
+    }
+
+
+def test_evaluate_snapshot_respects_operator_noted_exceptions() -> None:
+    snapshot = _snapshot_payload(source_status="degraded", strategy_state="operator_paused")
+
+    state = update_soak_state(
+        snapshot,
+        SoakState(source_unhealthy_checks={"open_meteo": 5}),
+        parked_sources={"open_meteo"},
+    )
+    findings = evaluate_snapshot(
+        snapshot,
+        state,
+        parked_sources={"open_meteo"},
+        paused_strategies={"weather_ensemble_disagreement"},
+    )
+
+    assert findings == []
+
+
+def test_evaluate_snapshot_flags_open_exposure_cap() -> None:
+    findings = evaluate_snapshot(
+        _snapshot_payload(
+            positions=[
+                {
+                    "strategyName": "weather_ensemble_disagreement",
+                    "status": "open",
+                    "costBasisCents": 12500,
+                    "realizedPnlCents": None,
+                    "unrealizedPnlCents": None,
+                }
+            ]
+        ),
+        SoakState(source_unhealthy_checks={}),
+        max_open_notional_cents=10_000,
+    )
+
+    assert ("intervention", "open-exposure-cap") in {
+        (finding.severity, finding.code) for finding in findings
+    }
+
+
+def test_write_snapshot_artifacts_saves_markdown_and_json(tmp_path: Path) -> None:
+    snapshot = _snapshot_payload()
+    rendered_snapshot = render_snapshot(snapshot)
+    findings = evaluate_snapshot(snapshot, SoakState(source_unhealthy_checks={}))
+
+    markdown_path, json_path = write_snapshot_artifacts(
+        snapshot,
+        rendered_snapshot,
+        findings,
+        tmp_path,
+    )
+
+    assert markdown_path.name == "2026-06-08.md"
+    assert json_path.name == "2026-06-08-snapshot.json"
+    assert "M6 staging soak snapshot" in markdown_path.read_text(encoding="utf-8")
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    assert payload["snapshot"]["captured_at"] == "2026-06-08T12:00:00+00:00"
+    assert payload["findings"] == []
+
+
+def test_main_writes_notes_and_fails_on_intervention(
+    tmp_path: Path,
+    capsys: Any,
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setenv("SOAK_API_TOKEN", "token")
+    monkeypatch.setattr(
+        _snapshot,
+        "fetch_snapshot",
+        lambda _client: _snapshot_payload(health_status="degraded"),
+    )
+
+    result = _snapshot.main(
+        [
+            "--write-notes",
+            "--notes-dir",
+            str(tmp_path),
+            "--state-file",
+            str(tmp_path / "state.json"),
+            "--fail-on-intervention",
+        ]
+    )
+
+    assert result == 2
+    output = capsys.readouterr().out
+    assert "Soak automation checks" in output
+    assert "Wrote soak notes" in output
+    assert (tmp_path / "2026-06-08.md").exists()
+    assert (tmp_path / "state.json").exists()
 
 
 def test_fetch_snapshot_against_local_api(api_client: TestClient) -> None:
