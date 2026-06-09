@@ -7,6 +7,10 @@ from typing import Any
 from core.contracts.source import RawMarketSnapshotDraft, ReferenceMarketUpsert
 
 
+def _series_from_ticker(ticker: str) -> str:
+    return ticker.split("-", 1)[0]
+
+
 def parse_market(payload: dict[str, Any]) -> ReferenceMarketUpsert | None:
     ticker = payload.get("ticker")
     if not isinstance(ticker, str):
@@ -22,7 +26,9 @@ def parse_market(payload: dict[str, Any]) -> ReferenceMarketUpsert | None:
 
     return ReferenceMarketUpsert(
         ticker=ticker,
-        series=str(payload.get("series_ticker") or payload.get("series") or ""),
+        series=str(
+            payload.get("series_ticker") or payload.get("series") or _series_from_ticker(ticker)
+        ),
         title=str(payload.get("title") or ticker),
         status=str(payload.get("status") or "unknown"),
         settlement_source=(

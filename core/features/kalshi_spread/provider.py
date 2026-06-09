@@ -25,7 +25,7 @@ class KalshiSpreadProvider(FeatureProvider):
     async def compute(self, as_of: datetime, ctx: FeatureContext) -> list[FeatureValue]:
         results: list[FeatureValue] = []
         subject_kind = FeatureSubjectKind.MARKET.value
-        for market in list_open_markets(ctx.session):
+        for market in list_open_markets(ctx.session, as_of=as_of):
             snapshot = latest_market_snapshot(ctx.session, ticker=market.ticker, as_of=as_of)
             if snapshot is None:
                 results.append(

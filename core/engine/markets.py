@@ -15,21 +15,27 @@ from core.strategies.weather_utils import location_for_series
 logger = logging.getLogger(__name__)
 
 
+def _market_series(market: object, ticker: str) -> str:
+    series = getattr(market, "series", "")
+    return str(series or ticker.split("-", 1)[0])
+
+
 def build_market_states(session: Session, as_of: datetime) -> list[MarketState]:
     markets: list[MarketState] = []
-    for market in list_open_markets(session):
+    for market in list_open_markets(session, as_of=as_of):
         snapshot = latest_market_snapshot(session, ticker=market.ticker, as_of=as_of)
         if snapshot is None:
             continue
+        series = _market_series(market, market.ticker)
         markets.append(
             MarketState(
                 ticker=market.ticker,
-                series=market.series,
+                series=series,
                 bid_yes=snapshot.bid_yes,
                 ask_yes=snapshot.ask_yes,
                 mid_yes=snapshot.mid_yes,
                 as_of=snapshot.as_of,
-                location_id=location_for_series(market.series),
+                location_id=location_for_series(series),
             )
         )
     return markets

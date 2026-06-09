@@ -6,7 +6,7 @@ from collections.abc import Iterable
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from sqlalchemy import Select, and_, func, select
+from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from core.db.shared_enums import ForecastSource
@@ -18,6 +18,7 @@ from core.db.shared_models import (
 )
 
 TEMPERATURE_VARIABLE = "temperature_2m"
+TRADABLE_MARKET_STATUSES = frozenset({"open", "active"})
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -31,14 +32,22 @@ def list_locations(session: Session) -> list[ReferenceLocationRow]:
     return list(session.scalars(stmt).all())
 
 
-def list_open_markets(session: Session) -> list[ReferenceMarketRow]:
-    return list(
-        session.scalars(
-            select(ReferenceMarketRow)
-            .where(ReferenceMarketRow.status == "open")
-            .order_by(ReferenceMarketRow.ticker)
-        ).all()
+def list_open_markets(
+    session: Session,
+    *,
+    as_of: datetime | None = None,
+) -> list[ReferenceMarketRow]:
+    stmt = select(ReferenceMarketRow).where(
+        ReferenceMarketRow.status.in_(TRADABLE_MARKET_STATUSES)
     )
+    if as_of is not None:
+        stmt = stmt.where(
+            or_(
+                ReferenceMarketRow.close_time.is_(None),
+                ReferenceMarketRow.close_time > as_of,
+            )
+        )
+    return list(session.scalars(stmt.order_by(ReferenceMarketRow.ticker)).all())
 
 
 def resolve_target_valid_window(
