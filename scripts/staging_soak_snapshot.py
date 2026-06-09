@@ -7,12 +7,17 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+from argparse import ArgumentParser
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from pathlib import Path
+from typing import Any, Literal
 
 DEFAULT_API_BASE_URL = "https://api.staging-event-market.critterhaus.net"
+DEFAULT_NOTES_DIR = Path("docs/operations/soak-notes")
+EXPECTED_SOURCES = ("open_meteo", "kalshi_markets", "kalshi_resolution")
+Severity = Literal["warning", "intervention"]
 
 
 @dataclass(frozen=True)
@@ -40,6 +45,18 @@ class ApiClient:
             raise
 
 
+@dataclass(frozen=True)
+class SoakFinding:
+    severity: Severity
+    code: str
+    message: str
+
+
+@dataclass(frozen=True)
+class SoakState:
+    source_unhealthy_checks: dict[str, int]
+
+
 def cents(value: int | float | None) -> str:
     return f"${((value or 0) / 100):,.2f}"
 
@@ -57,6 +74,219 @@ def _sum_by(rows: list[dict[str, Any]], group_key: str, value_key: str) -> dict[
     for row in rows:
         totals[str(row.get(group_key) or "-")] += int(row.get(value_key) or 0)
     return dict(totals)
+
+
+def _load_state(path: Path | None) -> SoakState:
+    if path is None or not path.exists():
+        return SoakState(source_unhealthy_checks={})
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    raw_counts = payload.get("source_unhealthy_checks", {})
+    return SoakState(
+        source_unhealthy_checks={
+            str(name): int(count)
+            for name, count in raw_counts.items()
+            if isinstance(name, str) and isinstance(count, int | float | str)
+        }
+    )
+
+
+def _save_state(path: Path | None, state: SoakState) -> None:
+    if path is None:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {"source_unhealthy_checks": state.source_unhealthy_checks},
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def update_soak_state(
+    snapshot: dict[str, Any],
+    previous: SoakState,
+    parked_sources: set[str] | None = None,
+) -> SoakState:
+    parked = parked_sources or set()
+    counts = dict(previous.source_unhealthy_checks)
+    sources = {str(source.get("name")): source for source in snapshot["sources"]}
+    for name in EXPECTED_SOURCES:
+        source = sources.get(name)
+        is_healthy = (
+            name in parked
+            or (
+                source is not None
+                and source.get("enabled") is True
+                and source.get("status") == "ok"
+            )
+        )
+        counts[name] = 0 if is_healthy else counts.get(name, 0) + 1
+    return SoakState(source_unhealthy_checks=counts)
+
+
+def evaluate_snapshot(
+    snapshot: dict[str, Any],
+    state: SoakState | None = None,
+    parked_sources: set[str] | None = None,
+    paused_strategies: set[str] | None = None,
+    max_open_notional_cents: int | None = None,
+) -> list[SoakFinding]:
+    findings: list[SoakFinding] = []
+    parked = parked_sources or set()
+    expected_paused = paused_strategies or set()
+    counts = state.source_unhealthy_checks if state is not None else {}
+    health = snapshot["health"]
+
+    if health.get("status") != "ok":
+        findings.append(
+            SoakFinding(
+                "intervention",
+                "api-health",
+                f"/healthz status is {health.get('status')!r}; "
+                "pause the system if this is unexpected.",
+            )
+        )
+
+    scheduler = health.get("scheduler_cycle")
+    if not scheduler:
+        findings.append(
+            SoakFinding(
+                "warning",
+                "scheduler-missing",
+                "/healthz did not include scheduler cycle health.",
+            )
+        )
+    elif scheduler.get("status") != "ok":
+        findings.append(
+            SoakFinding(
+                "intervention",
+                "scheduler-cycle",
+                f"Scheduler cycle status is {scheduler.get('status')!r}.",
+            )
+        )
+
+    sources = {str(source.get("name")): source for source in snapshot["sources"]}
+    for name in EXPECTED_SOURCES:
+        if name in parked:
+            continue
+        source = sources.get(name)
+        if source is None:
+            findings.append(
+                SoakFinding(
+                    "intervention",
+                    "source-missing",
+                    f"{name} is missing from /v1/sources.",
+                )
+            )
+            continue
+        if source.get("enabled") is not True:
+            findings.append(
+                SoakFinding(
+                    "intervention",
+                    "source-disabled",
+                    f"{name} is disabled but expected to be enabled for the soak.",
+                )
+            )
+        if source.get("status") != "ok":
+            unhealthy_checks = counts.get(name, 1)
+            severity: Severity = "intervention" if unhealthy_checks > 2 else "warning"
+            findings.append(
+                SoakFinding(
+                    severity,
+                    "source-unhealthy",
+                    f"{name} status is {source.get('status')!r} "
+                    f"for {unhealthy_checks} snapshot check(s).",
+                )
+            )
+        if not source.get("lastSuccessAt"):
+            findings.append(
+                SoakFinding(
+                    "warning",
+                    "source-no-success",
+                    f"{name} has no recorded lastSuccessAt.",
+                )
+            )
+
+    for strategy in snapshot["strategies"]:
+        name = str(strategy.get("name") or "-")
+        state_value = strategy.get("state")
+        if name not in expected_paused and state_value != "active":
+            findings.append(
+                SoakFinding(
+                    "intervention",
+                    "strategy-not-active",
+                    f"{name} state is {state_value!r}; strategies should be active unless noted.",
+                )
+            )
+
+    for signal in snapshot["signals"]:
+        outcome = str(signal.get("outcome") or "")
+        if "stale" in outcome and not outcome.startswith("rejected"):
+            findings.append(
+                SoakFinding(
+                    "intervention",
+                    "stale-input-order",
+                    f"{signal.get('strategyName') or '-'} produced stale-input "
+                    f"outcome {outcome!r}.",
+                )
+            )
+
+    if max_open_notional_cents is not None:
+        open_positions = [row for row in snapshot["positions"] if row.get("status") == "open"]
+        open_notional = sum(int(row.get("costBasisCents") or 0) for row in open_positions)
+        if open_notional > max_open_notional_cents:
+            findings.append(
+                SoakFinding(
+                    "intervention",
+                    "open-exposure-cap",
+                    f"Open paper cost basis {cents(open_notional)} exceeds "
+                    f"cap {cents(max_open_notional_cents)}.",
+                )
+            )
+
+    return findings
+
+
+def render_findings(findings: list[SoakFinding]) -> str:
+    if not findings:
+        return "Soak automation checks\n- OK: no warnings or intervention triggers."
+    lines = ["Soak automation checks"]
+    for finding in findings:
+        lines.append(f"- {finding.severity.upper()} [{finding.code}]: {finding.message}")
+    return "\n".join(lines)
+
+
+def write_snapshot_artifacts(
+    snapshot: dict[str, Any],
+    rendered_snapshot: str,
+    findings: list[SoakFinding],
+    notes_dir: Path,
+) -> tuple[Path, Path]:
+    captured_at = str(snapshot["captured_at"])
+    note_date = captured_at[:10]
+    notes_dir.mkdir(parents=True, exist_ok=True)
+    markdown_path = notes_dir / f"{note_date}.md"
+    json_path = notes_dir / f"{note_date}-snapshot.json"
+    markdown_path.write_text(
+        f"{rendered_snapshot}\n\n{render_findings(findings)}\n",
+        encoding="utf-8",
+    )
+    json_path.write_text(
+        json.dumps(
+            {
+                "snapshot": snapshot,
+                "findings": [finding.__dict__ for finding in findings],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return markdown_path, json_path
 
 
 def fetch_snapshot(client: ApiClient) -> dict[str, Any]:
@@ -182,12 +412,92 @@ def _client_from_env() -> ApiClient:
     )
 
 
-def main() -> int:
+def _parse_args(argv: list[str] | None) -> Any:
+    parser = ArgumentParser(description="Capture and evaluate the M6 staging soak snapshot.")
+    parser.add_argument(
+        "--write-notes",
+        action="store_true",
+        help="Write dated Markdown and JSON snapshot artifacts under --notes-dir.",
+    )
+    parser.add_argument(
+        "--notes-dir",
+        type=Path,
+        default=DEFAULT_NOTES_DIR,
+        help=f"Directory for dated soak notes. Defaults to {DEFAULT_NOTES_DIR}.",
+    )
+    parser.add_argument(
+        "--state-file",
+        type=Path,
+        default=None,
+        help="Optional JSON state file for repeated-check threshold tracking.",
+    )
+    parser.add_argument(
+        "--parked-source",
+        action="append",
+        default=[],
+        help="Source deliberately parked in soak notes; may be passed more than once.",
+    )
+    parser.add_argument(
+        "--paused-strategy",
+        action="append",
+        default=[],
+        help="Strategy deliberately paused in soak notes; may be passed more than once.",
+    )
+    parser.add_argument(
+        "--max-open-notional-cents",
+        type=int,
+        default=None,
+        help="Fail checks when total open paper position cost basis exceeds this amount.",
+    )
+    parser.add_argument(
+        "--fail-on-intervention",
+        action="store_true",
+        help="Exit 2 when automation checks find an intervention trigger.",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv)
+    state_path = args.state_file
+    if state_path is None and args.write_notes:
+        state_path = args.notes_dir / ".staging-soak-state.json"
     try:
-        print(render_snapshot(fetch_snapshot(_client_from_env())))
+        snapshot = fetch_snapshot(_client_from_env())
+        previous_state = _load_state(state_path)
+        current_state = update_soak_state(
+            snapshot,
+            previous_state,
+            set(args.parked_source),
+        )
+        findings = evaluate_snapshot(
+            snapshot,
+            current_state,
+            parked_sources=set(args.parked_source),
+            paused_strategies=set(args.paused_strategy),
+            max_open_notional_cents=args.max_open_notional_cents,
+        )
+        rendered_snapshot = render_snapshot(snapshot)
+        print(rendered_snapshot)
+        print()
+        print(render_findings(findings))
+        if args.write_notes:
+            markdown_path, json_path = write_snapshot_artifacts(
+                snapshot,
+                rendered_snapshot,
+                findings,
+                args.notes_dir,
+            )
+            _save_state(state_path, current_state)
+            print()
+            print(f"Wrote soak notes: {markdown_path} and {json_path}")
     except (RuntimeError, urllib.error.URLError, urllib.error.HTTPError) as exc:
         print(f"snapshot failed: {exc}", file=sys.stderr)
         return 1
+    if args.fail_on_intervention and any(
+        finding.severity == "intervention" for finding in findings
+    ):
+        return 2
     return 0
 
 
