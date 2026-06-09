@@ -25,6 +25,41 @@ python scripts/staging_soak_snapshot.py
 Save the output in the soak notes for that date. The script reads only API
 endpoints; it does not require direct database access.
 
+For scheduled runs, let the script save the note, raw JSON, and repeated-check
+state automatically:
+
+```bash
+SOAK_API_BASE_URL=https://api.staging-event-market.critterhaus.net \
+SOAK_API_TOKEN=$CONTROL_PLANE_TOKEN \
+python scripts/staging_soak_snapshot.py \
+  --write-notes \
+  --notes-dir docs/operations/soak-notes \
+  --fail-on-intervention
+```
+
+Exit codes:
+
+- `0`: snapshot completed and no intervention trigger was found.
+- `1`: snapshot collection failed.
+- `2`: snapshot completed, but at least one runbook intervention trigger was
+  found.
+
+If a source or strategy is deliberately parked in the daily notes, include that
+exception in the scheduled command so automation does not keep flagging the
+known state:
+
+```bash
+python scripts/staging_soak_snapshot.py \
+  --write-notes \
+  --parked-source kalshi_resolution \
+  --paused-strategy weather_ensemble_disagreement \
+  --fail-on-intervention
+```
+
+The automation reports and records intervention triggers only. It must not pause
+strategies, pause the system, redeploy, or restart the soak clock without an
+operator decision during M6.
+
 The snapshot includes:
 
 - API, database, and scheduler health.

@@ -13,6 +13,7 @@ ui/.npm-cache/
 __pycache__/
 *.egg-info/
 .DS_Store
+.staging-soak-state.json
 
 # stray root npm lockfile (npm project lives in ui/)
 /package-lock.json
