@@ -8,8 +8,6 @@
 		drawdown_paused: 'bg-amber-900/50 text-amber-300 border-amber-700',
 		operator_paused: 'bg-amber-900/50 text-amber-300 border-amber-700',
 		low_bankroll_paused: 'bg-amber-900/50 text-amber-300 border-amber-700',
-		graduated_under_review: 'bg-blue-900/50 text-blue-300 border-blue-700',
-		graduated: 'bg-blue-900/50 text-blue-300 border-blue-700',
 		decommissioned: 'bg-slate-700/50 text-slate-400 border-slate-600',
 		seeded: 'bg-slate-700/50 text-slate-400 border-slate-600'
 	};

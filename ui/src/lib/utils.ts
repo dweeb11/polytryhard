@@ -1,4 +1,4 @@
-import type { PaperPosition, StrategyInstance } from './types';
+import type { PaperPosition, SignalOutcome, StrategyInstance } from './types';
 
 export function uuid(): string {
 	return crypto.randomUUID();
@@ -31,8 +31,69 @@ export function formatCents(cents: number): string {
 	return `${sign}$${(abs / 100).toFixed(2)}`;
 }
 
-export function formatAge(iso: string): string {
-	const sec = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+export function compareIsoDesc(a: string, b: string): number {
+	const ta = Date.parse(a);
+	const tb = Date.parse(b);
+	const na = Number.isNaN(ta) ? Number.NEGATIVE_INFINITY : ta;
+	const nb = Number.isNaN(tb) ? Number.NEGATIVE_INFINITY : tb;
+	return nb - na;
+}
+
+export function formatIsoDateTime(iso: string): string {
+	if (!iso) return '—';
+	const ms = Date.parse(iso);
+	if (Number.isNaN(ms)) return '—';
+	return new Date(ms).toLocaleString();
+}
+
+/** UTC calendar day key (`YYYY-MM-DD`) for an ISO timestamp. */
+export function utcDayKey(iso: string): string {
+	const ms = Date.parse(iso);
+	if (Number.isNaN(ms)) return '';
+	return new Date(ms).toISOString().slice(0, 10);
+}
+
+export function isUtcToday(iso: string, nowMs: number = Date.now()): boolean {
+	const key = utcDayKey(iso);
+	if (!key) return false;
+	return key === new Date(nowMs).toISOString().slice(0, 10);
+}
+
+export function utcYesterdayKey(nowMs: number = Date.now()): string {
+	const d = new Date(nowMs);
+	d.setUTCDate(d.getUTCDate() - 1);
+	return d.toISOString().slice(0, 10);
+}
+
+export function formatUtcMonthDay(iso: string): string {
+	const ms = Date.parse(iso);
+	if (Number.isNaN(ms)) return '—';
+	return new Date(ms).toLocaleDateString('en-US', {
+		month: 'short',
+		day: 'numeric',
+		timeZone: 'UTC'
+	});
+}
+
+/** Group label for signal lists: `Today · Jun 1`, `Yesterday · …`, or `Jun 1`. */
+export function signalDayGroupLabel(iso: string, nowMs: number = Date.now()): string {
+	const key = utcDayKey(iso);
+	if (!key) return '—';
+	const todayKey = new Date(nowMs).toISOString().slice(0, 10);
+	const md = formatUtcMonthDay(iso);
+	if (key === todayKey) return `Today · ${md}`;
+	if (key === utcYesterdayKey(nowMs)) return `Yesterday · ${md}`;
+	return md;
+}
+
+export function formatAge(
+	iso: string | null | undefined,
+	nowMs: number = Date.now()
+): string {
+	if (!iso) return '—';
+	const ms = Date.parse(iso);
+	if (Number.isNaN(ms)) return '—';
+	const sec = Math.max(0, Math.floor((nowMs - ms) / 1000));
 	if (sec < 60) return `${sec}s ago`;
 	if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
 	if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
@@ -43,19 +104,29 @@ export function clamp(n: number, min: number, max: number): number {
 	return Math.min(max, Math.max(min, n));
 }
 
-export const PAUSABLE_STATES = ['active', 'graduated', 'graduated_under_review'] as const;
+export const PAUSABLE_STATES = ['active'] as const;
 export const RESUMABLE_STATES = [
 	'low_bankroll_paused',
 	'drawdown_paused',
 	'operator_paused'
 ] as const;
+// Mirrors backend AUTO_RESUME_ON_DEPOSIT_STATES: only a low-bankroll pause
+// clears automatically on deposit. Drawdown/operator pauses require an
+// explicit resume even when a deposit crosses the bankroll floor.
+export const AUTO_RESUME_ON_DEPOSIT_STATES = ['low_bankroll_paused'] as const;
 
 export function strategyStateLabel(state: string): string {
 	return state.replace(/_/g, ' ');
 }
 
-export function outcomeColor(outcome: string): string {
+export function formatOutcomeLabel(outcome: SignalOutcome | string): string {
+	if (outcome === 'unknown_outcome') return 'unknown outcome';
+	return outcome.replace(/_/g, ' ');
+}
+
+export function outcomeColor(outcome: SignalOutcome | string): string {
 	if (outcome === 'order_placed') return 'text-emerald-400';
+	if (outcome === 'unknown_outcome') return 'text-red-400';
 	if (outcome === 'rejected_system_paused') return 'text-red-400';
 	if (outcome.startsWith('rejected_')) return 'text-amber-400';
 	return 'text-slate-300';

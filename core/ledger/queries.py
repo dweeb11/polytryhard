@@ -1,0 +1,386 @@
+from datetime import UTC, datetime, timedelta
+from decimal import ROUND_HALF_UP, Decimal
+
+from sqlalchemy import Select, exists, func, or_, select
+from sqlalchemy.orm import Session
+
+from core.db.enums import PositionStatus
+from core.db.models import (
+    AuditEventRow,
+    CashEventRow,
+    PaperFillRow,
+    PaperPositionRow,
+    SignalRow,
+    StrategyInstanceRow,
+    SystemStateRow,
+)
+from core.db.shared_models import RawMarketSnapshotRow
+from core.domain.audit import AuditEvent
+from core.domain.cash_event import CashEvent
+from core.domain.enums import (
+    AuditActor,
+    CashEventKind,
+    PositionSide,
+    SignalOutcome,
+    StrategyState,
+    SystemState,
+)
+from core.domain.strategy import StrategyConfig, StrategyInstance, effective_strategy_config
+from core.domain.system import SystemEnvState
+from core.domain.trading import PaperPositionRecord, SignalRecord
+from core.features.queries import latest_market_snapshots_by_ticker
+from core.utils.time import format_dt, parse_iso, utc_now
+
+
+def _strategy_config(row: StrategyInstanceRow) -> StrategyConfig:
+    return effective_strategy_config(row.config_jsonb, strategy_name=row.name)
+
+
+def strategy_instance_from_row(row: StrategyInstanceRow) -> StrategyInstance:
+    return StrategyInstance(
+        name=row.name,
+        enabled=row.enabled,
+        state=StrategyState(row.state),
+        bankroll_cents=row.bankroll_cents,
+        bankroll_hwm_cents=row.bankroll_hwm_cents,
+        initial_deposit_cents=row.initial_deposit_cents,
+        kelly_fraction=float(row.kelly_fraction),
+        config=_strategy_config(row),
+        last_state_change_at=format_dt(row.last_state_change_at),
+        today_pnl_cents=0,
+    )
+
+
+def cash_event_from_row(row: CashEventRow) -> CashEvent:
+    return CashEvent(
+        id=row.id,
+        strategy_name=row.strategy_name,
+        occurred_at=format_dt(row.occurred_at),
+        kind=CashEventKind(row.kind),
+        amount_cents=row.amount_cents,
+        balance_after_cents=row.balance_after_cents,
+        reason=row.reason,
+        ref_position_id=row.ref_position_id,
+    )
+
+
+def audit_event_from_row(row: AuditEventRow) -> AuditEvent:
+    return AuditEvent(
+        id=row.id,
+        occurred_at=format_dt(row.occurred_at),
+        actor=AuditActor(row.actor),
+        action=row.action,
+        target_type=row.target_type,
+        target_id=row.target_id,
+        before_state=row.before_state,
+        after_state=row.after_state,
+        reason=row.reason,
+        request_id=row.request_id,
+    )
+
+
+def system_state_from_row(row: SystemStateRow) -> SystemEnvState:
+    return SystemEnvState(
+        state=SystemState(row.state),
+        kill_switch_reason=row.kill_switch_reason,
+        kill_switch_tripped_at=(
+            format_dt(row.kill_switch_tripped_at) if row.kill_switch_tripped_at else None
+        ),
+    )
+
+
+def get_strategy(session: Session, name: str) -> StrategyInstanceRow | None:
+    return session.get(StrategyInstanceRow, name)
+
+
+def strategy_has_trading_activity(session: Session, strategy_name: str) -> bool:
+    stmt = (
+        select(1)
+        .where(
+            or_(
+                exists(
+                    select(SignalRow.id).where(SignalRow.strategy_name == strategy_name)
+                ),
+                exists(
+                    select(PaperPositionRow.id).where(
+                        PaperPositionRow.strategy_name == strategy_name
+                    )
+                ),
+                exists(
+                    select(PaperFillRow.id)
+                    .join(PaperPositionRow, PaperFillRow.position_id == PaperPositionRow.id)
+                    .where(PaperPositionRow.strategy_name == strategy_name)
+                ),
+            )
+        )
+        .limit(1)
+    )
+    return session.scalar(stmt) is not None
+
+
+def list_strategies(session: Session) -> list[StrategyInstance]:
+    rows = session.scalars(select(StrategyInstanceRow).order_by(StrategyInstanceRow.name)).all()
+    return [strategy_instance_from_row(row) for row in rows]
+
+
+def get_system_state(session: Session) -> SystemEnvState:
+    row = session.get(SystemStateRow, 1)
+    if row is None:
+        raise RuntimeError("system_state row missing")
+    return system_state_from_row(row)
+
+
+def reserved_open_cost_basis_cents(session: Session, strategy_name: str) -> int:
+    reserved = session.scalar(
+        select(func.coalesce(func.sum(PaperPositionRow.cost_basis_cents), 0)).where(
+            PaperPositionRow.strategy_name == strategy_name,
+            PaperPositionRow.status == "open",
+        )
+    )
+    return int(reserved or 0)
+
+
+def free_cash_for_strategy(session: Session, strategy: StrategyInstanceRow) -> int:
+    reserved = reserved_open_cost_basis_cents(session, strategy.name)
+    return max(0, strategy.bankroll_cents - reserved)
+
+
+def free_cash_cents(session: Session, strategy_name: str) -> int:
+    strategy = session.get(StrategyInstanceRow, strategy_name)
+    if strategy is None:
+        return 0
+    return free_cash_for_strategy(session, strategy)
+
+
+def list_cash_events(
+    session: Session,
+    strategy_name: str,
+    *,
+    limit: int = 50,
+    before: datetime | None = None,
+) -> list[CashEvent]:
+    stmt: Select[tuple[CashEventRow]] = (
+        select(CashEventRow)
+        .where(CashEventRow.strategy_name == strategy_name)
+        .order_by(CashEventRow.occurred_at.desc())
+        .limit(limit)
+    )
+    if before is not None:
+        stmt = stmt.where(CashEventRow.occurred_at < before)
+    rows = session.scalars(stmt).all()
+    return [cash_event_from_row(row) for row in rows]
+
+
+def list_audit_events(
+    session: Session,
+    *,
+    limit: int = 50,
+    before: datetime | None = None,
+    actor: str | None = None,
+    action: str | None = None,
+    target_type: str | None = None,
+) -> list[AuditEvent]:
+    stmt = select(AuditEventRow).order_by(AuditEventRow.occurred_at.desc()).limit(limit)
+    if before is not None:
+        stmt = stmt.where(AuditEventRow.occurred_at < before)
+    if actor is not None:
+        stmt = stmt.where(AuditEventRow.actor == actor)
+    if action is not None:
+        stmt = stmt.where(AuditEventRow.action == action)
+    if target_type is not None:
+        stmt = stmt.where(AuditEventRow.target_type == target_type)
+    rows = session.scalars(stmt).all()
+    return [audit_event_from_row(row) for row in rows]
+
+
+def parse_before_cursor(before: str | None) -> datetime | None:
+    if before is None or not before.strip():
+        return None
+    return parse_iso(before)
+
+
+def signal_from_row(row: SignalRow) -> SignalRecord:
+    return SignalRecord(
+        id=row.id,
+        strategy_name=row.strategy_name,
+        ticker=row.ticker,
+        evaluated_at=format_dt(row.evaluated_at),
+        prob_yes=float(row.prob_yes),
+        confidence=float(row.confidence),
+        features_snapshot=row.features_snapshot_jsonb,
+        market_state=row.market_state_jsonb,
+        outcome=SignalOutcome(row.outcome),
+        rejection_reason=row.rejection_reason,
+    )
+
+
+def list_signals(
+    session: Session,
+    *,
+    strategy_name: str | None = None,
+    ticker: str | None = None,
+    outcome: str | None = None,
+    limit: int = 50,
+    before: datetime | None = None,
+) -> list[SignalRecord]:
+    stmt = select(SignalRow).order_by(SignalRow.evaluated_at.desc()).limit(limit)
+    if strategy_name is not None:
+        stmt = stmt.where(SignalRow.strategy_name == strategy_name)
+    if ticker is not None:
+        stmt = stmt.where(SignalRow.ticker == ticker)
+    if outcome is not None:
+        stmt = stmt.where(SignalRow.outcome == outcome)
+    if before is not None:
+        stmt = stmt.where(SignalRow.evaluated_at < before)
+    rows = session.scalars(stmt).all()
+    return [signal_from_row(row) for row in rows]
+
+
+def position_from_row(
+    row: PaperPositionRow,
+    *,
+    unrealized_pnl_cents: int | None,
+) -> PaperPositionRecord:
+    status = row.status.value if hasattr(row.status, "value") else str(row.status)
+    return PaperPositionRecord(
+        id=row.id,
+        strategy_name=row.strategy_name,
+        ticker=row.ticker,
+        side=row.side,
+        opened_at=format_dt(row.opened_at),
+        closed_at=format_dt(row.closed_at) if row.closed_at else None,
+        open_avg_price=float(row.open_avg_price),
+        qty=row.qty,
+        cost_basis_cents=row.cost_basis_cents,
+        realized_pnl_cents=row.realized_pnl_cents,
+        unrealized_pnl_cents=unrealized_pnl_cents,
+        status=status,
+    )
+
+
+def _utc_aware(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value
+
+
+def _max_input_age_seconds(config_jsonb: dict[str, object]) -> int:
+    raw = config_jsonb.get("maxInputAgeSeconds", config_jsonb.get("max_input_age_seconds", 900))
+    if isinstance(raw, int):
+        return raw
+    if isinstance(raw, float):
+        return int(raw)
+    return 900
+
+
+def _mark_price_for_side(side: PositionSide, mid_yes: Decimal) -> Decimal:
+    if side == PositionSide.YES:
+        return mid_yes
+    return Decimal("1") - mid_yes
+
+
+def _unrealized_pnl_cents(
+    *,
+    side: PositionSide,
+    open_avg_price: Decimal,
+    qty: int,
+    mid_yes: Decimal,
+) -> int:
+    mark = _mark_price_for_side(side, mid_yes)
+    pnl = (mark - open_avg_price) * Decimal(qty) * Decimal("100")
+    return int(pnl.to_integral_value(rounding=ROUND_HALF_UP))
+
+
+def _open_position_unrealized_pnl_cents(
+    row: PaperPositionRow,
+    *,
+    snapshot: RawMarketSnapshotRow | None,
+    strategy_configs: dict[str, dict[str, object]],
+    now: datetime,
+) -> int | None:
+    if snapshot is None or snapshot.mid_yes is None:
+        return None
+    config = strategy_configs.get(row.strategy_name, {})
+    max_age = _max_input_age_seconds(config)
+    snapshot_as_of = _utc_aware(snapshot.as_of)
+    as_of_cutoff = _utc_aware(now) - timedelta(seconds=max_age)
+    if snapshot_as_of < as_of_cutoff:
+        return None
+    side = PositionSide(row.side.value if hasattr(row.side, "value") else row.side)
+    return _unrealized_pnl_cents(
+        side=side,
+        open_avg_price=row.open_avg_price,
+        qty=row.qty,
+        mid_yes=snapshot.mid_yes,
+    )
+
+
+def _open_position_marks(
+    session: Session,
+    shared_session: Session,
+    open_rows: list[PaperPositionRow],
+) -> dict[str, int | None]:
+    """Mark-to-market unrealized P&L for open positions, fail-closed to None.
+
+    Every open position id gets an entry; a None value means no fresh market
+    snapshot was available, so the position must report unknown unrealized P&L
+    rather than a stale or fabricated number.
+    """
+    if not open_rows:
+        return {}
+    now = utc_now()
+    names = {row.strategy_name for row in open_rows}
+    strategy_configs = {
+        row.name: row.config_jsonb
+        for row in session.scalars(
+            select(StrategyInstanceRow).where(StrategyInstanceRow.name.in_(names))
+        ).all()
+    }
+    snapshots_by_ticker = latest_market_snapshots_by_ticker(
+        shared_session,
+        tickers={row.ticker for row in open_rows},
+        as_of=now,
+    )
+    return {
+        row.id: _open_position_unrealized_pnl_cents(
+            row,
+            snapshot=snapshots_by_ticker.get(row.ticker),
+            strategy_configs=strategy_configs,
+            now=now,
+        )
+        for row in open_rows
+    }
+
+
+def list_positions(
+    session: Session,
+    *,
+    shared_session: Session,
+    strategy_name: str | None = None,
+    status: str | None = None,
+    limit: int = 50,
+    before: datetime | None = None,
+) -> list[PaperPositionRecord]:
+    stmt = select(PaperPositionRow).order_by(PaperPositionRow.opened_at.desc()).limit(limit)
+    if strategy_name is not None:
+        stmt = stmt.where(PaperPositionRow.strategy_name == strategy_name)
+    if status is not None:
+        stmt = stmt.where(PaperPositionRow.status == status)
+    if before is not None:
+        stmt = stmt.where(PaperPositionRow.opened_at < before)
+    rows = session.scalars(stmt).all()
+
+    open_marks = _open_position_marks(
+        session, shared_session, [row for row in rows if row.status == PositionStatus.OPEN]
+    )
+    return [
+        position_from_row(
+            row,
+            unrealized_pnl_cents=(
+                open_marks[row.id]
+                if row.status == PositionStatus.OPEN
+                else row.unrealized_pnl_cents
+            ),
+        )
+        for row in rows
+    ]

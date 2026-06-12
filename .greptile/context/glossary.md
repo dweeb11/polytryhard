@@ -33,5 +33,6 @@ Domain vocabulary for polytryhard. The PDD §11 glossary plus a few cross-cuttin
 
 ## UI prototype terms
 
-- **`actions.ts` mutation surface**: the only file in `ui/` allowed to mutate stores. All bankroll, position, audit, plugin, source, and system-state changes go through exported functions here. Components do not call `*.update(...)` directly.
-- **Env namespace**: each `EnvName` ('main' / 'staging') has its own `localStorage` namespace, fixtures, and persisted ledger. `switchEnv` flushes the current and loads the other.
+- **`actions.ts` mutation surface**: the only file in `ui/` allowed to mutate stores. Ledger/system mutations go through exported functions here; in **live** mode they call `/v1/*` and re-hydrate stores from the API.
+- **API mode (`live` \| `mock`)**: derived from `PUBLIC_BACKEND_URL` + `/healthz`. Live uses bearer auth against the FastAPI control plane; mock uses fixtures + `localStorage` key `polytryhard`.
+- **Generated API types**: `ui/src/lib/api/types.ts` from OpenAPI — do not hand-edit. Prototype-only shapes (Toast, fixtures) stay in `ui/src/lib/types.ts`.

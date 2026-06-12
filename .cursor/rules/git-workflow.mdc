@@ -1,0 +1,55 @@
+---
+description: Git branch and PR workflow — feature → staging → main
+alwaysApply: true
+---
+
+# Git workflow
+
+## Branches
+
+| Branch | Role |
+|--------|------|
+| `main` | Production-ready; deploys `polytryhard-main` |
+| `staging` | Integration / user-test; deploys `polytryhard-staging` |
+| `feat/*`, `fix/*`, `docs/*`, `refactor/*` | Short-lived work branches |
+
+`staging` is a **long-lived** branch. Do not delete it after merges.
+
+## Rules
+
+1. **All feature work** branches from `staging`, not `main`.
+2. **Open PRs** (never merge locally without a PR unless the user explicitly asks otherwise).
+3. **Feature PR base:** `staging`. **One concern per PR** (see `.cursor/rules/pr-slicing.mdc`); a Linear issue may ship as several ordered PRs.
+4. **Release PR:** after staging soak / user testing, open a PR **`staging` → `main`**. Do not cherry-pick feature commits onto `main`.
+5. **Commits:** conventional prefixes (`feat/`, `fix/`, …); include AI co-author line when assisted.
+
+## Agent checklist (new work)
+
+```bash
+git fetch origin
+git checkout staging && git pull origin staging
+git checkout -b feat/<linear-id>-<short-slug>   # e.g. feat/POL-42-settings-nav
+# … implement …
+git push -u origin HEAD
+gh pr create --base staging --title "…" --body "…"
+```
+
+Linear ID in the branch name when an issue exists; link the issue in the PR body.
+
+## Promotion to main
+
+Only after the user confirms staging is good:
+
+```bash
+gh pr create --base main --head staging --title "Promote staging to main" …
+```
+
+Merge via GitHub UI or `gh pr merge` after review — not `git merge` on `main` without a PR.
+
+## Do not
+
+- Open feature PRs against `main`.
+- Push directly to `staging` or `main` (unless user explicitly requests a hotfix exception).
+- Rebase `staging` onto `main` routinely; promotion is `staging` → `main` via PR.
+
+See `docs/PDD.md` §9.1 for deployment pairing (branch ↔ Coolify service).

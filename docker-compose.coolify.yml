@@ -1,0 +1,56 @@
+services:
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+      args:
+        PUBLIC_BACKEND_URL: ${PUBLIC_BACKEND_URL:?}
+        PUBLIC_BACKEND_TOKEN: ${CONTROL_PLANE_TOKEN:?}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      APP_VERSION: ${APP_VERSION:-0.1.0}
+      GIT_SHA: ${SOURCE_COMMIT:-dev}
+      DATABASE_URL_SHARED: postgresql+psycopg://polytryhard:${POSTGRES_PASSWORD:?}@postgres:5432/polytryhard_shared
+      DATABASE_URL_PER_ENV: postgresql+psycopg://polytryhard:${POSTGRES_PASSWORD:?}@postgres:5432/polytryhard_staging
+      CONTROL_PLANE_TOKEN: ${CONTROL_PLANE_TOKEN:?}
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-https://staging-event-market.critterhaus.net}
+      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-1}
+      KALSHI_API_KEY_ID: ${KALSHI_API_KEY_ID:-}
+      KALSHI_PRIVATE_KEY: ${KALSHI_PRIVATE_KEY:-}
+      KALSHI_API_BASE: ${KALSHI_API_BASE:-https://api.elections.kalshi.com}
+      KALSHI_SERIES_PREFIXES: ${KALSHI_SERIES_PREFIXES:-KXHIGHNY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=5)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: polytryhard
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: polytryhard_shared
+    volumes:
+      - polytryhard_staging_postgres:/var/lib/postgresql/data
+      - ./scripts/init-local-dbs.sql:/docker-entrypoint-initdb.d/init-local-dbs.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U polytryhard -d polytryhard_shared"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  polytryhard_staging_postgres:

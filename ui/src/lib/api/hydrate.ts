@@ -1,0 +1,297 @@
+import {
+	audit,
+	bankrollHistoryByStrategy,
+	calibrationByStrategy,
+	cashEvents,
+	evalByStrategy,
+	evalRoster,
+	positions,
+	signals,
+	sources,
+	strategies,
+	system
+} from '$lib/stores';
+import { liveDataRefresh } from '$lib/api/liveDataRefresh';
+import { tradingHydration } from '$lib/api/tradingHydration';
+import { compareIsoDesc } from '$lib/utils';
+import type {
+	AuditEvent,
+	BankrollPoint,
+	CalibrationBucket,
+	CashEvent,
+	CashEventKind,
+	EvalRosterEntryView,
+	EvalSnapshotView,
+	KnownSignalOutcome,
+	PaperPosition,
+	PositionStatus,
+	Signal,
+	SignalOutcome,
+	SourceHealth,
+	SourceState,
+	StrategyInstance,
+	SystemEnvState
+} from '$lib/types';
+import { KNOWN_SIGNAL_OUTCOMES } from '$lib/types';
+import { apiGet } from './client';
+
+/** Max rows per trading list; API supports `before` cursor pagination beyond this. */
+export const HYDRATE_TRADING_LIMIT = 100;
+
+const SOURCE_DISPLAY_NAMES: Record<string, string> = {
+	kalshi_markets: 'Kalshi Markets',
+	open_meteo: 'Open-Meteo (GFS + ECMWF)'
+};
+
+const KNOWN_SIGNAL_OUTCOME_SET = new Set<string>(KNOWN_SIGNAL_OUTCOMES);
+
+function mapSourceStatus(status: string | null | undefined): SourceState {
+	if (status === 'ok') return 'healthy';
+	if (status === 'degraded') return 'degraded';
+	return 'down';
+}
+
+export function parseSignalOutcome(raw: unknown): SignalOutcome {
+	const value = typeof raw === 'string' ? raw : '';
+	return KNOWN_SIGNAL_OUTCOME_SET.has(value) ? (value as KnownSignalOutcome) : 'unknown_outcome';
+}
+
+export function sortSignalsByEvaluatedAt(records: Signal[]): Signal[] {
+	return [...records].sort((a, b) => compareIsoDesc(a.evaluatedAt, b.evaluatedAt));
+}
+
+export function sortPositionsByOpenedAt(records: PaperPosition[]): PaperPosition[] {
+	return [...records].sort((a, b) => compareIsoDesc(a.openedAt, b.openedAt));
+}
+
+export function mapSourceEntry(entry: Record<string, unknown>): SourceHealth {
+	const name = String(entry.name ?? '');
+	return {
+		name,
+		displayName: SOURCE_DISPLAY_NAMES[name] ?? name,
+		state: mapSourceStatus(typeof entry.status === 'string' ? entry.status : null),
+		lastSuccessfulFetch:
+			typeof entry.lastSuccessAt === 'string'
+				? entry.lastSuccessAt
+				: typeof entry.lastRunAt === 'string'
+					? entry.lastRunAt
+					: '',
+		lastError: typeof entry.lastError === 'string' ? entry.lastError : null
+	};
+}
+
+export function mapSignalRecord(entry: Record<string, unknown>): Signal {
+	const rawOutcome = entry.outcome;
+	const outcome = parseSignalOutcome(rawOutcome);
+	let rejectionReason =
+		typeof entry.rejectionReason === 'string'
+			? entry.rejectionReason
+			: entry.rejectionReason == null
+				? null
+				: String(entry.rejectionReason);
+	if (outcome === 'unknown_outcome' && typeof rawOutcome === 'string' && rawOutcome) {
+		rejectionReason = rejectionReason ?? `Unknown API outcome: ${rawOutcome}`;
+	}
+	return {
+		id: String(entry.id ?? ''),
+		strategyName: String(entry.strategyName ?? ''),
+		ticker: String(entry.ticker ?? ''),
+		evaluatedAt: String(entry.evaluatedAt ?? ''),
+		probYes: Number(entry.probYes ?? 0),
+		confidence: Number(entry.confidence ?? 0),
+		outcome,
+		rejectionReason
+	};
+}
+
+export function mapPositionRecord(entry: Record<string, unknown>): PaperPosition {
+	const status = String(entry.status ?? 'open');
+	return {
+		id: String(entry.id ?? ''),
+		strategyName: String(entry.strategyName ?? ''),
+		ticker: String(entry.ticker ?? ''),
+		side: entry.side === 'no' ? 'no' : 'yes',
+		openedAt: String(entry.openedAt ?? ''),
+		closedAt:
+			typeof entry.closedAt === 'string'
+				? entry.closedAt
+				: entry.closedAt == null
+					? null
+					: String(entry.closedAt),
+		openAvgPrice: Number(entry.openAvgPrice ?? 0),
+		qty: Number(entry.qty ?? 0),
+		costBasisCents: Number(entry.costBasisCents ?? 0),
+		realizedPnlCents:
+			typeof entry.realizedPnlCents === 'number'
+				? entry.realizedPnlCents
+				: entry.realizedPnlCents == null
+					? null
+					: Number(entry.realizedPnlCents),
+		unrealizedPnlCents:
+			typeof entry.unrealizedPnlCents === 'number' ? entry.unrealizedPnlCents : null,
+		status: (status === 'closed' || status === 'resolved' ? status : 'open') as PositionStatus
+	};
+}
+
+export function mapCalibrationBins(
+	bins: Array<Record<string, unknown>>
+): CalibrationBucket[] {
+	return bins.map((b, i) => ({
+		bucket: i,
+		predicted: Number(b.predictedMean ?? 0),
+		actual: Number(b.observedFreq ?? 0),
+		count: Number(b.count ?? 0)
+	}));
+}
+
+export function mapCashEventsToBankroll(
+	events: Array<Record<string, unknown>>
+): BankrollPoint[] {
+	return events
+		.map((e) => ({
+			at: String(e.occurredAt ?? ''),
+			bankrollCents: Number(e.balanceAfterCents ?? 0)
+		}))
+		.sort((a, b) => -compareIsoDesc(a.at, b.at));
+}
+
+export function mapCashEventRecord(entry: Record<string, unknown>): CashEvent {
+	return {
+		id: String(entry.id ?? ''),
+		strategyName: String(entry.strategyName ?? ''),
+		occurredAt: String(entry.occurredAt ?? ''),
+		kind: String(entry.kind ?? 'deposit') as CashEventKind,
+		amountCents: Number(entry.amountCents ?? 0),
+		balanceAfterCents: Number(entry.balanceAfterCents ?? 0),
+		reason: String(entry.reason ?? ''),
+		refPositionId:
+			typeof entry.refPositionId === 'string'
+				? entry.refPositionId
+				: entry.refPositionId == null
+					? null
+					: String(entry.refPositionId)
+	};
+}
+
+export async function hydrateStrategyEval(name: string): Promise<void> {
+	const detail = (await apiGet(`/v1/eval/${name}`)) as {
+		strategyName: string;
+		windows: EvalSnapshotView[];
+	};
+	evalByStrategy.update((m) => ({ ...m, [name]: detail }));
+
+	// Seed calibration from the first window; the Task 8 window selector drives the displayed window.
+	const latest = detail.windows[0];
+	if (latest) {
+		const bins = (latest.calibrationBins as Array<Record<string, unknown>>) ?? [];
+		calibrationByStrategy.update((m) => ({ ...m, [name]: mapCalibrationBins(bins) }));
+	}
+
+	const events = (await apiGet(`/v1/strategies/${name}/cash-events`)) as Array<
+		Record<string, unknown>
+	>;
+	const mappedEvents = events.map(mapCashEventRecord);
+	cashEvents.update((current) => [
+		...mappedEvents,
+		...current.filter((event) => event.strategyName !== name)
+	]);
+	bankrollHistoryByStrategy.update((m) => ({ ...m, [name]: mapCashEventsToBankroll(events) }));
+}
+
+export interface HydrateLedgerResult {
+	failedEndpoints: string[];
+}
+
+function logHydrateFailure(endpoint: string, error: unknown): void {
+	console.error(`Live data refresh failed: ${endpoint}`, error);
+}
+
+async function tryHydrate<T>(
+	endpoint: string,
+	fetch: () => Promise<T>,
+	apply: (value: T) => void,
+	failures: string[]
+): Promise<void> {
+	try {
+		const value = await fetch();
+		apply(value);
+	} catch (error) {
+		logHydrateFailure(endpoint, error);
+		failures.push(endpoint);
+	}
+}
+
+export async function hydrateLedgerFromApi(): Promise<HydrateLedgerResult> {
+	const failures: string[] = [];
+	liveDataRefresh.set({ status: 'refreshing', failedEndpoints: [] });
+
+	await Promise.all([
+		tryHydrate(
+			'/v1/strategies',
+			() => apiGet('/v1/strategies') as Promise<StrategyInstance[]>,
+			(value) => strategies.set(value),
+			failures
+		),
+		tryHydrate(
+			'/v1/system',
+			() => apiGet('/v1/system') as Promise<SystemEnvState>,
+			(value) => system.set(value),
+			failures
+		),
+		tryHydrate(
+			'/v1/audit',
+			() => apiGet('/v1/audit', { limit: '50' }) as Promise<AuditEvent[]>,
+			(value) => audit.set(value),
+			failures
+		),
+		tryHydrate(
+			'/v1/sources',
+			() => apiGet('/v1/sources') as Promise<Record<string, unknown>[]>,
+			(value) => sources.set(value.map(mapSourceEntry)),
+			failures
+		)
+	]);
+
+	let signalRecords: Signal[] | null = null;
+	try {
+		const rows = (await apiGet('/v1/signals', {
+			limit: String(HYDRATE_TRADING_LIMIT)
+		})) as Record<string, unknown>[];
+		signalRecords = sortSignalsByEvaluatedAt(rows.map(mapSignalRecord));
+		tradingHydration.update((state) => ({ ...state, signals: 'fresh' }));
+	} catch (error) {
+		logHydrateFailure('/v1/signals', error);
+		failures.push('/v1/signals');
+		tradingHydration.update((state) => ({ ...state, signals: 'stale' }));
+	}
+
+	let positionRecords: PaperPosition[] | null = null;
+	try {
+		const rows = (await apiGet('/v1/positions', {
+			limit: String(HYDRATE_TRADING_LIMIT)
+		})) as Record<string, unknown>[];
+		positionRecords = sortPositionsByOpenedAt(rows.map(mapPositionRecord));
+		tradingHydration.update((state) => ({ ...state, positions: 'fresh' }));
+	} catch (error) {
+		logHydrateFailure('/v1/positions', error);
+		failures.push('/v1/positions');
+		tradingHydration.update((state) => ({ ...state, positions: 'stale' }));
+	}
+
+	if (signalRecords !== null) signals.set(signalRecords);
+	if (positionRecords !== null) positions.set(positionRecords);
+
+	try {
+		const rosterRows = (await apiGet('/v1/eval')) as EvalRosterEntryView[];
+		evalRoster.set(Object.fromEntries(rosterRows.map((r) => [r.strategyName, r])));
+	} catch (error) {
+		logHydrateFailure('/v1/eval', error);
+		failures.push('/v1/eval');
+	}
+
+	liveDataRefresh.set({
+		status: failures.length === 0 ? 'fresh' : 'stale',
+		failedEndpoints: failures
+	});
+	return { failedEndpoints: failures };
+}

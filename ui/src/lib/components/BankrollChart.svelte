@@ -31,7 +31,7 @@
 	<line x1={pad.l} y1={pad.t + innerH} x2={pad.l + innerW} y2={pad.t + innerH} stroke="#2d3a4f" />
 	{#if sorted.length}
 		<path d={pathD} fill="none" stroke="#3b82f6" stroke-width="2" />
-		{#each sorted as p, i}
+		{#each sorted as p, i (p.at)}
 			<circle cx={x(i)} cy={y(p.bankrollCents)} r="2.5" fill="#60a5fa" />
 		{/each}
 		<text x={pad.l} y={height - 4} class="fill-slate-500 text-[10px]">

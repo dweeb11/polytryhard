@@ -1,0 +1,2019 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "polytryhard",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/v1/strategies": {
+      "get": {
+        "summary": "List Strategies Route",
+        "operationId": "list_strategies_route_v1_strategies_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StrategyInstance"
+                  },
+                  "type": "array",
+                  "title": "Response List Strategies Route V1 Strategies Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/strategies/{name}": {
+      "get": {
+        "summary": "Get Strategy Route",
+        "operationId": "get_strategy_route_v1_strategies__name__get",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StrategyInstance"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/strategies/{name}/cash-events": {
+      "get": {
+        "summary": "List Cash Events Route",
+        "operationId": "list_cash_events_route_v1_strategies__name__cash_events_get",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CashEvent"
+                  },
+                  "title": "Response List Cash Events Route V1 Strategies  Name  Cash Events Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/strategies/{name}/deposit": {
+      "post": {
+        "summary": "Deposit Route",
+        "operationId": "deposit_route_v1_strategies__name__deposit_post",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AmountReasonBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashEvent"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/strategies/{name}/withdraw": {
+      "post": {
+        "summary": "Withdraw Route",
+        "operationId": "withdraw_route_v1_strategies__name__withdraw_post",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AmountReasonBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashEvent"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/strategies/{name}/set-starting-bankroll": {
+      "post": {
+        "summary": "Set Starting Bankroll Route",
+        "operationId": "set_starting_bankroll_route_v1_strategies__name__set_starting_bankroll_post",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetStartingBankrollBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StrategyInstance"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/strategies/{name}/pause": {
+      "post": {
+        "summary": "Pause Route",
+        "operationId": "pause_route_v1_strategies__name__pause_post",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/strategies/{name}/resume": {
+      "post": {
+        "summary": "Resume Route",
+        "operationId": "resume_route_v1_strategies__name__resume_post",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/strategies/{name}/set-kelly-fraction": {
+      "post": {
+        "summary": "Set Kelly Route",
+        "operationId": "set_kelly_route_v1_strategies__name__set_kelly_fraction_post",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetKellyBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/strategies/{name}/decommission": {
+      "post": {
+        "summary": "Decommission Route",
+        "operationId": "decommission_route_v1_strategies__name__decommission_post",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/system": {
+      "get": {
+        "summary": "Get System Route",
+        "operationId": "get_system_route_v1_system_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemEnvState"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/system/pause": {
+      "post": {
+        "summary": "Pause System Route",
+        "operationId": "pause_system_route_v1_system_pause_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/system/resume": {
+      "post": {
+        "summary": "Resume System Route",
+        "operationId": "resume_system_route_v1_system_resume_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/audit": {
+      "get": {
+        "summary": "List Audit Route",
+        "operationId": "list_audit_route_v1_audit_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          },
+          {
+            "name": "actor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Actor"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Action"
+            }
+          },
+          {
+            "name": "target_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Target Type"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuditEvent"
+                  },
+                  "title": "Response List Audit Route V1 Audit Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sources": {
+      "get": {
+        "summary": "List Sources Route",
+        "operationId": "list_sources_route_v1_sources_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SourceHealthEntry"
+                  },
+                  "type": "array",
+                  "title": "Response List Sources Route V1 Sources Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/signals": {
+      "get": {
+        "summary": "List Signals Route",
+        "operationId": "list_signals_route_v1_signals_get",
+        "parameters": [
+          {
+            "name": "strategy_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Strategy Name"
+            }
+          },
+          {
+            "name": "ticker",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "outcome",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Outcome"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SignalRecord"
+                  },
+                  "title": "Response List Signals Route V1 Signals Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/positions": {
+      "get": {
+        "summary": "List Positions Route",
+        "operationId": "list_positions_route_v1_positions_get",
+        "parameters": [
+          {
+            "name": "strategy_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Strategy Name"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PaperPositionRecord"
+                  },
+                  "title": "Response List Positions Route V1 Positions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/eval": {
+      "get": {
+        "summary": "List Eval Route",
+        "operationId": "list_eval_route_v1_eval_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EvalRosterEntry"
+                  },
+                  "type": "array",
+                  "title": "Response List Eval Route V1 Eval Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/eval/{strategy}": {
+      "get": {
+        "summary": "Get Eval Route",
+        "operationId": "get_eval_route_v1_eval__strategy__get",
+        "parameters": [
+          {
+            "name": "strategy",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Strategy"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StrategyEval"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/healthz": {
+      "get": {
+        "summary": "Healthz",
+        "operationId": "healthz_healthz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthzResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthzResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AmountReasonBody": {
+        "properties": {
+          "amountCents": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amountcents"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "AmountReasonBody"
+      },
+      "AuditActor": {
+        "type": "string",
+        "enum": [
+          "user",
+          "system",
+          "scheduler"
+        ],
+        "title": "AuditActor"
+      },
+      "AuditEvent": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "occurredAt": {
+            "type": "string",
+            "title": "Occurredat"
+          },
+          "actor": {
+            "$ref": "#/components/schemas/AuditActor"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "targetType": {
+            "type": "string",
+            "title": "Targettype"
+          },
+          "targetId": {
+            "type": "string",
+            "title": "Targetid"
+          },
+          "beforeState": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Beforestate"
+          },
+          "afterState": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Afterstate"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "requestId": {
+            "type": "string",
+            "title": "Requestid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "occurredAt",
+          "actor",
+          "action",
+          "targetType",
+          "targetId",
+          "beforeState",
+          "afterState",
+          "reason",
+          "requestId"
+        ],
+        "title": "AuditEvent"
+      },
+      "CalibrationBin": {
+        "properties": {
+          "lower": {
+            "type": "number",
+            "title": "Lower"
+          },
+          "upper": {
+            "type": "number",
+            "title": "Upper"
+          },
+          "predictedMean": {
+            "type": "number",
+            "title": "Predictedmean"
+          },
+          "observedFreq": {
+            "type": "number",
+            "title": "Observedfreq"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lower",
+          "upper",
+          "predictedMean",
+          "observedFreq",
+          "count"
+        ],
+        "title": "CalibrationBin"
+      },
+      "CashEvent": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "strategyName": {
+            "type": "string",
+            "title": "Strategyname"
+          },
+          "occurredAt": {
+            "type": "string",
+            "title": "Occurredat"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CashEventKind"
+          },
+          "amountCents": {
+            "type": "integer",
+            "title": "Amountcents"
+          },
+          "balanceAfterCents": {
+            "type": "integer",
+            "title": "Balanceaftercents"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "refPositionId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refpositionid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "strategyName",
+          "occurredAt",
+          "kind",
+          "amountCents",
+          "balanceAfterCents",
+          "reason",
+          "refPositionId"
+        ],
+        "title": "CashEvent"
+      },
+      "CashEventKind": {
+        "type": "string",
+        "enum": [
+          "deposit",
+          "withdraw",
+          "realized_pnl",
+          "fee",
+          "transfer_in",
+          "transfer_out"
+        ],
+        "title": "CashEventKind"
+      },
+      "EvalRosterEntry": {
+        "properties": {
+          "strategyName": {
+            "type": "string",
+            "title": "Strategyname"
+          },
+          "nTrades": {
+            "type": "integer",
+            "title": "Ntrades"
+          },
+          "hitRate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hitrate"
+          },
+          "brierScore": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brierscore"
+          },
+          "pnlCents": {
+            "type": "integer",
+            "title": "Pnlcents"
+          },
+          "posteriorEdgeCiLow": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posterioredgecilow"
+          }
+        },
+        "type": "object",
+        "required": [
+          "strategyName",
+          "nTrades",
+          "pnlCents"
+        ],
+        "title": "EvalRosterEntry"
+      },
+      "EvalSnapshot": {
+        "properties": {
+          "window": {
+            "type": "string",
+            "title": "Window"
+          },
+          "computedAt": {
+            "type": "string",
+            "title": "Computedat"
+          },
+          "nTrades": {
+            "type": "integer",
+            "title": "Ntrades"
+          },
+          "nWins": {
+            "type": "integer",
+            "title": "Nwins"
+          },
+          "hitRate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hitrate"
+          },
+          "brierScore": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brierscore"
+          },
+          "logLoss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logloss"
+          },
+          "pnlCents": {
+            "type": "integer",
+            "title": "Pnlcents"
+          },
+          "sharpeProxy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpeproxy"
+          },
+          "maxDrawdownCents": {
+            "type": "integer",
+            "title": "Maxdrawdowncents"
+          },
+          "posteriorEdgeMean": {
+            "type": "number",
+            "title": "Posterioredgemean"
+          },
+          "posteriorEdgeCiLow": {
+            "type": "number",
+            "title": "Posterioredgecilow"
+          },
+          "posteriorEdgeCiHigh": {
+            "type": "number",
+            "title": "Posterioredgecihigh"
+          },
+          "calibrationBins": {
+            "items": {
+              "$ref": "#/components/schemas/CalibrationBin"
+            },
+            "type": "array",
+            "title": "Calibrationbins"
+          }
+        },
+        "type": "object",
+        "required": [
+          "window",
+          "computedAt",
+          "nTrades",
+          "nWins",
+          "pnlCents",
+          "maxDrawdownCents",
+          "posteriorEdgeMean",
+          "posteriorEdgeCiLow",
+          "posteriorEdgeCiHigh",
+          "calibrationBins"
+        ],
+        "title": "EvalSnapshot"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthzResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "degraded"
+            ],
+            "title": "Status"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "git_sha": {
+            "type": "string",
+            "title": "Git Sha"
+          },
+          "request_id": {
+            "type": "string",
+            "title": "Request Id"
+          },
+          "checked_at": {
+            "type": "string",
+            "title": "Checked At"
+          },
+          "db_shared": {
+            "type": "string",
+            "title": "Db Shared"
+          },
+          "db_per_env": {
+            "type": "string",
+            "title": "Db Per Env"
+          },
+          "scheduler_cycle": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SchedulerCycleHealth"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "version",
+          "git_sha",
+          "request_id",
+          "checked_at",
+          "db_shared",
+          "db_per_env"
+        ],
+        "title": "HealthzResponse"
+      },
+      "PaperPositionRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "strategyName": {
+            "type": "string",
+            "title": "Strategyname"
+          },
+          "ticker": {
+            "type": "string",
+            "title": "Ticker"
+          },
+          "side": {
+            "$ref": "#/components/schemas/PositionSide"
+          },
+          "openedAt": {
+            "type": "string",
+            "title": "Openedat"
+          },
+          "closedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closedat"
+          },
+          "openAvgPrice": {
+            "type": "number",
+            "title": "Openavgprice"
+          },
+          "qty": {
+            "type": "integer",
+            "title": "Qty"
+          },
+          "costBasisCents": {
+            "type": "integer",
+            "title": "Costbasiscents"
+          },
+          "realizedPnlCents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Realizedpnlcents"
+          },
+          "unrealizedPnlCents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unrealizedpnlcents"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "strategyName",
+          "ticker",
+          "side",
+          "openedAt",
+          "openAvgPrice",
+          "qty",
+          "costBasisCents",
+          "status"
+        ],
+        "title": "PaperPositionRecord"
+      },
+      "PositionSide": {
+        "type": "string",
+        "enum": [
+          "yes",
+          "no"
+        ],
+        "title": "PositionSide"
+      },
+      "ReasonBody": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "ReasonBody"
+      },
+      "SchedulerCycleHealth": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "ok",
+              "error"
+            ],
+            "title": "Status"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "last_cycle_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Cycle At"
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "SchedulerCycleHealth"
+      },
+      "SetKellyBody": {
+        "properties": {
+          "fraction": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Fraction"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "fraction",
+          "reason"
+        ],
+        "title": "SetKellyBody"
+      },
+      "SetStartingBankrollBody": {
+        "properties": {
+          "amountCents": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Amountcents"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "amountCents",
+          "reason"
+        ],
+        "title": "SetStartingBankrollBody"
+      },
+      "SignalOutcome": {
+        "type": "string",
+        "enum": [
+          "order_placed",
+          "rejected_kelly_zero",
+          "rejected_exposure_cap",
+          "rejected_correlation_cap",
+          "rejected_below_threshold",
+          "rejected_below_min_position",
+          "rejected_market_closed",
+          "rejected_stale_inputs",
+          "rejected_system_paused"
+        ],
+        "title": "SignalOutcome"
+      },
+      "SignalRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "strategyName": {
+            "type": "string",
+            "title": "Strategyname"
+          },
+          "ticker": {
+            "type": "string",
+            "title": "Ticker"
+          },
+          "evaluatedAt": {
+            "type": "string",
+            "title": "Evaluatedat"
+          },
+          "probYes": {
+            "type": "number",
+            "title": "Probyes"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          },
+          "featuresSnapshot": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Featuressnapshot"
+          },
+          "marketState": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Marketstate"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/SignalOutcome"
+          },
+          "rejectionReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rejectionreason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "strategyName",
+          "ticker",
+          "evaluatedAt",
+          "probYes",
+          "confidence",
+          "outcome"
+        ],
+        "title": "SignalRecord"
+      },
+      "SourceHealthEntry": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "lastRunAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastrunat"
+          },
+          "lastSuccessAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastsuccessat"
+          },
+          "rowsLastRun": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rowslastrun"
+          },
+          "lastError": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lasterror"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "enabled"
+        ],
+        "title": "SourceHealthEntry"
+      },
+      "StrategyConfig": {
+        "properties": {
+          "minBankrollCents": {
+            "type": "integer",
+            "title": "Minbankrollcents"
+          },
+          "minTradeableBankrollCents": {
+            "type": "integer",
+            "title": "Mintradeablebankrollcents"
+          },
+          "maxDrawdownPctFromHwm": {
+            "type": "number",
+            "title": "Maxdrawdownpctfromhwm"
+          },
+          "autoResumeOnDeposit": {
+            "type": "boolean",
+            "title": "Autoresumeondeposit"
+          },
+          "maxInputAgeSeconds": {
+            "type": "integer",
+            "title": "Maxinputageseconds"
+          },
+          "confidenceFloor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidencefloor"
+          },
+          "disagreementThreshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disagreementthreshold"
+          },
+          "spreadMarginMultiplier": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spreadmarginmultiplier"
+          },
+          "wideSpreadThreshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Widespreadthreshold"
+          },
+          "exposureCapPct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exposurecappct"
+          },
+          "correlationCapPct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correlationcappct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "minBankrollCents",
+          "minTradeableBankrollCents",
+          "maxDrawdownPctFromHwm",
+          "autoResumeOnDeposit",
+          "maxInputAgeSeconds"
+        ],
+        "title": "StrategyConfig"
+      },
+      "StrategyEval": {
+        "properties": {
+          "strategyName": {
+            "type": "string",
+            "title": "Strategyname"
+          },
+          "windows": {
+            "items": {
+              "$ref": "#/components/schemas/EvalSnapshot"
+            },
+            "type": "array",
+            "title": "Windows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "strategyName",
+          "windows"
+        ],
+        "title": "StrategyEval"
+      },
+      "StrategyInstance": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "state": {
+            "$ref": "#/components/schemas/StrategyState"
+          },
+          "bankrollCents": {
+            "type": "integer",
+            "title": "Bankrollcents"
+          },
+          "bankrollHwmCents": {
+            "type": "integer",
+            "title": "Bankrollhwmcents"
+          },
+          "initialDepositCents": {
+            "type": "integer",
+            "title": "Initialdepositcents"
+          },
+          "kellyFraction": {
+            "type": "number",
+            "title": "Kellyfraction"
+          },
+          "config": {
+            "$ref": "#/components/schemas/StrategyConfig"
+          },
+          "lastStateChangeAt": {
+            "type": "string",
+            "title": "Laststatechangeat"
+          },
+          "todayPnlCents": {
+            "type": "integer",
+            "title": "Todaypnlcents",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "enabled",
+          "state",
+          "bankrollCents",
+          "bankrollHwmCents",
+          "initialDepositCents",
+          "kellyFraction",
+          "config",
+          "lastStateChangeAt"
+        ],
+        "title": "StrategyInstance"
+      },
+      "StrategyState": {
+        "type": "string",
+        "enum": [
+          "seeded",
+          "active",
+          "low_bankroll_paused",
+          "drawdown_paused",
+          "operator_paused",
+          "decommissioned"
+        ],
+        "title": "StrategyState"
+      },
+      "SystemEnvState": {
+        "properties": {
+          "state": {
+            "$ref": "#/components/schemas/SystemState"
+          },
+          "killSwitchReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Killswitchreason"
+          },
+          "killSwitchTrippedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Killswitchtrippedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "killSwitchReason",
+          "killSwitchTrippedAt"
+        ],
+        "title": "SystemEnvState"
+      },
+      "SystemState": {
+        "type": "string",
+        "enum": [
+          "active",
+          "paused"
+        ],
+        "title": "SystemState"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
