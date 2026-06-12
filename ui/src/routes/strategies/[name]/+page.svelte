@@ -24,24 +24,30 @@
 	} from '$lib/actions';
 	import { isDeveloperMode } from '$lib/stores/uiMode';
 	import {
+		compareIsoDesc,
 		drawdownPct,
 		formatCents,
 		freeCashCents,
-		outcomeColor,
 		PAUSABLE_STATES,
 		RESUMABLE_STATES
 	} from '$lib/utils';
+	import { humanizeTicker, outcomeLabel, outcomeTone, strategyVerdict } from '$lib/humanize';
 	import {
 		strategyBaselineConfigRows,
 		strategySoakConfigRows
 	} from '$lib/strategyConfigDisplay';
-	import { evalByStrategy } from '$lib/stores';
+	import { evalByStrategy, evalRoster } from '$lib/stores';
 	import { hydrateStrategyEval, mapCalibrationBins } from '$lib/api/hydrate';
 	import { apiMode } from '$lib/api/mode';
+	import type { CashEvent } from '$lib/types';
 
 	const name = $derived($page.params.name ?? '');
 	const strat = $derived($strategies.find((s) => s.name === name));
-	const stratSignals = $derived($signals.filter((s) => s.strategyName === name));
+	const stratSignals = $derived(
+		$signals
+			.filter((s) => s.strategyName === name)
+			.sort((a, b) => compareIsoDesc(a.evaluatedAt, b.evaluatedAt))
+	);
 	const history = $derived($bankrollHistoryByStrategy[name] ?? []);
 	const stratCash = $derived($cashEvents.filter((c) => c.strategyName === name).slice(0, 10));
 
@@ -62,6 +68,28 @@
 			: ($calibrationByStrategy[name] ?? [])
 	);
 	const freeCash = $derived(strat ? freeCashCents(strat, $positions) : 0);
+	const inPositions = $derived(strat ? strat.bankrollCents - freeCash : 0);
+
+	// Overconfidence callout: high-probability bins (≥70%) where reality
+	// resolved yes meaningfully less often than predicted.
+	const overconfidentHigh = $derived.by(() => {
+		if (!activeSnapshot) return null;
+		const high = activeSnapshot.calibrationBins.filter(
+			(b) => b.predictedMean >= 0.7 && b.count > 0 && b.predictedMean - b.observedFreq > 0.03
+		);
+		if (high.length === 0) return null;
+		const worst = high.reduce((a, b) =>
+			a.predictedMean - a.observedFreq > b.predictedMean - b.observedFreq ? a : b
+		);
+		return {
+			predicted: Math.round(worst.predictedMean * 100),
+			observed: Math.round(worst.observedFreq * 100)
+		};
+	});
+
+	const edgeProven = $derived(
+		activeSnapshot != null && activeSnapshot.posteriorEdgeCiLow > 0
+	);
 
 	let depositModal = $state(false);
 	let withdrawModal = $state(false);
@@ -89,6 +117,56 @@
 			: stratSignals.filter((s) => s.outcome === outcomeFilter)
 	);
 
+	function dayKey(iso: string): string {
+		const d = new Date(iso);
+		const now = new Date();
+		const yesterday = new Date(now);
+		yesterday.setDate(now.getDate() - 1);
+		if (d.toDateString() === now.toDateString()) return `Today · ${monthDay(d)}`;
+		if (d.toDateString() === yesterday.toDateString()) return `Yesterday · ${monthDay(d)}`;
+		return monthDay(d);
+	}
+
+	function monthDay(d: Date): string {
+		return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+	}
+
+	function signalTime(iso: string): string {
+		const ms = Date.parse(iso);
+		if (Number.isNaN(ms)) return '—';
+		return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+	}
+
+	const signalsByDay = $derived.by(() => {
+		const groups: Array<{ day: string; items: typeof filteredSignals }> = [];
+		for (const sig of filteredSignals.slice(0, 40)) {
+			const day = dayKey(sig.evaluatedAt);
+			const group = groups.at(-1);
+			if (group && group.day === day) group.items.push(sig);
+			else groups.push({ day, items: [sig] });
+		}
+		return groups;
+	});
+
+	function cashKind(c: CashEvent): { label: string; cls: string } {
+		if (c.kind === 'realized_pnl') {
+			return c.amountCents >= 0
+				? { label: 'won trade', cls: 'text-[var(--color-ok)]' }
+				: { label: 'lost trade', cls: 'text-[var(--color-danger)]' };
+		}
+		if (c.kind === 'deposit' || c.kind === 'transfer_in')
+			return { label: c.kind === 'deposit' ? 'deposit' : 'transfer in', cls: 'text-[var(--color-cyan)]' };
+		if (c.kind === 'withdraw' || c.kind === 'transfer_out')
+			return { label: c.kind === 'withdraw' ? 'withdraw' : 'transfer out', cls: 'text-[var(--color-warn)]' };
+		return { label: 'fee', cls: 'text-[var(--color-faint)]' };
+	}
+
+	const toneClass: Record<string, string> = {
+		placed: 'text-[var(--color-ok)]',
+		skip: 'text-[var(--color-muted)]',
+		block: 'text-[var(--color-warn)]'
+	};
+
 	const baselineConfigRows = $derived(strat ? strategyBaselineConfigRows(strat.config) : []);
 	const soakConfigRows = $derived(
 		strat ? strategySoakConfigRows(strat.name, strat.config) : []
@@ -100,57 +178,218 @@
 </script>
 
 {#if !strat}
-	<p class="text-slate-400">Strategy not found.</p>
+	<p class="text-[var(--color-muted)]">Strategy not found.</p>
 {:else}
-	<div class="mb-4 flex flex-wrap items-center gap-3">
-		<h1 class="text-lg font-semibold text-slate-100">{strat.name}</h1>
+	<div class="mb-1.5 text-[11px] text-[var(--color-faint)]">
+		<a href="/" class="text-[var(--color-muted)] hover:underline">Overview</a> / strategies / {strat.name}
+	</div>
+	<div class="mb-2 flex flex-wrap items-center gap-3">
+		<h1 class="font-sans text-xl font-bold text-[var(--color-heading)]">{strat.name}</h1>
 		<StateBadge state={strat.state} />
-		<span class="text-sm text-slate-400"
-			>Bankroll {formatCents(strat.bankrollCents)} · Free {formatCents(freeCash)} · DD {drawdownPct(
-				strat
-			).toFixed(1)}%</span
-		>
 	</div>
 
-	<div class="mb-6 grid gap-4 lg:grid-cols-2">
-		<div class="rounded border border-[var(--color-border)] p-3">
-			<h2 class="mb-2 text-xs uppercase text-slate-500">Bankroll (14d)</h2>
+	<!-- Verdict -->
+	<p class="mb-5 max-w-3xl text-[12.5px] leading-relaxed text-[var(--color-muted)]">
+		{#if activeSnapshot}
+			Over the last {activeSnapshot.window === 'all' ? 'full run' : activeSnapshot.window}:
+			<b class="font-medium text-[var(--color-bright)]"
+				>{activeSnapshot.nTrades} trades, {activeSnapshot.nWins} won, {activeSnapshot.pnlCents >= 0
+					? '+'
+					: ''}{formatCents(activeSnapshot.pnlCents)}</b
+			>.
+			{#if activeSnapshot.brierScore != null}
+				Calibration {activeSnapshot.brierScore <= 0.23 ? 'is tight' : 'is loose'} (Brier {activeSnapshot.brierScore.toFixed(3)}){#if overconfidentHigh}
+					with <span class="text-[var(--color-warn)]"
+						>overconfidence in the high buckets (says {overconfidentHigh.predicted}%, reality
+						{overconfidentHigh.observed}%)</span
+					>{/if}.
+			{/if}
+			The posterior edge is {(activeSnapshot.posteriorEdgeMean * 100).toFixed(1)}% and the
+			<b class="font-medium {edgeProven ? 'text-[var(--color-ok)]' : 'text-[var(--color-bright)]'}"
+				>worst-case bound is {(activeSnapshot.posteriorEdgeCiLow * 100).toFixed(1)}%</b
+			>
+			— {edgeProven ? 'this edge is statistically real' : 'not yet statistically proven'}. Drawdown
+			is {drawdownPct(strat).toFixed(1)}% of the {strat.config.maxDrawdownPctFromHwm.toFixed(0)}%
+			stop.
+		{:else}
+			{strategyVerdict(strat, $evalRoster[strat.name])}
+		{/if}
+	</p>
+
+	<!-- Vitals strip -->
+	<section
+		class="mb-5 grid grid-cols-2 gap-px overflow-hidden rounded-md border border-[var(--color-border)] bg-[var(--color-border)] md:grid-cols-3 xl:grid-cols-5"
+	>
+		<div class="bg-[var(--color-panel)] px-4 py-3">
+			<div class="mb-1 text-[9.5px] uppercase tracking-[0.13em] text-[var(--color-faint)]">Bankroll</div>
+			<div class="font-sans text-lg font-bold tabular-nums text-[var(--color-heading)]">
+				{formatCents(strat.bankrollCents)}
+			</div>
+			<div class="mt-0.5 text-[10.5px] tabular-nums text-[var(--color-muted)]">
+				{formatCents(freeCash)} free · {formatCents(inPositions)} in positions
+			</div>
+		</div>
+		<div class="bg-[var(--color-panel)] px-4 py-3">
+			<div class="mb-1 text-[9.5px] uppercase tracking-[0.13em] text-[var(--color-faint)]">
+				P&amp;L · {activeSnapshot?.window ?? '—'}
+			</div>
+			<div
+				class="font-sans text-lg font-bold tabular-nums {(activeSnapshot?.pnlCents ?? 0) >= 0
+					? 'text-[var(--color-ok)]'
+					: 'text-[var(--color-danger)]'}"
+			>
+				{activeSnapshot ? `${activeSnapshot.pnlCents >= 0 ? '+' : ''}${formatCents(activeSnapshot.pnlCents)}` : '—'}
+			</div>
+			<div class="mt-0.5 text-[10.5px] tabular-nums text-[var(--color-muted)]">
+				today {strat.todayPnlCents >= 0 ? '+' : ''}{formatCents(strat.todayPnlCents)}
+			</div>
+		</div>
+		<div class="bg-[var(--color-panel)] px-4 py-3">
+			<div class="mb-1 text-[9.5px] uppercase tracking-[0.13em] text-[var(--color-faint)]">
+				Edge (worst case)
+			</div>
+			<div
+				class="font-sans text-lg font-bold tabular-nums {edgeProven
+					? 'text-[var(--color-ok)]'
+					: 'text-[var(--color-heading)]'}"
+			>
+				{activeSnapshot ? `${(activeSnapshot.posteriorEdgeCiLow * 100).toFixed(1)}%` : '—'}
+			</div>
+			<div class="mt-0.5 text-[10.5px] tabular-nums text-[var(--color-muted)]">
+				{activeSnapshot
+					? `mean ${(activeSnapshot.posteriorEdgeMean * 100).toFixed(1)}%, best ${(activeSnapshot.posteriorEdgeCiHigh * 100).toFixed(1)}%`
+					: 'needs resolved trades'}
+			</div>
+		</div>
+		<div class="bg-[var(--color-panel)] px-4 py-3">
+			<div class="mb-1 text-[9.5px] uppercase tracking-[0.13em] text-[var(--color-faint)]">Hit rate</div>
+			<div class="font-sans text-lg font-bold tabular-nums text-[var(--color-heading)]">
+				{activeSnapshot?.hitRate == null ? '—' : `${(activeSnapshot.hitRate * 100).toFixed(0)}%`}
+			</div>
+			<div class="mt-0.5 text-[10.5px] tabular-nums text-[var(--color-muted)]">
+				{activeSnapshot
+					? `${activeSnapshot.nWins} of ${activeSnapshot.nTrades} · Brier ${activeSnapshot.brierScore?.toFixed(3) ?? '—'}`
+					: '—'}
+			</div>
+		</div>
+		<div class="bg-[var(--color-panel)] px-4 py-3 md:col-span-2 xl:col-span-1">
+			<div class="mb-1 text-[9.5px] uppercase tracking-[0.13em] text-[var(--color-faint)]">Drawdown</div>
+			<div
+				class="font-sans text-lg font-bold tabular-nums {drawdownPct(strat) >=
+				strat.config.maxDrawdownPctFromHwm
+					? 'text-[var(--color-danger)]'
+					: 'text-[var(--color-heading)]'}"
+			>
+				{drawdownPct(strat).toFixed(1)}%
+			</div>
+			<div class="mt-0.5 text-[10.5px] tabular-nums text-[var(--color-muted)]">
+				stops at {strat.config.maxDrawdownPctFromHwm.toFixed(0)}% · HWM {formatCents(strat.bankrollHwmCents)}
+			</div>
+		</div>
+	</section>
+
+	<!-- Controls -->
+	<div class="mb-5 flex flex-wrap items-center gap-2">
+		<button
+			type="button"
+			class="rounded border border-[color-mix(in_srgb,var(--color-accent)_45%,transparent)] bg-[color-mix(in_srgb,var(--color-accent)_12%,transparent)] px-4 py-1.5 text-xs text-[var(--color-accent)] disabled:opacity-40"
+			disabled={$systemPaused || strat.state === 'decommissioned'}
+			title={$systemPaused ? 'Kill switch active' : ''}
+			onclick={() => (depositModal = true)}
+		>
+			Deposit
+		</button>
+		<button
+			type="button"
+			class="rounded border border-[var(--color-border-bright)] bg-[var(--color-panel-2)] px-4 py-1.5 text-xs disabled:opacity-40"
+			disabled={$systemPaused}
+			onclick={() => (withdrawModal = true)}
+		>
+			Withdraw
+		</button>
+		{#if PAUSABLE_STATES.includes(strat.state as (typeof PAUSABLE_STATES)[number])}
+			<button
+				type="button"
+				class="rounded border border-[color-mix(in_srgb,var(--color-warn)_45%,transparent)] px-4 py-1.5 text-xs text-[var(--color-warn)] disabled:opacity-40"
+				disabled={$systemPaused}
+				onclick={() => void pauseStrategy(strat.name, reason || 'operator pause')}
+			>
+				Pause
+			</button>
+		{/if}
+		{#if RESUMABLE_STATES.includes(strat.state as (typeof RESUMABLE_STATES)[number])}
+			<button
+				type="button"
+				class="rounded border border-[color-mix(in_srgb,var(--color-ok)_45%,transparent)] px-4 py-1.5 text-xs text-[var(--color-ok)] disabled:opacity-40"
+				disabled={$systemPaused}
+				onclick={() => void resumeStrategy(strat.name, reason || 'operator resume')}
+			>
+				Resume
+			</button>
+		{/if}
+		<button
+			type="button"
+			class="rounded border border-[color-mix(in_srgb,var(--color-warn)_45%,transparent)] px-4 py-1.5 text-xs text-[var(--color-warn)] disabled:opacity-40"
+			disabled={$systemPaused || strat.state === 'decommissioned'}
+			onclick={() => (forceModal = true)}
+		>
+			Force close positions
+		</button>
+		<button
+			type="button"
+			class="ml-auto rounded border border-[color-mix(in_srgb,var(--color-danger)_45%,transparent)] px-4 py-1.5 text-xs text-[var(--color-danger)]"
+			onclick={() => (decomModal = true)}
+		>
+			Decommission…
+		</button>
+	</div>
+
+	<div class="mb-5 grid gap-3.5 lg:grid-cols-2">
+		<div class="rounded-md border border-[var(--color-border)] bg-[var(--color-panel)] p-4">
+			<h2
+				class="mb-2 flex items-center gap-2.5 text-[11px] uppercase tracking-[0.18em] text-[var(--color-faint)] after:h-px after:flex-1 after:bg-[var(--color-border)]"
+			>
+				Bankroll — 14 days
+			</h2>
 			<BankrollChart points={history} width={480} height={140} />
 		</div>
-		<div class="rounded border border-[var(--color-border)] p-3">
-			<h2 class="mb-2 text-xs uppercase text-slate-500">Calibration (10 buckets)</h2>
-			<div class="mb-2 flex items-center gap-2 text-xs">
-				<span class="uppercase text-slate-500">Window</span>
-				<select class="rounded border border-[var(--color-border)] bg-slate-900 px-2 py-0.5" bind:value={selectedWindow}>
-					<option value="7d">7d</option>
-					<option value="30d">30d</option>
-					<option value="all">all</option>
-				</select>
+		<div class="rounded-md border border-[var(--color-border)] bg-[var(--color-panel)] p-4">
+			<div class="mb-2 flex items-center justify-between">
+				<h2 class="text-[11px] uppercase tracking-[0.18em] text-[var(--color-faint)]">Calibration</h2>
+				<div class="flex gap-1.5">
+					{#each ['7d', '30d', 'all'] as w (w)}
+						<button
+							type="button"
+							class="rounded border px-2.5 py-0.5 text-[10.5px] {selectedWindow === w
+								? 'border-[var(--color-accent)] text-[var(--color-accent)]'
+								: 'border-[var(--color-border)] text-[var(--color-muted)] hover:text-[var(--color-bright)]'}"
+							onclick={() => (selectedWindow = w)}
+						>
+							{w}
+						</button>
+					{/each}
+				</div>
 			</div>
 			<CalibrationChart buckets={calibration} legendId="strategy-calibration-legend" />
-			{#if activeSnapshot}
-				<table class="mt-3 w-full text-xs">
-					<tbody class="[&_td]:py-0.5">
-						<tr><td class="text-slate-500">Trades</td><td class="tabular-nums">{activeSnapshot.nTrades} ({activeSnapshot.nWins} won)</td></tr>
-						<tr><td class="text-slate-500">Hit rate</td><td class="tabular-nums">{activeSnapshot.hitRate == null ? '—' : (activeSnapshot.hitRate * 100).toFixed(1) + '%'}</td></tr>
-						<tr><td class="text-slate-500">Brier</td><td class="tabular-nums">{activeSnapshot.brierScore == null ? '—' : activeSnapshot.brierScore.toFixed(3)}</td></tr>
-						<tr><td class="text-slate-500">Log loss</td><td class="tabular-nums">{activeSnapshot.logLoss == null ? '—' : activeSnapshot.logLoss.toFixed(3)}</td></tr>
-						<tr><td class="text-slate-500">P&amp;L</td><td class="tabular-nums">{formatCents(activeSnapshot.pnlCents)}</td></tr>
-						<tr><td class="text-slate-500">Max drawdown</td><td class="tabular-nums">{formatCents(activeSnapshot.maxDrawdownCents)}</td></tr>
-						<tr><td class="text-slate-500">Sharpe proxy</td><td class="tabular-nums">{activeSnapshot.sharpeProxy == null ? '—' : activeSnapshot.sharpeProxy.toFixed(2)}</td></tr>
-						<tr><td class="text-slate-500">Posterior edge</td><td class="tabular-nums">{(activeSnapshot.posteriorEdgeMean * 100).toFixed(1)}% [{(activeSnapshot.posteriorEdgeCiLow * 100).toFixed(1)}, {(activeSnapshot.posteriorEdgeCiHigh * 100).toFixed(1)}]</td></tr>
-					</tbody>
-				</table>
-			{:else}
-				<p class="mt-3 text-xs text-slate-500">No eval data yet — needs resolved trades.</p>
+			{#if overconfidentHigh}
+				<p
+					class="mt-2.5 border-t border-[var(--color-border)] pt-2.5 text-[11.5px] leading-relaxed text-[var(--color-muted)]"
+				>
+					<b class="font-medium text-[var(--color-bright)]">Reading:</b> the high buckets run
+					<span class="text-[var(--color-warn)]">a touch too sure</span> — when this strategy says
+					"{overconfidentHigh.predicted}% likely," reality has delivered about {overconfidentHigh.observed}%.
+				</p>
 			{/if}
-			<details id="strategy-calibration-legend-desc" class="group mt-2 text-xs text-slate-500">
+			{#if !activeSnapshot}
+				<p class="mt-3 text-xs text-[var(--color-faint)]">No eval data yet — needs resolved trades.</p>
+			{/if}
+			<details id="strategy-calibration-legend-desc" class="group mt-2 text-xs text-[var(--color-faint)]">
 				<summary
-					class="cursor-pointer list-none font-medium text-slate-400 marker:content-none hover:text-slate-300 [&::-webkit-details-marker]:hidden"
+					class="cursor-pointer list-none font-medium text-[var(--color-muted)] marker:content-none hover:text-[var(--color-bright)] [&::-webkit-details-marker]:hidden"
 				>
 					<span class="inline-flex items-center gap-1">
 						<span
-							class="inline-block text-[10px] text-slate-500 transition group-open:rotate-90"
+							class="inline-block text-[10px] transition group-open:rotate-90"
 							aria-hidden="true">▶</span
 						>
 						How to read
@@ -164,20 +403,20 @@
 					</p>
 					<ul class="list-inside list-disc space-y-0.5 pl-0.5">
 						<li>
-							<span class="text-slate-400">On the dashed line</span> — well calibrated (predicted
+							<span class="text-[var(--color-muted)]">On the dashed line</span> — well calibrated (predicted
 							matches outcomes).
 						</li>
 						<li>
-							<span class="text-slate-400">Above the line</span> — more yes than predicted
+							<span class="text-[var(--color-muted)]">Above the line</span> — more yes than predicted
 							(under-confident).
 						</li>
 						<li>
-							<span class="text-slate-400">Below the line</span> — fewer yes than predicted
+							<span class="text-[var(--color-muted)]">Below the line</span> — fewer yes than predicted
 							(over-confident).
 						</li>
 					</ul>
 					{#if $isDeveloperMode && $apiMode === 'mock'}
-						<p class="text-[10px] text-slate-600">
+						<p class="text-[10px] text-[var(--color-faint)]">
 							Prototype: buckets are simulated fixture data, not computed from live Kalshi
 							resolutions.
 						</p>
@@ -187,154 +426,127 @@
 		</div>
 	</div>
 
-	<div class="mb-6 grid gap-4 lg:grid-cols-3">
-		<div class="rounded border border-[var(--color-border)] p-3 lg:col-span-1">
-			<h2 class="mb-3 text-xs uppercase text-slate-500">Controls</h2>
-			<div class="flex flex-col gap-2">
-				<button
-					type="button"
-					class="rounded bg-blue-700 px-3 py-1.5 text-sm disabled:opacity-40"
-					disabled={$systemPaused || strat.state === 'decommissioned'}
-					title={$systemPaused ? 'Kill switch active' : ''}
-					onclick={() => (depositModal = true)}
-				>
-					Deposit
-				</button>
-				<button
-					type="button"
-					class="rounded border border-[var(--color-border)] px-3 py-1.5 text-sm disabled:opacity-40"
-					disabled={$systemPaused}
-					onclick={() => (withdrawModal = true)}
-				>
-					Withdraw
-				</button>
-				{#if PAUSABLE_STATES.includes(strat.state as typeof PAUSABLE_STATES[number])}
-					<button
-						type="button"
-						class="rounded border border-amber-700 px-3 py-1.5 text-sm text-amber-300 disabled:opacity-40"
-						disabled={$systemPaused}
-						onclick={() => void pauseStrategy(strat.name, reason || 'operator pause')}
-					>
-						Pause
-					</button>
-				{/if}
-				{#if RESUMABLE_STATES.includes(strat.state as typeof RESUMABLE_STATES[number])}
-					<button
-						type="button"
-						class="rounded border border-emerald-700 px-3 py-1.5 text-sm text-emerald-300 disabled:opacity-40"
-						disabled={$systemPaused}
-						onclick={() => void resumeStrategy(strat.name, reason || 'operator resume')}
-					>
-						Resume
-					</button>
-				{/if}
-				<label class="mt-2 text-xs text-slate-400">
-					Kelly % (0–100)
-					<input
-						type="range"
-						min="0"
-						max="100"
-						bind:value={kellyPct}
-						class="w-full"
-						disabled={$systemPaused || strat.state === 'decommissioned'}
-					/>
-					<button
-						type="button"
-						class="mt-1 w-full rounded border border-[var(--color-border)] py-1 text-xs disabled:opacity-40"
-						disabled={$systemPaused || strat.state === 'decommissioned'}
-						onclick={() => void setKellyFraction(strat.name, kellyPct / 100, 'dashboard slider')}
-					>
-						Apply Kelly {kellyPct}%
-					</button>
-				</label>
-				<button
-					type="button"
-					class="rounded border border-orange-700 px-3 py-1.5 text-sm text-orange-300 disabled:opacity-40"
-					disabled={$systemPaused || strat.state === 'decommissioned'}
-					onclick={() => (forceModal = true)}
-				>
-					Force close positions
-				</button>
-				<button
-					type="button"
-					class="rounded border border-red-800 px-3 py-1.5 text-sm text-red-400"
-					onclick={() => (decomModal = true)}
-				>
-					Decommission
-				</button>
-				<input
-					class="mt-2 rounded border border-[var(--color-border)] bg-slate-900 px-2 py-1 text-xs"
-					placeholder="Reason for pause/resume"
-					bind:value={reason}
-				/>
-				<div class="mt-3 border-t border-[var(--color-border)] pt-3">
-					<h3 class="mb-2 text-xs uppercase text-slate-500">Baseline config</h3>
-					<dl class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 text-xs">
-						{#each baselineConfigRows as row}
-							<dt class="truncate text-slate-500">{row[0]}</dt>
-							<dd class="text-right tabular-nums text-slate-300">{row[1]}</dd>
-						{/each}
-					</dl>
-					<h3 class="mb-2 mt-3 text-xs uppercase text-slate-500">Soak knobs</h3>
-					<dl class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 text-xs">
-						{#each soakConfigRows as row}
-							<dt class="truncate text-slate-500">{row[0]}</dt>
-							<dd class="text-right tabular-nums text-slate-300">{row[1]}</dd>
-						{/each}
-					</dl>
-				</div>
-			</div>
-		</div>
-
-		<div class="rounded border border-[var(--color-border)] p-3 lg:col-span-2">
-			<div class="mb-2 flex items-center justify-between">
-				<h2 class="text-xs uppercase text-slate-500">Signals</h2>
+	<div class="mb-5 grid gap-3.5 lg:grid-cols-[1.5fr_1fr]">
+		<div class="rounded-md border border-[var(--color-border)] bg-[var(--color-panel)] p-4">
+			<div class="mb-1 flex items-center justify-between">
+				<h2 class="text-[11px] uppercase tracking-[0.18em] text-[var(--color-faint)]">Signals</h2>
 				<select
-					class="rounded border border-[var(--color-border)] bg-slate-900 px-2 py-0.5 text-xs"
+					class="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-0.5 text-[11px]"
 					bind:value={outcomeFilter}
 				>
 					<option value="all">All outcomes</option>
-					<option value="order_placed">order placed</option>
-					<option value="rejected_system_paused">system paused</option>
-					<option value="rejected_below_threshold">below threshold</option>
+					<option value="order_placed">{outcomeLabel('order_placed')}</option>
+					<option value="rejected_below_threshold">{outcomeLabel('rejected_below_threshold')}</option>
+					<option value="rejected_kelly_zero">{outcomeLabel('rejected_kelly_zero')}</option>
+					<option value="rejected_stale_inputs">{outcomeLabel('rejected_stale_inputs')}</option>
+					<option value="rejected_system_paused">{outcomeLabel('rejected_system_paused')}</option>
 				</select>
 			</div>
-			<div class="max-h-80 overflow-y-auto text-xs">
-				<table class="w-full">
-					<thead class="text-slate-500">
-						<tr>
-							<th class="py-1 text-left">Time</th>
-							<th class="py-1 text-left">Ticker</th>
-							<th class="py-1 text-left">p(Y)</th>
-							<th class="py-1 text-left">Outcome</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each filteredSignals.slice(0, 40) as sig (sig.id)}
-							<tr class="border-t border-slate-800">
-								<td class="py-1 text-slate-400">{new Date(sig.evaluatedAt).toLocaleString()}</td>
-								<td>{sig.ticker}</td>
-								<td>{sig.probYes.toFixed(2)}</td>
-								<td class={outcomeColor(sig.outcome)}>{sig.outcome}</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
+			<div class="max-h-96 overflow-y-auto">
+				{#each signalsByDay as group (group.day)}
+					<div
+						class="pb-1.5 pt-3 text-[10px] uppercase tracking-[0.14em] text-[var(--color-faint)]"
+					>
+						{group.day}
+					</div>
+					{#each group.items as sig (sig.id)}
+						<div
+							class="grid grid-cols-[40px_1fr_56px_auto] items-baseline gap-3 border-b border-[var(--color-border)] py-1.5 text-xs last:border-0"
+						>
+							<span class="text-[11px] tabular-nums text-[var(--color-faint)]"
+								>{signalTime(sig.evaluatedAt)}</span
+							>
+							<span class="min-w-0">
+								<span class="text-[var(--color-bright)]">{humanizeTicker(sig.ticker)}</span>
+								{#if humanizeTicker(sig.ticker) !== sig.ticker}
+									<span class="block truncate text-[10px] text-[var(--color-faint)]">{sig.ticker}</span>
+								{/if}
+							</span>
+							<span class="text-right tabular-nums text-[var(--color-muted)]"
+								>saw <b class="font-medium text-[var(--color-bright)]">{(sig.probYes * 100).toFixed(0)}%</b></span
+							>
+							<span class="text-[11px] {toneClass[outcomeTone(sig.outcome)]}"
+								>{outcomeLabel(sig.outcome)}</span
+							>
+						</div>
+					{/each}
+				{:else}
+					<p class="py-2 text-xs text-[var(--color-faint)]">No signals match this filter.</p>
+				{/each}
 			</div>
 		</div>
-	</div>
 
-	<div class="rounded border border-[var(--color-border)] p-3">
-		<h2 class="mb-2 text-xs uppercase text-slate-500">Recent cash events</h2>
-		<ul class="text-xs text-slate-300">
-			{#each stratCash as c (c.id)}
-				<li class="py-0.5">
-					{c.kind} {formatCents(c.amountCents)} → balance {formatCents(c.balanceAfterCents)} — {c.reason}
-				</li>
-			{:else}
-				<li class="text-slate-500">No cash events</li>
-			{/each}
-		</ul>
+		<div class="flex flex-col gap-3.5">
+			<div class="rounded-md border border-[var(--color-border)] bg-[var(--color-panel)] p-4">
+				<h2
+					class="mb-1 flex items-center gap-2.5 text-[11px] uppercase tracking-[0.18em] text-[var(--color-faint)] after:h-px after:flex-1 after:bg-[var(--color-border)]"
+				>
+					Money ledger
+				</h2>
+				{#each stratCash as c (c.id)}
+					{@const kind = cashKind(c)}
+					<div
+						class="grid grid-cols-[72px_1fr_auto_auto] items-baseline gap-3 border-b border-[var(--color-border)] py-1.5 text-xs last:border-0"
+					>
+						<span class="text-[10px] uppercase tracking-[0.08em] {kind.cls}">{kind.label}</span>
+						<span class="min-w-0 truncate text-[var(--color-muted)]" title={c.reason}>{c.reason}</span>
+						<span
+							class="tabular-nums {c.amountCents >= 0
+								? 'text-[var(--color-ok)]'
+								: 'text-[var(--color-danger)]'}"
+							>{c.amountCents >= 0 ? '+' : ''}{formatCents(c.amountCents)}</span
+						>
+						<span class="w-16 text-right tabular-nums text-[var(--color-faint)]"
+							>{formatCents(c.balanceAfterCents)}</span
+						>
+					</div>
+				{:else}
+					<p class="py-2 text-xs text-[var(--color-faint)]">No cash events.</p>
+				{/each}
+			</div>
+
+			<div class="rounded-md border border-[var(--color-border)] bg-[var(--color-panel)] p-4">
+				<h2
+					class="mb-1 flex items-center gap-2.5 text-[11px] uppercase tracking-[0.18em] text-[var(--color-faint)] after:h-px after:flex-1 after:bg-[var(--color-border)]"
+				>
+					Rules this strategy runs under
+				</h2>
+				{#each [...baselineConfigRows, ...soakConfigRows] as row (row[0])}
+					<div
+						class="flex items-baseline justify-between gap-3 border-b border-[var(--color-border)] py-1.5 text-xs last:border-0"
+					>
+						<span class="text-[var(--color-muted)]">{row[0]}</span>
+						<span class="tabular-nums text-[var(--color-bright)]">{row[1]}</span>
+					</div>
+				{/each}
+				<div class="mt-3 border-t border-[var(--color-border)] pt-3">
+					<label class="text-xs text-[var(--color-muted)]">
+						Bet sizing — Kelly {kellyPct}%
+						<input
+							type="range"
+							min="0"
+							max="100"
+							bind:value={kellyPct}
+							class="w-full accent-[var(--color-accent)]"
+							disabled={$systemPaused || strat.state === 'decommissioned'}
+						/>
+					</label>
+					<button
+						type="button"
+						class="mt-1 w-full rounded border border-[var(--color-border-bright)] py-1 text-xs disabled:opacity-40"
+						disabled={$systemPaused || strat.state === 'decommissioned'}
+						onclick={() => void setKellyFraction(strat.name, kellyPct / 100, 'strategy page slider')}
+					>
+						Apply Kelly {kellyPct}%
+					</button>
+					<input
+						class="mt-2 w-full rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs"
+						placeholder="Reason for pause/resume"
+						bind:value={reason}
+					/>
+				</div>
+			</div>
+		</div>
 	</div>
 {/if}
 
@@ -347,22 +559,22 @@
 	}}
 >
 	<input
-		class="mb-2 w-full rounded border border-[var(--color-border)] bg-slate-900 p-2 text-sm"
+		class="mb-2 w-full rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-sm"
 		type="number"
 		bind:value={amountDollars}
 		min="1"
 	/>
 	{#if amountError}
-		<p class="mb-2 text-xs text-red-400">{amountError}</p>
+		<p class="mb-2 text-xs text-[var(--color-danger)]">{amountError}</p>
 	{/if}
 	<input
-		class="mb-3 w-full rounded border border-[var(--color-border)] bg-slate-900 p-2 text-sm"
+		class="mb-3 w-full rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-sm"
 		placeholder="Reason"
 		bind:value={reason}
 	/>
 	<button
 		type="button"
-		class="w-full rounded bg-blue-700 py-2 text-sm text-white"
+		class="w-full rounded bg-[var(--color-accent)] py-2 text-sm font-medium text-[var(--color-surface)]"
 		onclick={() => {
 			const cents = parseAmountCents();
 			if (cents === null) return;
@@ -383,15 +595,23 @@
 		amountError = '';
 	}}
 >
-	<p class="mb-2 text-xs text-slate-400">Free cash: {formatCents(freeCash)}</p>
-	<input class="mb-2 w-full rounded border bg-slate-900 p-2 text-sm" type="number" bind:value={amountDollars} />
+	<p class="mb-2 text-xs text-[var(--color-muted)]">Free cash: {formatCents(freeCash)}</p>
+	<input
+		class="mb-2 w-full rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-sm"
+		type="number"
+		bind:value={amountDollars}
+	/>
 	{#if amountError}
-		<p class="mb-2 text-xs text-red-400">{amountError}</p>
+		<p class="mb-2 text-xs text-[var(--color-danger)]">{amountError}</p>
 	{/if}
-	<input class="mb-3 w-full rounded border bg-slate-900 p-2 text-sm" placeholder="Reason" bind:value={reason} />
+	<input
+		class="mb-3 w-full rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-sm"
+		placeholder="Reason"
+		bind:value={reason}
+	/>
 	<button
 		type="button"
-		class="w-full rounded bg-slate-600 py-2 text-sm text-white"
+		class="w-full rounded bg-[var(--color-panel-2)] py-2 text-sm text-[var(--color-bright)]"
 		onclick={() => {
 			const cents = parseAmountCents();
 			if (cents === null) return;
@@ -405,10 +625,12 @@
 </Modal>
 
 <Modal open={forceModal} title="Force close & realize P&L" onclose={() => (forceModal = false)}>
-	<p class="mb-3 text-sm text-slate-400">Closes all open positions at simulated mid; then you may withdraw.</p>
+	<p class="mb-3 text-sm text-[var(--color-muted)]">
+		Closes all open positions at simulated mid; then you may withdraw.
+	</p>
 	<button
 		type="button"
-		class="w-full rounded bg-orange-700 py-2 text-sm text-white"
+		class="w-full rounded bg-[var(--color-warn)] py-2 text-sm font-medium text-[var(--color-surface)]"
 		onclick={() => {
 			void forceCloseAndWithdraw(name, reason || 'force close');
 			forceModal = false;
@@ -421,7 +643,7 @@
 <Modal open={decomModal} title="Decommission strategy" onclose={() => (decomModal = false)}>
 	<button
 		type="button"
-		class="w-full rounded bg-red-800 py-2 text-sm text-white"
+		class="w-full rounded bg-[var(--color-danger)] py-2 text-sm font-medium text-[var(--color-surface)]"
 		onclick={() => {
 			void decommission(name, reason || 'decommission');
 			decomModal = false;
