@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>polytryhard — redesign options</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: #18181b; height: 100vh; display: flex; flex-direction: column; }
+  .switcher {
+    display: flex; align-items: center; gap: 8px; padding: 10px 16px;
+    background: #09090b; border-bottom: 1px solid #27272a; flex-shrink: 0;
+  }
+  .switcher span { color: #71717a; font-size: 12px; margin-right: 8px; }
+  .switcher button {
+    font: inherit; font-size: 12px; padding: 6px 14px; border-radius: 6px; cursor: pointer;
+    background: #18181b; color: #a1a1aa; border: 1px solid #27272a;
+  }
+  .switcher button.on { background: #fafafa; color: #09090b; border-color: #fafafa; font-weight: 600; }
+  iframe { flex: 1; width: 100%; border: none; background: #fff; }
+</style>
+</head>
+<body>
+  <div class="switcher">
+    <span>redesign options:</span>
+    <button class="on" onclick="pick(this, 'option-a-mission-control.html')">A · Mission Control</button>
+    <button onclick="pick(this, 'option-b-editorial-ledger.html')">B · Editorial Ledger</button>
+    <button onclick="pick(this, 'option-c-signal-tower.html')">C · Signal Tower</button>
+  </div>
+  <iframe id="view" src="option-a-mission-control.html" title="mockup"></iframe>
+  <script>
+    function pick(btn, src) {
+      document.getElementById('view').src = src;
+      document.querySelectorAll('.switcher button').forEach(b => b.classList.remove('on'));
+      btn.classList.add('on');
+    }
+  </script>
+</body>
+</html>

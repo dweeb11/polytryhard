@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>polytryhard — Option B: Editorial Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,800;1,9..144,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f7f3ea;
+    --paper-deep: #efe9db;
+    --ink: #1c1a16;
+    --ink-soft: #4f4a40;
+    --ink-faint: #8a8273;
+    --rule: #d8d0bf;
+    --rule-dark: #b3a98f;
+    --oxblood: #8c2f1b;
+    --moss: #3d6b35;
+    --gold: #9a7019;
+    --serif: 'Fraunces', serif;
+    --body: 'Newsreader', serif;
+    --mono: 'Spline Sans Mono', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 16px;
+    line-height: 1.55;
+    background-image: radial-gradient(ellipse at 20% 0%, rgba(154,112,25,.04), transparent 60%);
+  }
+  .frame { max-width: 1080px; margin: 0 auto; padding: 0 32px 100px; }
+
+  /* ── Masthead ───────────────────────────── */
+  .masthead { padding: 28px 0 14px; border-bottom: 3px double var(--rule-dark); display: flex; align-items: baseline; gap: 20px; }
+  .masthead h1 { font-family: var(--serif); font-weight: 800; font-size: 30px; letter-spacing: -0.02em; }
+  .masthead .motto { font-style: italic; color: var(--ink-faint); font-size: 14px; }
+  .masthead .right { margin-left: auto; text-align: right; font-family: var(--mono); font-size: 11px; color: var(--ink-soft); line-height: 1.7; }
+  .live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--moss); margin-right: 5px; }
+  .killline a { color: var(--oxblood); }
+
+  .tabs { display: flex; gap: 26px; padding: 12px 0; border-bottom: 1px solid var(--rule); margin-bottom: 40px; font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; }
+  .tab { background: none; border: none; cursor: pointer; font: inherit; color: var(--ink-faint); padding: 0 0 12px; margin-bottom: -13px; border-bottom: 2px solid transparent; }
+  .tab.active { color: var(--ink); border-bottom-color: var(--oxblood); }
+
+  /* ── Briefing ───────────────────────────── */
+  .kicker { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: var(--oxblood); margin-bottom: 10px; }
+  .briefing { display: grid; grid-template-columns: 1.5fr 1fr; gap: 56px; margin-bottom: 56px; }
+  .briefing h2 { font-family: var(--serif); font-weight: 600; font-size: 34px; line-height: 1.15; letter-spacing: -0.015em; margin-bottom: 18px; }
+  .briefing h2 em { font-style: italic; color: var(--moss); }
+  .briefing p { font-size: 17px; color: var(--ink-soft); margin-bottom: 14px; max-width: 56ch; }
+  .briefing p b { color: var(--ink); font-weight: 500; }
+  .briefing .flag { color: var(--oxblood); font-weight: 500; }
+  .briefing a { color: var(--ink); text-decoration-color: var(--rule-dark); text-underline-offset: 3px; }
+
+  .figures { border-left: 1px solid var(--rule); padding-left: 32px; align-self: start; }
+  .fig { padding: 14px 0; border-bottom: 1px solid var(--rule); }
+  .fig:first-child { padding-top: 4px; }
+  .fig:last-child { border-bottom: none; }
+  .fig .label { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.16em; color: var(--ink-faint); }
+  .fig .value { font-family: var(--serif); font-weight: 600; font-size: 30px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .fig .value.up { color: var(--moss); } .fig .value.down { color: var(--oxblood); }
+  .fig .note { font-size: 13.5px; color: var(--ink-faint); font-style: italic; }
+
+  /* ── Section rules ──────────────────────── */
+  .rulehead { display: flex; align-items: baseline; gap: 16px; border-top: 2px solid var(--ink); padding-top: 10px; margin: 0 0 22px; }
+  .rulehead h3 { font-family: var(--serif); font-weight: 800; font-size: 15px; letter-spacing: 0.01em; }
+  .rulehead .sub { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); }
+
+  /* ── Strategy ledger rows ───────────────── */
+  .ledger { margin-bottom: 56px; }
+  .lrow {
+    display: grid; grid-template-columns: 230px 1fr 130px 110px 100px; gap: 24px; align-items: baseline;
+    padding: 18px 0; border-bottom: 1px solid var(--rule); cursor: pointer; transition: background .15s;
+  }
+  .lrow:hover { background: rgba(154,112,25,.045); }
+  .lrow .name { font-family: var(--serif); font-weight: 600; font-size: 18px; }
+  .lrow .state { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .12em; margin-top: 3px; }
+  .state.s-active { color: var(--moss); } .state.s-paused { color: var(--oxblood); }
+  .lrow .story { font-size: 15px; color: var(--ink-soft); font-style: italic; max-width: 48ch; }
+  .lrow .story b { font-style: normal; color: var(--ink); font-weight: 500; }
+  .colnum { font-family: var(--mono); font-size: 14px; text-align: right; font-variant-numeric: tabular-nums; }
+  .colnum .l { display: block; font-size: 9.5px; text-transform: uppercase; letter-spacing: .14em; color: var(--ink-faint); margin-bottom: 2px; text-align: right; }
+  .up { color: var(--moss); } .down { color: var(--oxblood); }
+
+  .verdict-stamp {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    border: 1.5px solid currentColor; padding: 3px 9px; border-radius: 2px; display: inline-block;
+    transform: rotate(-2deg);
+  }
+  .stamp-proven { color: var(--moss); } .stamp-unproven { color: var(--gold); } .stamp-failing { color: var(--oxblood); }
+
+  /* ── Bottom columns ─────────────────────── */
+  .bottom { display: grid; grid-template-columns: 1.4fr 1fr; gap: 56px; }
+  .wire-item { display: flex; gap: 14px; padding: 10px 0; border-bottom: 1px dotted var(--rule-dark); font-size: 15px; align-items: baseline; }
+  .wire-item:last-child { border: none; }
+  .wire-time { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); flex-shrink: 0; width: 44px; }
+  .wire-text { color: var(--ink-soft); }
+  .wire-text b { color: var(--ink); font-weight: 500; }
+  .wire-amt { margin-left: auto; font-family: var(--mono); font-size: 13px; flex-shrink: 0; }
+  .src-line { display: flex; align-items: baseline; gap: 12px; padding: 9px 0; border-bottom: 1px dotted var(--rule-dark); font-size: 15px; }
+  .src-line:last-child { border: none; }
+  .src-status { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .12em; width: 74px; flex-shrink: 0; }
+  .src-status.ok { color: var(--moss); } .src-status.warn { color: var(--oxblood); }
+  .src-when { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--ink-faint); }
+
+  /* ════ DETAIL VIEW ════ */
+  .det-kicker { display:flex; align-items: baseline; gap: 16px; }
+  .det-head h2 { font-family: var(--serif); font-weight: 800; font-size: 40px; letter-spacing: -0.02em; margin: 4px 0 4px; }
+  .det-dek { font-size: 19px; font-style: italic; color: var(--ink-soft); max-width: 62ch; margin-bottom: 8px; }
+  .det-meta { font-family: var(--mono); font-size: 11.5px; color: var(--ink-faint); margin-bottom: 36px; }
+  .det-meta b { color: var(--ink-soft); font-weight: 500; }
+
+  .notebook { display: grid; grid-template-columns: 1.5fr 1fr; gap: 56px; margin-bottom: 48px; }
+  .notebook .prose p { font-size: 17px; color: var(--ink-soft); margin-bottom: 16px; }
+  .notebook .prose b { color: var(--ink); font-weight: 500; }
+  .notebook .prose .good { color: var(--moss); font-weight: 500; }
+  .notebook .prose .bad { color: var(--oxblood); font-weight: 500; }
+  .marginalia { font-size: 13px; font-style: italic; color: var(--ink-faint); border-left: 2px solid var(--rule-dark); padding-left: 14px; margin: 20px 0; }
+
+  .stat-table { width: 100%; border-collapse: collapse; }
+  .stat-table td { padding: 9px 0; border-bottom: 1px solid var(--rule); font-size: 15px; }
+  .stat-table td:first-child { color: var(--ink-soft); }
+  .stat-table td:last-child { text-align: right; font-family: var(--mono); font-size: 13.5px; font-variant-numeric: tabular-nums; }
+  .stat-table tr.hero td { font-family: var(--serif); font-size: 17px; font-weight: 600; }
+  .stat-table tr.hero td:last-child { font-family: var(--mono); font-weight: 500; }
+
+  .chart-card { border: 1px solid var(--rule-dark); background: #fbf8f1; padding: 20px 22px; box-shadow: 3px 3px 0 var(--paper-deep); margin-bottom: 28px; }
+  .chart-card h4 { font-family: var(--serif); font-weight: 600; font-size: 16px; margin-bottom: 4px; }
+  .chart-card .cap { font-size: 13px; font-style: italic; color: var(--ink-faint); margin-bottom: 14px; }
+  .windows { float: right; font-family: var(--mono); font-size: 11px; }
+  .windows button { background: none; border: none; font: inherit; color: var(--ink-faint); cursor: pointer; padding: 2px 7px; }
+  .windows button.on { color: var(--oxblood); border-bottom: 1.5px solid var(--oxblood); }
+
+  .trades-day { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .16em; color: var(--ink-faint); padding: 18px 0 8px; border-bottom: 2px solid var(--ink); }
+  .trade { display: grid; grid-template-columns: 1fr auto; gap: 18px; padding: 13px 0; border-bottom: 1px solid var(--rule); }
+  .trade .what { font-size: 16px; }
+  .trade .what .mkt { font-weight: 500; }
+  .trade .why { font-size: 13.5px; font-style: italic; color: var(--ink-faint); margin-top: 2px; }
+  .trade .result { text-align: right; font-family: var(--mono); font-size: 13px; align-self: center; white-space: nowrap; }
+  .trade .result .sub { display: block; font-size: 10.5px; color: var(--ink-faint); margin-top: 2px; }
+
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; margin: 36px 0 48px; }
+  .btn {
+    font-family: var(--mono); font-size: 12px; letter-spacing: .05em; padding: 9px 20px;
+    background: var(--ink); color: var(--paper); border: 1px solid var(--ink); cursor: pointer; border-radius: 2px;
+  }
+  .btn.ghost { background: transparent; color: var(--ink); }
+  .btn.ghost:hover { background: var(--paper-deep); }
+  .btn.danger { background: transparent; border-color: var(--oxblood); color: var(--oxblood); margin-left: auto; }
+
+  .rules-prose { columns: 2; column-gap: 56px; font-size: 15.5px; color: var(--ink-soft); max-width: 100%; }
+  .rules-prose li { margin: 0 0 10px 18px; }
+  .rules-prose b { color: var(--ink); font-weight: 500; font-family: var(--mono); font-size: 13.5px; }
+
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="masthead">
+    <h1>The Polytryhard Ledger</h1>
+    <span class="motto">paper first, conviction later</span>
+    <div class="right">
+      <div><span class="live-dot"></span>LIVE · staging · tick 4 min ago</div>
+      <div class="killline">system trading normally · <a href="#">trip kill switch</a></div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="show('overview', this)">Today's Briefing</button>
+    <button class="tab" onclick="show('detail', this)">weather_baseline_v2</button>
+    <button class="tab" style="pointer-events:none">Trading Desk</button>
+    <button class="tab" style="pointer-events:none">Settings</button>
+  </div>
+
+  <!-- ═══════════ OVERVIEW ═══════════ -->
+  <div id="overview">
+    <div class="briefing">
+      <div>
+        <div class="kicker">Morning Briefing — Tuesday, May 26</div>
+        <h2>One strategy is <em>earning its keep</em>; one is stalled on stale weather data.</h2>
+        <p>
+          The book stands at <b>$847.35</b>, up <b>$1.76</b> on the day from seven filled orders.
+          <b>weather_baseline_v2</b> remains the workhorse — its worst-case edge estimate is now
+          <b>+0.8%</b> after 142 trades, which is the first statistically proven edge in the lab.
+        </p>
+        <p>
+          Two items need your eyes: <span class="flag">weather_stale_quote tripped its 12% drawdown stop</span>
+          on Sunday and is sitting on $96.20 of idle bankroll, and the <span class="flag">NWS Forecast feed
+          has been silent for three hours</span> — anything depending on it is failing closed, as designed.
+        </p>
+        <p style="font-size:14px; font-style:italic; color:var(--ink-faint)">
+          Yesterday's resolutions: 3 contracts settled, 2 won, +$2.65 net. <a href="#">Full audit trail →</a>
+        </p>
+      </div>
+      <div class="figures">
+        <div class="fig">
+          <div class="label">Book value</div>
+          <div class="value">$847.35</div>
+          <div class="note">across three strategies</div>
+        </div>
+        <div class="fig">
+          <div class="label">Today</div>
+          <div class="value up">+$1.76</div>
+          <div class="note">7 orders · 11 passes · 0 blocks</div>
+        </div>
+        <div class="fig">
+          <div class="label">Proven edges</div>
+          <div class="value">1 of 3</div>
+          <div class="note">needs CI-low &gt; 0 to count</div>
+        </div>
+        <div class="fig">
+          <div class="label">Attention</div>
+          <div class="value down">2 items</div>
+          <div class="note">drawdown stop · stale source</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ledger">
+      <div class="rulehead">
+        <h3>THE STRATEGY LEDGER</h3>
+        <span class="sub">click any row for the full notebook entry</span>
+      </div>
+
+      <div class="lrow" onclick="show('detail', document.querySelectorAll('.tab')[1])">
+        <div>
+          <div class="name">weather_baseline_v2</div>
+          <div class="state s-active">active · 142 trades</div>
+        </div>
+        <div class="story">Calibrated and quietly profitable. Slight overconfidence on high-probability calls; <b>the edge is real.</b></div>
+        <div class="colnum"><span class="l">bankroll</span>$512.40</div>
+        <div class="colnum"><span class="l">today</span><span class="up">+$3.18</span></div>
+        <div style="text-align:right"><span class="verdict-stamp stamp-proven">Proven</span></div>
+      </div>
+
+      <div class="lrow" onclick="alert('Mockup — would open notebook for weather_ensemble_disagreement')">
+        <div>
+          <div class="name">weather_ensemble_disagreement</div>
+          <div class="state s-active">active · 87 trades</div>
+        </div>
+        <div class="story">Breakeven so far; the confidence interval still straddles zero. <b>Verdict pending more trades.</b></div>
+        <div class="colnum"><span class="l">bankroll</span>$238.75</div>
+        <div class="colnum"><span class="l">today</span><span class="down">−$1.42</span></div>
+        <div style="text-align:right"><span class="verdict-stamp stamp-unproven">Unproven</span></div>
+      </div>
+
+      <div class="lrow" onclick="alert('Mockup — would open notebook for weather_stale_quote')">
+        <div>
+          <div class="name">weather_stale_quote</div>
+          <div class="state s-paused">stopped · drawdown 12.4%</div>
+        </div>
+        <div class="story">Bled 12.4% from its high-water mark and auto-paused Sunday. <b>Refund it or retire it.</b></div>
+        <div class="colnum"><span class="l">bankroll</span>$96.20</div>
+        <div class="colnum"><span class="l">today</span>—</div>
+        <div style="text-align:right"><span class="verdict-stamp stamp-failing">Failing</span></div>
+      </div>
+    </div>
+
+    <div class="bottom">
+      <div>
+        <div class="rulehead"><h3>THE WIRE</h3><span class="sub">today's signals, in plain language</span></div>
+        <div class="wire-item">
+          <span class="wire-time">14:02</span>
+          <span class="wire-text"><b>baseline_v2</b> liked NYC ≥ 72° at 78% against a 64¢ market — bought 12 YES.</span>
+          <span class="wire-amt up">filled</span>
+        </div>
+        <div class="wire-item">
+          <span class="wire-time">14:02</span>
+          <span class="wire-text"><b>ensemble_dis</b> passed on the same market; model spread of 4.1° was under its threshold.</span>
+          <span class="wire-amt" style="color:var(--ink-faint)">passed</span>
+        </div>
+        <div class="wire-item">
+          <span class="wire-time">13:01</span>
+          <span class="wire-text"><b>baseline_v2</b> faded Chicago ≥ 68° — saw 41% vs a 52¢ market, bought 9 NO.</span>
+          <span class="wire-amt up">filled</span>
+        </div>
+        <div class="wire-item">
+          <span class="wire-time">13:01</span>
+          <span class="wire-text"><b>ensemble_dis</b> was blocked on Austin ≥ 94° — its NWS input was 3 hours old.</span>
+          <span class="wire-amt down">blocked</span>
+        </div>
+        <div class="wire-item">
+          <span class="wire-time">12:00</span>
+          <span class="wire-text"><b>baseline_v2</b> agreed with the market on Miami ≥ 88° (91% vs 89¢) — Kelly sized it to zero.</span>
+          <span class="wire-amt" style="color:var(--ink-faint)">passed</span>
+        </div>
+      </div>
+
+      <div>
+        <div class="rulehead"><h3>SOURCES</h3><span class="sub">data freshness</span></div>
+        <div class="src-line"><span class="src-status ok">Healthy</span><span>Kalshi Markets</span><span class="src-when">2 min</span></div>
+        <div class="src-line"><span class="src-status ok">Healthy</span><span>Open-Meteo (GFS + ECMWF)</span><span class="src-when">11 min</span></div>
+        <div class="src-line"><span class="src-status warn">Silent</span><span>NWS Forecast</span><span class="src-when">3 h 12 min</span></div>
+        <div class="src-line"><span class="src-status ok">Healthy</span><span>GFS Ensemble</span><span class="src-when">26 min</span></div>
+
+        <div class="rulehead" style="margin-top:36px"><h3>SETTLED YESTERDAY</h3></div>
+        <div class="wire-item"><span class="wire-text">NYC high ≥ 70°F — <b>YES</b></span><span class="wire-amt up">+$2.41</span></div>
+        <div class="wire-item"><span class="wire-text">Chicago high ≥ 66°F — <b>NO</b></span><span class="wire-amt down">−$0.88</span></div>
+        <div class="wire-item"><span class="wire-text">Austin high ≥ 92°F — <b>YES</b></span><span class="wire-amt up">+$1.12</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ STRATEGY DETAIL ═══════════ -->
+  <div id="detail" class="hidden">
+    <div class="det-head">
+      <div class="det-kicker">
+        <div class="kicker">Notebook Entry · Strategy № 1 · seeded April 2</div>
+        <span class="verdict-stamp stamp-proven" style="margin-left:auto">Proven</span>
+      </div>
+      <h2>weather_baseline_v2</h2>
+      <p class="det-dek">Bets against Kalshi temperature markets when the ensemble-mean forecast disagrees with the price by a margin wider than the spread.</p>
+      <div class="det-meta">ACTIVE · bankroll <b>$512.40</b> ($489.10 free) · high-water mark <b>$523.60</b> · drawdown <b>2.1%</b> of a 12% stop · Kelly <b>25%</b></div>
+    </div>
+
+    <div class="notebook">
+      <div class="prose">
+        <div class="rulehead"><h3>THE STORY SO FAR</h3><span class="sub">30-day window</span></div>
+        <p>
+          Seventy-one trades, forty-four winners, <b class="good">+$11.27</b>. The strategy's probability
+          estimates are honest — a Brier score of <b>.214</b> beats the .25 you'd get from coin-flip guessing,
+          and the calibration curve hugs the diagonal through the middle buckets.
+        </p>
+        <p>
+          The one blemish: <b class="bad">above the 70% bucket it runs overconfident</b> — when it says 82%,
+          reality delivers about 76%. Worth watching, not yet worth intervening.
+        </p>
+        <p>
+          The headline number is the posterior edge: <b>+2.1%</b> per trade, with a worst-case bound of
+          <b class="good">+0.8%</b>. Since the lower bound cleared zero on May 19, this is the first strategy
+          in the lab with a statistically proven edge.
+        </p>
+        <div class="marginalia">
+          Graduation criteria: CI-low &gt; 0 for 30 consecutive days, drawdown never past half the stop.
+          Day 7 of 30.
+        </div>
+      </div>
+
+      <div>
+        <div class="rulehead"><h3>VITALS</h3><div class="windows"><button>7d</button><button class="on">30d</button><button>all</button></div></div>
+        <table class="stat-table">
+          <tr class="hero"><td>P&amp;L, 30 days</td><td class="up">+$11.27</td></tr>
+          <tr class="hero"><td>Edge, worst case</td><td class="up">+0.8%</td></tr>
+          <tr><td>Edge, expected</td><td>+2.1% &nbsp;(best +3.8%)</td></tr>
+          <tr><td>Trades / won</td><td>71 / 44 &nbsp;(62%)</td></tr>
+          <tr><td>Brier score</td><td>.214</td></tr>
+          <tr><td>Log loss</td><td>.488</td></tr>
+          <tr><td>Sharpe (proxy)</td><td>1.31</td></tr>
+          <tr><td>Worst drawdown</td><td>−$14.20</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="notebook" style="margin-bottom: 8px;">
+      <div class="chart-card">
+        <h4>Bankroll, fourteen days</h4>
+        <p class="cap">Started the window at $498; the dip on the 19th was the Chicago losing streak.</p>
+        <svg viewBox="0 0 520 140" width="100%">
+          <line x1="0" y1="112" x2="520" y2="112" stroke="#d8d0bf" stroke-dasharray="3 4"/>
+          <text x="4" y="126" font-size="10" fill="#8a8273" font-family="Spline Sans Mono">$500 initial deposit</text>
+          <polyline fill="none" stroke="#3d6b35" stroke-width="2" points="0,104 37,108 74,100 111,94 148,97 185,88 222,91 259,114 296,96 333,80 370,74 407,77 444,58 481,52 520,40"/>
+          <circle cx="259" cy="114" r="3" fill="#8c2f1b"/>
+        </svg>
+      </div>
+      <div class="chart-card">
+        <h4>Calibration, ten buckets</h4>
+        <p class="cap">Predicted probability vs. how often contracts actually resolved yes. The diagonal is honesty.</p>
+        <svg viewBox="0 0 220 140" width="100%">
+          <line x1="20" y1="120" x2="205" y2="18" stroke="#b3a98f" stroke-dasharray="3 3"/>
+          <line x1="20" y1="120" x2="205" y2="120" stroke="#d8d0bf"/><line x1="20" y1="120" x2="20" y2="18" stroke="#d8d0bf"/>
+          <circle cx="39" cy="112" r="4" fill="#3d6b35"/><circle cx="58" cy="101" r="4.5" fill="#3d6b35"/>
+          <circle cx="77" cy="93" r="5" fill="#3d6b35"/><circle cx="96" cy="80" r="5.5" fill="#3d6b35"/>
+          <circle cx="115" cy="72" r="5.5" fill="#3d6b35"/><circle cx="134" cy="60" r="5" fill="#3d6b35"/>
+          <circle cx="153" cy="58" r="4.5" fill="#9a7019"/><circle cx="172" cy="51" r="4.5" fill="#9a7019"/>
+          <circle cx="191" cy="42" r="4" fill="#9a7019"/>
+        </svg>
+        <p class="cap" style="margin-top:8px; margin-bottom:0">Gold dots = the overconfident high buckets noted above.</p>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="btn">Deposit</button>
+      <button class="btn ghost">Withdraw</button>
+      <button class="btn ghost">Pause</button>
+      <button class="btn ghost">Adjust Kelly (25%)</button>
+      <button class="btn danger">Decommission…</button>
+    </div>
+
+    <div class="notebook">
+      <div>
+        <div class="rulehead"><h3>TRADE DIARY</h3><span class="sub">every signal, narrated · filter: all ▾</span></div>
+
+        <div class="trades-day">Today — Tuesday, May 26</div>
+        <div class="trade">
+          <div>
+            <div class="what"><span class="mkt">NYC high ≥ 72°F</span> — saw 78%, market asked 64¢</div>
+            <div class="why">ensemble mean 74.1° with tight spread; 14-point disagreement cleared the margin rule · KXHIGHNY-25MAY26-T72</div>
+          </div>
+          <div class="result up">bought 12 YES @ 64¢<span class="sub">open · settles 8 pm ET</span></div>
+        </div>
+        <div class="trade">
+          <div>
+            <div class="what"><span class="mkt">Chicago high ≥ 68°F</span> — saw 41%, market asked 52¢</div>
+            <div class="why">forecast 66.8°; faded the market by buying the no side · KXHIGHCHI-25MAY26-T68</div>
+          </div>
+          <div class="result up">bought 9 NO @ 48¢<span class="sub">open · settles 8 pm ET</span></div>
+        </div>
+        <div class="trade">
+          <div>
+            <div class="what"><span class="mkt">Miami high ≥ 88°F</span> — saw 91%, market asked 89¢</div>
+            <div class="why">agreed with the market; 2-point edge sized to zero by Kelly</div>
+          </div>
+          <div class="result" style="color:var(--ink-faint)">passed<span class="sub">no edge worth betting</span></div>
+        </div>
+
+        <div class="trades-day">Yesterday — Monday, May 25</div>
+        <div class="trade">
+          <div>
+            <div class="what"><span class="mkt">NYC high ≥ 70°F</span> — saw 83%, market asked 71¢</div>
+            <div class="why">resolved YES at 8 pm; actual high 73°</div>
+          </div>
+          <div class="result up">won +$2.41<span class="sub">14 YES @ 71¢</span></div>
+        </div>
+        <div class="trade">
+          <div>
+            <div class="what"><span class="mkt">Chicago high ≥ 66°F</span> — saw 37%, market asked 53¢</div>
+            <div class="why">resolved NO of the no-side… actual high hit 67°, one degree past the line</div>
+          </div>
+          <div class="result down">lost −$0.88<span class="sub">8 NO @ 47¢</span></div>
+        </div>
+        <div class="trade">
+          <div>
+            <div class="what"><span class="mkt">Austin high ≥ 94°F</span> — saw 52%, market asked 50¢</div>
+            <div class="why">passed; 2-point edge under the confidence floor</div>
+          </div>
+          <div class="result" style="color:var(--ink-faint)">passed<span class="sub">below threshold</span></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="rulehead"><h3>CASH MEMO</h3><span class="sub">recent ledger entries</span></div>
+        <div class="wire-item">
+          <span class="wire-text">Won the NYC 70° contract <b>+$2.41</b> — balance $512.40</span>
+          <span class="wire-amt" style="color:var(--ink-faint)">May 25</span>
+        </div>
+        <div class="wire-item">
+          <span class="wire-text">Lost the Chicago 66° contract <b>−$0.88</b> — balance $509.99</span>
+          <span class="wire-amt" style="color:var(--ink-faint)">May 25</span>
+        </div>
+        <div class="wire-item">
+          <span class="wire-text">Kalshi maker fee <b>−$0.07</b> — balance $510.87</span>
+          <span class="wire-amt" style="color:var(--ink-faint)">May 25</span>
+        </div>
+        <div class="wire-item">
+          <span class="wire-text">You deposited <b>+$50.00</b> — <i>"topping up after good week"</i></span>
+          <span class="wire-amt" style="color:var(--ink-faint)">May 22</span>
+        </div>
+
+        <div class="rulehead" style="margin-top:36px"><h3>HOUSE RULES</h3><span class="sub">this strategy's config, in English</span></div>
+        <ul class="rules-prose" style="columns:1">
+          <li>Pause itself if bankroll falls below <b>$50.00</b></li>
+          <li>Stop trading after a <b>12%</b> drawdown from the high-water mark</li>
+          <li>Refuse any input older than <b>45 minutes</b></li>
+          <li>Only act when confidence is at least <b>0.62</b></li>
+          <li>Size bets at <b>25% Kelly</b>, capped at <b>10%</b> of bankroll per market</li>
+          <li>Resume automatically when you deposit</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function show(id, tabEl) {
+  document.getElementById('overview').classList.toggle('hidden', id !== 'overview');
+  document.getElementById('detail').classList.toggle('hidden', id !== 'detail');
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  tabEl.classList.add('active');
+}
+</script>
+</body>
+</html>
