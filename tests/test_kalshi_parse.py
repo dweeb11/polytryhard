@@ -145,3 +145,55 @@ async def test_kalshi_fetch_degraded_when_orderbooks_empty() -> None:
     assert result.status == SourceRunStatus.DEGRADED
     assert result.error_text == "Kalshi orderbook fetch produced no snapshots"
     assert len(result.market_upserts) == 1
+
+
+@pytest.mark.asyncio
+async def test_kalshi_fetch_skips_stale_db_market_orderbooks() -> None:
+    discovery = _load_cassette("kalshi_markets_discovery.json")
+    orderbook = _load_cassette("kalshi_orderbook.json")
+    settings = Settings(
+        REQUIRE_DBS=False,
+        KALSHI_API_KEY_ID="key",
+        KALSHI_PRIVATE_KEY=TEST_PEM,
+    )
+    stale_ticker = "KXHIGHNY-26JUN07-B87.5"
+    http = _MockHttp(
+        responses=[
+            ("/trade-api/v2/markets?", _MockResponse(status_code=200, payload=discovery)),
+            (
+                f"/markets/{discovery['markets'][0]['ticker']}/orderbook",
+                _MockResponse(status_code=200, payload=orderbook),
+            ),
+        ]
+    )
+    from core.clock import FakeClock
+    from core.contracts.source import ReferenceMarketUpsert, SourceContext
+
+    source = KalshiMarketsSource()
+    result = await source.fetch(
+        FakeClock(start=datetime(2026, 5, 28, 12, 0, tzinfo=UTC)),
+        SourceContext(
+            request_id="test",
+            settings=settings,
+            locations=(),
+            markets=(
+                ReferenceMarketUpsert(
+                    ticker=stale_ticker,
+                    series="KXHIGHNY",
+                    title="stale",
+                    status="active",
+                    settlement_source=None,
+                    settlement_ref=None,
+                    open_time=None,
+                    close_time=None,
+                    settlement_time=None,
+                    raw_jsonb={},
+                ),
+            ),
+            http=http,
+        ),
+    )
+    assert result.status == SourceRunStatus.OK
+    assert len(result.market_snapshots) == 1
+    assert result.market_snapshots[0].ticker == discovery["markets"][0]["ticker"]
+    assert stale_ticker not in "".join(http.calls)
