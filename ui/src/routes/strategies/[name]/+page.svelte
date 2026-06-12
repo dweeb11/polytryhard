@@ -29,8 +29,10 @@
 		formatCents,
 		freeCashCents,
 		PAUSABLE_STATES,
-		RESUMABLE_STATES
+		RESUMABLE_STATES,
+		signalDayGroupLabel
 	} from '$lib/utils';
+	import { pushToast } from '$lib/stores/toasts';
 	import { humanizeTicker, outcomeLabel, outcomeTone, strategyVerdict } from '$lib/humanize';
 	import {
 		strategyBaselineConfigRows,
@@ -54,10 +56,26 @@
 	let selectedWindow: string = $state('30d');
 
 	$effect(() => {
-		if (name && $apiMode === 'live') hydrateStrategyEval(name).catch(() => {});
+		if (name && $apiMode === 'live') {
+			hydrateStrategyEval(name).catch((err) => {
+				console.error(`Failed to load eval for ${name}`, err);
+				pushToast('error', `Could not refresh eval data for ${name}`);
+			});
+		}
 	});
 
 	const evalWindows = $derived($evalByStrategy[name]?.windows ?? []);
+	const evalWindowOptions = $derived(
+		evalWindows.length > 0 ? evalWindows.map((w) => w.window) : ['7d', '30d', 'all']
+	);
+
+	$effect(() => {
+		if (evalWindows.length === 0) return;
+		if (!evalWindows.some((w) => w.window === selectedWindow)) {
+			selectedWindow =
+				evalWindows.find((w) => w.window === '30d')?.window ?? evalWindows[0].window;
+		}
+	});
 	const activeSnapshot = $derived(
 		evalWindows.find((w) => w.window === selectedWindow) ?? evalWindows[0]
 	);
@@ -99,6 +117,7 @@
 	let amountError = $state('');
 	let reason = $state('');
 	let kellyPct = $state(25);
+	let kellyOwner = $state('');
 	let outcomeFilter = $state('all');
 
 	function parseAmountCents(): number | null {
@@ -117,20 +136,6 @@
 			: stratSignals.filter((s) => s.outcome === outcomeFilter)
 	);
 
-	function dayKey(iso: string): string {
-		const d = new Date(iso);
-		const now = new Date();
-		const yesterday = new Date(now);
-		yesterday.setDate(now.getDate() - 1);
-		if (d.toDateString() === now.toDateString()) return `Today · ${monthDay(d)}`;
-		if (d.toDateString() === yesterday.toDateString()) return `Yesterday · ${monthDay(d)}`;
-		return monthDay(d);
-	}
-
-	function monthDay(d: Date): string {
-		return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
-	}
-
 	function signalTime(iso: string): string {
 		const ms = Date.parse(iso);
 		if (Number.isNaN(ms)) return '—';
@@ -140,7 +145,7 @@
 	const signalsByDay = $derived.by(() => {
 		const groups: Array<{ day: string; items: typeof filteredSignals }> = [];
 		for (const sig of filteredSignals.slice(0, 40)) {
-			const day = dayKey(sig.evaluatedAt);
+			const day = signalDayGroupLabel(sig.evaluatedAt);
 			const group = groups.at(-1);
 			if (group && group.day === day) group.items.push(sig);
 			else groups.push({ day, items: [sig] });
@@ -173,7 +178,12 @@
 	);
 
 	$effect(() => {
-		if (strat) kellyPct = Math.round(strat.kellyFraction * 100);
+		const owner = name;
+		if (!strat || !owner) return;
+		if (owner !== kellyOwner) {
+			kellyOwner = owner;
+			kellyPct = Math.round(strat.kellyFraction * 100);
+		}
 	});
 </script>
 
@@ -357,7 +367,7 @@
 			<div class="mb-2 flex items-center justify-between">
 				<h2 class="text-[11px] uppercase tracking-[0.18em] text-[var(--color-faint)]">Calibration</h2>
 				<div class="flex gap-1.5">
-					{#each ['7d', '30d', 'all'] as w (w)}
+					{#each evalWindowOptions as w (w)}
 						<button
 							type="button"
 							class="rounded border px-2.5 py-0.5 text-[10.5px] {selectedWindow === w
