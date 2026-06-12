@@ -17,14 +17,20 @@ const baseConfig: StrategyConfig = {
 };
 
 describe('strategyConfigDisplay', () => {
-	it('renders baseline rows without soak knobs', () => {
+	it('renders baseline rules as plain-english rows', () => {
 		const rows = strategyBaselineConfigRows(baseConfig);
-		expect(rows.map(([label]) => label)).toEqual([
-			'Min bankroll',
-			'Tradeable floor',
-			'Max drawdown from HWM',
-			'Max input age'
+		expect(rows).toEqual([
+			['Pause if bankroll drops below', '$100.00'],
+			['Stop opening trades below', '$50.00'],
+			['Stop trading at drawdown', '30.0% from HWM'],
+			['Ignore inputs older than', '15 min'],
+			['Auto-resume on deposit', 'yes']
 		]);
+	});
+
+	it('formats sub-2-minute input ages in seconds', () => {
+		const rows = strategyBaselineConfigRows({ ...baseConfig, maxInputAgeSeconds: 90 });
+		expect(rows).toContainEqual(['Ignore inputs older than', '90 s']);
 	});
 
 	it('renders ensemble-specific soak rows', () => {
@@ -35,22 +41,23 @@ describe('strategyConfigDisplay', () => {
 		};
 		const rows = strategySoakConfigRows('weather_ensemble_disagreement', config);
 		expect(rows.map(([label]) => label)).toEqual([
-			'Confidence floor',
-			'Disagreement threshold',
-			'Spread multiplier',
-			'Exposure cap',
-			'Correlation cap'
+			'Only trade when confidence ≥',
+			'Require model disagreement of',
+			'Spread margin multiplier',
+			'Max exposure per market',
+			'Max correlated exposure'
 		]);
+		expect(rows[0][1]).toBe('55.0%');
 	});
 
 	it('renders stale-quote-specific soak rows', () => {
 		const config = { ...baseConfig, wideSpreadThreshold: 0.08 };
 		const rows = strategySoakConfigRows('weather_stale_quote', config);
 		expect(rows.map(([label]) => label)).toEqual([
-			'Confidence floor',
-			'Wide spread threshold',
-			'Exposure cap',
-			'Correlation cap'
+			'Only trade when confidence ≥',
+			'Treat spreads as wide above',
+			'Max exposure per market',
+			'Max correlated exposure'
 		]);
 	});
 });
