@@ -46,11 +46,54 @@ export function formatIsoDateTime(iso: string): string {
 	return new Date(ms).toLocaleString();
 }
 
-export function formatAge(iso: string | null | undefined): string {
+/** UTC calendar day key (`YYYY-MM-DD`) for an ISO timestamp. */
+export function utcDayKey(iso: string): string {
+	const ms = Date.parse(iso);
+	if (Number.isNaN(ms)) return '';
+	return new Date(ms).toISOString().slice(0, 10);
+}
+
+export function isUtcToday(iso: string, nowMs: number = Date.now()): boolean {
+	const key = utcDayKey(iso);
+	if (!key) return false;
+	return key === new Date(nowMs).toISOString().slice(0, 10);
+}
+
+export function utcYesterdayKey(nowMs: number = Date.now()): string {
+	const d = new Date(nowMs);
+	d.setUTCDate(d.getUTCDate() - 1);
+	return d.toISOString().slice(0, 10);
+}
+
+export function formatUtcMonthDay(iso: string): string {
+	const ms = Date.parse(iso);
+	if (Number.isNaN(ms)) return '—';
+	return new Date(ms).toLocaleDateString('en-US', {
+		month: 'short',
+		day: 'numeric',
+		timeZone: 'UTC'
+	});
+}
+
+/** Group label for signal lists: `Today · Jun 1`, `Yesterday · …`, or `Jun 1`. */
+export function signalDayGroupLabel(iso: string, nowMs: number = Date.now()): string {
+	const key = utcDayKey(iso);
+	if (!key) return '—';
+	const todayKey = new Date(nowMs).toISOString().slice(0, 10);
+	const md = formatUtcMonthDay(iso);
+	if (key === todayKey) return `Today · ${md}`;
+	if (key === utcYesterdayKey(nowMs)) return `Yesterday · ${md}`;
+	return md;
+}
+
+export function formatAge(
+	iso: string | null | undefined,
+	nowMs: number = Date.now()
+): string {
 	if (!iso) return '—';
 	const ms = Date.parse(iso);
 	if (Number.isNaN(ms)) return '—';
-	const sec = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+	const sec = Math.max(0, Math.floor((nowMs - ms) / 1000));
 	if (sec < 60) return `${sec}s ago`;
 	if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
 	if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;

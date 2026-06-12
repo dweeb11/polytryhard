@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import {
 		strategies,
 		signals,
@@ -15,14 +16,24 @@
 		formatCents,
 		PAUSABLE_STATES,
 		RESUMABLE_STATES,
-		formatAge
+		formatAge,
+		isUtcToday
 	} from '$lib/utils';
-	import { humanizeTicker, outcomeLabel, outcomeTone } from '$lib/humanize';
-	import { strategyVerdict } from '$lib/humanize';
+	import { humanizeTicker, outcomeLabel, outcomeTone, strategyVerdict } from '$lib/humanize';
 	import { isDeveloperMode } from '$lib/stores/uiMode';
 	import { pauseStrategy, resumeStrategy, probeSource } from '$lib/actions';
 
 	const STALE_SOURCE_MS = 60 * 60 * 1000;
+	const STALE_TICK_MS = 60 * 1000;
+
+	let nowMs = $state(Date.now());
+
+	onMount(() => {
+		const id = setInterval(() => {
+			nowMs = Date.now();
+		}, STALE_TICK_MS);
+		return () => clearInterval(id);
+	});
 
 	function fmtPct(v: number | null | undefined, digits = 1): string {
 		return v == null ? '—' : `${(v * 100).toFixed(digits)}%`;
@@ -38,12 +49,6 @@
 		return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 	}
 
-	function isToday(iso: string): boolean {
-		const d = new Date(iso);
-		const now = new Date();
-		return d.toDateString() === now.toDateString();
-	}
-
 	const totalBankrollCents = $derived($strategies.reduce((sum, s) => sum + s.bankrollCents, 0));
 	const pausedBankrollCents = $derived(
 		$strategies
@@ -52,7 +57,7 @@
 	);
 	const todayPnlCents = $derived($strategies.reduce((sum, s) => sum + s.todayPnlCents, 0));
 
-	const todaySignals = $derived($signals.filter((s) => isToday(s.evaluatedAt)));
+	const todaySignals = $derived($signals.filter((s) => isUtcToday(s.evaluatedAt, nowMs)));
 	const todayCounts = $derived({
 		placed: todaySignals.filter((s) => outcomeTone(s.outcome) === 'placed').length,
 		skipped: todaySignals.filter((s) => outcomeTone(s.outcome) === 'skip').length,
@@ -97,12 +102,12 @@
 		}
 		for (const src of $sources) {
 			const fetchedMs = Date.parse(src.lastSuccessfulFetch);
-			const stale = Number.isNaN(fetchedMs) || Date.now() - fetchedMs > STALE_SOURCE_MS;
+			const stale = Number.isNaN(fetchedMs) || nowMs - fetchedMs > STALE_SOURCE_MS;
 			if (src.state !== 'healthy' || stale) {
 				items.push({
 					severity: src.state === 'down' ? 'crit' : 'warn',
 					tag: src.state === 'healthy' ? 'stale' : src.state,
-					message: `${src.displayName} — last fetch ${formatAge(src.lastSuccessfulFetch)}; dependent strategies fail closed`,
+					message: `${src.displayName} — last fetch ${formatAge(src.lastSuccessfulFetch, nowMs)}; dependent strategies fail closed`,
 					href: '/settings/sources',
 					action: 'Inspect'
 				});
@@ -358,7 +363,7 @@
 		{#each $sources as src (src.name)}
 			{@const stale =
 				Number.isNaN(Date.parse(src.lastSuccessfulFetch)) ||
-				Date.now() - Date.parse(src.lastSuccessfulFetch) > STALE_SOURCE_MS}
+				nowMs - Date.parse(src.lastSuccessfulFetch) > STALE_SOURCE_MS}
 			<div
 				class="flex items-center gap-2.5 border-b border-[var(--color-border)] py-2 text-xs last:border-0"
 			>
@@ -373,7 +378,7 @@
 				<span
 					class="ml-auto shrink-0 text-[11px] tabular-nums {stale
 						? 'text-[var(--color-warn)]'
-						: 'text-[var(--color-faint)]'}">{formatAge(src.lastSuccessfulFetch)}</span
+						: 'text-[var(--color-faint)]'}">{formatAge(src.lastSuccessfulFetch, nowMs)}</span
 				>
 				{#if $isDeveloperMode}
 					<button
