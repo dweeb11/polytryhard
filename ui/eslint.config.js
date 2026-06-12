@@ -21,7 +21,6 @@ export default ts.config(
 				extraFileExtensions: ['.svelte'],
 				svelteConfig
 			}
-		}
 	},
 	{
 		rules: {
