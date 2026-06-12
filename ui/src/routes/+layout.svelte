@@ -53,27 +53,39 @@
 
 <div class="flex h-dvh flex-col overflow-hidden">
 	<header
-		class="flex shrink-0 flex-wrap items-center gap-3 border-b border-[var(--color-border)] bg-[var(--color-panel)] px-4 py-2 text-sm"
+		class="flex shrink-0 flex-wrap items-center gap-3 border-b border-[var(--color-border)] bg-[var(--color-panel)] px-4 py-2.5 text-sm"
 	>
-		<span class="font-semibold tracking-tight text-slate-100">polytryhard</span>
+		<span class="font-sans text-[15px] font-bold tracking-tight text-[var(--color-heading)]"
+			>poly<span class="text-[var(--color-accent)]">tryhard</span></span
+		>
 		<BackendStatusBadge />
-		<span class="rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-300">{$apiModeLabel}</span>
+		<span
+			class="rounded border border-[var(--color-border-bright)] px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-[var(--color-muted)]"
+			>{$apiModeLabel}</span
+		>
 		{#if $isDeveloperMode}
-			<span class="rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-400">prototype</span>
+			<span
+				class="rounded border border-[var(--color-border)] px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-[var(--color-faint)]"
+				>prototype</span
+			>
 		{/if}
 
-		<span
-			class="rounded px-2 py-0.5 text-xs font-medium {$system.state === 'active'
-				? 'bg-emerald-900/40 text-emerald-300'
-				: 'bg-red-900/40 text-red-300'}"
-		>
-			System: {$system.state}
-		</span>
+		{#if $system.state === 'active'}
+			<span class="text-xs font-medium text-[var(--color-accent)]">
+				<span class="mr-1 inline-block h-2 w-2 animate-pulse rounded-full bg-[var(--color-accent)]"
+				></span>System: trading
+			</span>
+		{:else}
+			<span class="text-xs font-medium text-[var(--color-danger)]">
+				<span class="mr-1 inline-block h-2 w-2 rounded-full bg-[var(--color-danger)]"></span>System:
+				paused
+			</span>
+		{/if}
 
 		{#if $systemPaused}
 			<button
 				type="button"
-				class="rounded border border-emerald-700 px-2 py-1 text-emerald-300 hover:bg-emerald-900/30"
+				class="rounded border border-[color-mix(in_srgb,var(--color-ok)_45%,transparent)] px-2.5 py-1 text-[11px] uppercase tracking-[0.1em] text-[var(--color-ok)] hover:bg-[color-mix(in_srgb,var(--color-ok)_12%,transparent)]"
 				onclick={() => (resumeModal = true)}
 			>
 				Resume kill switch
@@ -81,15 +93,15 @@
 		{:else}
 			<button
 				type="button"
-				class="rounded border border-red-700 px-2 py-1 text-red-300 hover:bg-red-900/30"
+				class="rounded border border-[color-mix(in_srgb,var(--color-danger)_45%,transparent)] px-2.5 py-1 text-[11px] uppercase tracking-[0.1em] text-[var(--color-danger)] hover:bg-[color-mix(in_srgb,var(--color-danger)_12%,transparent)]"
 				onclick={() => (killModal = true)}
 			>
-				Trip kill switch
+				⏻ Kill switch
 			</button>
 		{/if}
 
 		{#if $isDeveloperMode}
-			<label class="ml-auto flex items-center gap-2 text-slate-400">
+			<label class="ml-auto flex items-center gap-2 text-xs text-[var(--color-muted)]">
 				<input
 					type="checkbox"
 					checked={$tickSimulatorEnabled}
@@ -100,7 +112,7 @@
 
 			<button
 				type="button"
-				class="rounded border border-[var(--color-border)] px-2 py-1 text-slate-400 hover:text-slate-200"
+				class="rounded border border-[var(--color-border)] px-2 py-1 text-xs text-[var(--color-muted)] hover:text-[var(--color-bright)]"
 				onclick={() => (resetModal = true)}
 			>
 				Reset to fixtures
@@ -119,15 +131,17 @@
 							href={item.href}
 							class="block rounded px-2 py-1.5 {$page.url.pathname === item.href ||
 							(item.href !== '/' && $page.url.pathname.startsWith(item.href))
-								? 'bg-slate-700 text-white'
-								: 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}"
+								? 'bg-[var(--color-panel-2)] font-medium text-[var(--color-accent)]'
+								: 'text-[var(--color-muted)] hover:bg-[var(--color-panel-2)] hover:text-[var(--color-bright)]'}"
 						>
 							{item.label}
 						</a>
 					</li>
 				{/each}
 			</ul>
-			<p class="mt-4 px-2 text-xs uppercase tracking-wide text-slate-500">Strategies</p>
+			<p class="mt-4 px-2 text-[10px] uppercase tracking-[0.18em] text-[var(--color-faint)]">
+				Strategies
+			</p>
 			<ul class="mt-1 min-h-0 flex-1 space-y-0.5 overflow-y-auto">
 				{#each $strategies as s (s.name)}
 					<li>
@@ -135,8 +149,8 @@
 							href="/strategies/{s.name}"
 							class="block truncate rounded px-2 py-1 text-xs {$page.url.pathname ===
 							`/strategies/${s.name}`
-								? 'bg-slate-700 text-white'
-								: 'text-slate-400 hover:bg-slate-800'}"
+								? 'bg-[var(--color-panel-2)] text-[var(--color-accent)]'
+								: 'text-[var(--color-muted)] hover:bg-[var(--color-panel-2)]'}"
 						>
 							{s.name}
 						</a>
@@ -147,8 +161,8 @@
 				<a
 					href="/settings/sources"
 					class="block rounded px-2 py-1.5 {$page.url.pathname.startsWith('/settings')
-						? 'bg-slate-700 text-white'
-						: 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}"
+						? 'bg-[var(--color-panel-2)] text-[var(--color-accent)]'
+						: 'text-[var(--color-muted)] hover:bg-[var(--color-panel-2)] hover:text-[var(--color-bright)]'}"
 				>
 					Settings
 				</a>
@@ -162,15 +176,16 @@
 	<div class="pointer-events-none fixed bottom-4 right-4 z-40 flex max-w-sm flex-col gap-2">
 		{#each $toasts as t (t.id)}
 			<div
-				class="pointer-events-auto rounded border px-3 py-2 text-sm shadow-lg {t.type === 'success'
-					? 'border-emerald-700 bg-emerald-950 text-emerald-100'
+				class="pointer-events-auto rounded border bg-[var(--color-panel-2)] px-3 py-2 text-sm shadow-lg {t.type ===
+				'success'
+					? 'border-[color-mix(in_srgb,var(--color-ok)_50%,transparent)] text-[var(--color-ok)]'
 					: t.type === 'error'
-						? 'border-red-700 bg-red-950 text-red-100'
-						: 'border-slate-600 bg-slate-900 text-slate-200'}"
+						? 'border-[color-mix(in_srgb,var(--color-danger)_50%,transparent)] text-[var(--color-danger)]'
+						: 'border-[var(--color-border-bright)] text-[var(--color-bright)]'}"
 			>
 				<button
 					type="button"
-					class="float-right ml-2 text-slate-400"
+					class="float-right ml-2 text-[var(--color-muted)]"
 					onclick={() => dismissToast(t.id)}>×</button
 				>
 				{t.message}
@@ -180,16 +195,18 @@
 </div>
 
 <Modal open={killModal} title="Trip kill switch" onclose={() => (killModal = false)}>
-	<p class="mb-2 text-xs text-slate-400">All executor actions will be blocked until resumed.</p>
+	<p class="mb-2 text-xs text-[var(--color-muted)]">
+		All executor actions will be blocked until resumed.
+	</p>
 	<textarea
-		class="mb-3 w-full rounded border border-[var(--color-border)] bg-slate-900 p-2 text-sm"
+		class="mb-3 w-full rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-sm"
 		placeholder="Reason (required)"
 		bind:value={killReason}
 		rows="3"
 	></textarea>
 	<button
 		type="button"
-		class="w-full rounded bg-red-700 py-2 text-sm font-medium text-white hover:bg-red-600"
+		class="w-full rounded bg-[var(--color-danger)] py-2 text-sm font-medium text-[var(--color-surface)] hover:opacity-90"
 		onclick={confirmKill}
 	>
 		Confirm trip
@@ -198,14 +215,14 @@
 
 <Modal open={resumeModal} title="Resume kill switch" onclose={() => (resumeModal = false)}>
 	<textarea
-		class="mb-3 w-full rounded border border-[var(--color-border)] bg-slate-900 p-2 text-sm"
+		class="mb-3 w-full rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-sm"
 		placeholder="Reason (required)"
 		bind:value={resumeReason}
 		rows="3"
 	></textarea>
 	<button
 		type="button"
-		class="w-full rounded bg-emerald-700 py-2 text-sm font-medium text-white hover:bg-emerald-600"
+		class="w-full rounded bg-[var(--color-ok)] py-2 text-sm font-medium text-[var(--color-surface)] hover:opacity-90"
 		onclick={confirmResume}
 	>
 		Resume system
@@ -213,12 +230,12 @@
 </Modal>
 
 <Modal open={resetModal} title="Reset prototype" onclose={() => (resetModal = false)}>
-	<p class="mb-3 text-sm text-slate-400">
+	<p class="mb-3 text-sm text-[var(--color-muted)]">
 		Wipe localStorage and reload fixture seed data. This cannot be undone.
 	</p>
 	<button
 		type="button"
-		class="w-full rounded bg-slate-600 py-2 text-sm text-white hover:bg-slate-500"
+		class="w-full rounded bg-[var(--color-panel-2)] py-2 text-sm text-[var(--color-bright)] hover:bg-[var(--color-border)]"
 		onclick={confirmReset}
 	>
 		Reset to fixtures

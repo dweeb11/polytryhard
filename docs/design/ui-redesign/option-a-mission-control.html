@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>polytryhard — Option A: Mission Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&family=Archivo:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #16161e;
+    --panel: #1a1b26;
+    --panel-2: #1f2335;
+    --line: #292e42;
+    --line-bright: #3b4261;
+    --text: #c0caf5;
+    --text-dim: #787c99;
+    --text-faint: #565f89;
+    --green: #9ece6a;
+    --green-dim: rgba(158,206,106,.14);
+    --amber: #e0af68;
+    --amber-dim: rgba(224,175,104,.14);
+    --red: #f7768e;
+    --red-dim: rgba(247,118,142,.12);
+    --cyan: #7dcfff;
+    --accent: #7aa2f7;
+    --purple: #bb9af7;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Archivo', sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.5;
+    min-height: 100vh;
+    background-image:
+      repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(122, 162, 247, 0.015) 2px, rgba(122, 162, 247, 0.015) 4px);
+  }
+  .frame { max-width: 1240px; margin: 0 auto; padding: 0 24px 80px; }
+
+  /* ── Top bar ─────────────────────────────── */
+  .topbar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 0; border-bottom: 1px solid var(--line);
+    margin-bottom: 0;
+  }
+  .wordmark { font-family: var(--sans); font-weight: 700; font-size: 15px; letter-spacing: 0.02em; color: #dde3ff; }
+  .wordmark span { color: var(--accent); }
+  .env-chip {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em;
+    border: 1px solid var(--line-bright); border-radius: 3px; padding: 2px 8px; color: var(--text-dim);
+  }
+  .topbar .spacer { flex: 1; }
+  .kill-btn {
+    font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;
+    background: transparent; color: var(--red); border: 1px solid rgba(247,118,142,.4);
+    border-radius: 3px; padding: 5px 12px; cursor: pointer; transition: all .15s;
+  }
+  .kill-btn:hover { background: var(--red-dim); box-shadow: 0 0 12px rgba(247,118,142,.15); }
+
+  .tabs { display: flex; gap: 4px; margin: 0 0 28px; border-bottom: 1px solid var(--line); }
+  .tab {
+    font-family: var(--mono); font-size: 12px; background: none; border: none; color: var(--text-dim);
+    padding: 10px 16px; cursor: pointer; border-bottom: 2px solid transparent; letter-spacing: .04em;
+  }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab:hover:not(.active) { color: var(--text); }
+
+  /* ── Status strip ────────────────────────── */
+  .status-strip {
+    display: grid; grid-template-columns: 1.4fr 1fr 1fr 1.3fr; gap: 1px;
+    background: var(--line); border: 1px solid var(--line); border-radius: 6px;
+    overflow: hidden; margin-bottom: 28px;
+  }
+  .status-cell { background: var(--panel); padding: 16px 20px; position: relative; }
+  .status-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-faint); margin-bottom: 6px; }
+  .status-value { font-family: var(--sans); font-weight: 700; font-size: 26px; letter-spacing: -0.01em; color: #dde3ff; }
+  .status-value small { font-size: 14px; font-weight: 600; color: var(--text-dim); margin-left: 2px; }
+  .status-sub { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+  .delta-up { color: var(--green); } .delta-down { color: var(--red); }
+  .pulse {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent); margin-right: 8px; vertical-align: 1px;
+    box-shadow: 0 0 0 0 rgba(122,162,247,.5); animation: pulse 2.4s infinite;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(122,162,247,.45); }
+    70% { box-shadow: 0 0 0 7px rgba(122,162,247,0); }
+    100% { box-shadow: 0 0 0 0 rgba(122,162,247,0); }
+  }
+  .status-value.ok { color: var(--accent); font-size: 20px; }
+  .attention-count { color: var(--amber); }
+
+  /* ── Attention queue ─────────────────────── */
+  .attention {
+    border: 1px solid rgba(224,175,104,.4); background: linear-gradient(180deg, rgba(224,175,104,.06), rgba(224,175,104,.02));
+    border-radius: 6px; padding: 12px 18px; margin-bottom: 28px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .attention-row { display: flex; align-items: baseline; gap: 12px; font-size: 12.5px; }
+  .attention-row .tag {
+    font-size: 10px; text-transform: uppercase; letter-spacing: .1em; padding: 1px 7px;
+    border-radius: 3px; flex-shrink: 0;
+  }
+  .tag.warn { background: var(--amber-dim); color: var(--amber); }
+  .tag.crit { background: var(--red-dim); color: var(--red); }
+  .attention-row .msg { color: var(--text); }
+  .attention-row .act { margin-left: auto; color: var(--cyan); cursor: pointer; white-space: nowrap; }
+  .attention-row .act:hover { text-decoration: underline; }
+
+  /* ── Section headers ─────────────────────── */
+  h2.sect {
+    font-family: var(--mono); font-size: 11px; font-weight: 500; text-transform: uppercase;
+    letter-spacing: 0.18em; color: var(--text-faint); margin: 0 0 12px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  h2.sect::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+  /* ── Strategy instrument cards ───────────── */
+  .strat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 32px; }
+  .strat-card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+    padding: 16px 18px 14px; cursor: pointer; transition: border-color .15s, transform .15s;
+    position: relative; overflow: hidden;
+  }
+  .strat-card:hover { border-color: var(--line-bright); transform: translateY(-1px); }
+  .strat-card.paused { border-color: rgba(224,175,104,.4); }
+  .strat-card .edge-bar { position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+  .edge-bar.pos { background: linear-gradient(90deg, var(--green), transparent); }
+  .edge-bar.neg { background: linear-gradient(90deg, var(--red), transparent); }
+  .edge-bar.flat { background: linear-gradient(90deg, var(--text-faint), transparent); }
+  .strat-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .strat-name { font-family: var(--sans); font-weight: 600; font-size: 14px; color: #dde3ff; }
+  .state-pill { font-size: 9.5px; text-transform: uppercase; letter-spacing: .1em; padding: 2px 8px; border-radius: 10px; }
+  .state-pill.active { background: var(--green-dim); color: var(--green); }
+  .state-pill.paused { background: var(--amber-dim); color: var(--amber); }
+  .strat-verdict { font-size: 11.5px; color: var(--text-dim); margin-bottom: 14px; font-style: normal; }
+  .strat-verdict b { color: var(--text); font-weight: 500; }
+  .strat-numbers { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+  .big-pnl { font-family: var(--sans); font-weight: 700; font-size: 22px; line-height: 1; }
+  .big-pnl .lbl { display: block; font-family: var(--mono); font-weight: 400; font-size: 9.5px; text-transform: uppercase; letter-spacing: .12em; color: var(--text-faint); margin-bottom: 5px; }
+  .spark { height: 36px; }
+  .spark polyline { fill: none; stroke-width: 1.5; }
+  .strat-foot {
+    display: flex; gap: 14px; margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line);
+    font-size: 10.5px; color: var(--text-dim);
+  }
+  .strat-foot b { color: var(--text); font-weight: 500; }
+
+  /* ── Two-col: tape + sources ─────────────── */
+  .two-col { display: grid; grid-template-columns: 1.6fr 1fr; gap: 14px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 16px 18px; }
+  .tape-row {
+    display: grid; grid-template-columns: 52px 1fr auto; gap: 12px; align-items: baseline;
+    padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 12px;
+  }
+  .tape-row:last-child { border-bottom: none; }
+  .tape-time { color: var(--text-faint); font-size: 11px; }
+  .tape-desc { color: var(--text); }
+  .tape-desc .who { color: var(--purple); }
+  .tape-out { font-size: 11px; }
+  .out-placed { color: var(--green); }
+  .out-skip { color: var(--text-dim); }
+  .out-block { color: var(--amber); }
+  .src-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 12px; }
+  .src-row:last-child { border-bottom: none; }
+  .src-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .src-dot.ok { background: var(--green); } .src-dot.warn { background: var(--amber); box-shadow: 0 0 8px rgba(224,175,104,.5); } .src-dot.down { background: var(--red); }
+  .src-name { color: var(--text); }
+  .src-age { margin-left: auto; color: var(--text-faint); font-size: 11px; }
+  .src-age.stale { color: var(--amber); }
+
+  /* ════ STRATEGY DETAIL VIEW ════ */
+  .crumb { font-size: 11px; color: var(--text-faint); margin-bottom: 10px; }
+  .crumb a { color: var(--text-dim); text-decoration: none; }
+  .detail-head { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
+  .detail-head h1 { font-family: var(--sans); font-weight: 700; font-size: 24px; color: #dde3ff; }
+  .verdict-line {
+    font-size: 13px; color: var(--text-dim); margin-bottom: 26px; max-width: 720px; line-height: 1.65;
+  }
+  .verdict-line b { color: var(--green); font-weight: 500; }
+  .verdict-line .warn { color: var(--amber); }
+
+  .vitals { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; margin-bottom: 26px; }
+  .vital { background: var(--panel); padding: 13px 16px; }
+  .vital .l { font-size: 9.5px; text-transform: uppercase; letter-spacing: .13em; color: var(--text-faint); margin-bottom: 4px; }
+  .vital .v { font-family: var(--sans); font-weight: 700; font-size: 19px; color: #dde3ff; }
+  .vital .v small { font-size: 11px; font-weight: 400; color: var(--text-dim); font-family: var(--mono); }
+  .vital .s { font-size: 10.5px; color: var(--text-dim); margin-top: 3px; }
+
+  .detail-grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 14px; margin-bottom: 26px; }
+  .chart-area { height: 150px; width: 100%; }
+  .window-pills { display: flex; gap: 6px; margin-bottom: 12px; }
+  .wpill { font-family: var(--mono); font-size: 10.5px; padding: 3px 11px; border-radius: 3px; border: 1px solid var(--line); background: none; color: var(--text-dim); cursor: pointer; }
+  .wpill.on { border-color: var(--accent); color: var(--accent); }
+
+  .cal-note { font-size: 11.5px; color: var(--text-dim); line-height: 1.6; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .cal-note b { color: var(--text); font-weight: 500; }
+
+  .signal-group-day { font-size: 10px; text-transform: uppercase; letter-spacing: .14em; color: var(--text-faint); padding: 12px 0 6px; }
+  .sig-row { display: grid; grid-template-columns: 46px 1fr 64px auto; gap: 12px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 12px; }
+  .sig-row:last-child { border: none; }
+  .sig-market { color: var(--text); }
+  .sig-market .raw { color: var(--text-faint); font-size: 10px; display: block; }
+  .sig-prob { text-align: right; color: var(--text-dim); }
+  .sig-prob b { color: var(--text); font-weight: 500; }
+
+  .controls-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 26px; }
+  .ctl {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .04em; padding: 7px 16px;
+    border-radius: 4px; border: 1px solid var(--line-bright); background: var(--panel-2); color: var(--text); cursor: pointer;
+    transition: all .15s;
+  }
+  .ctl:hover { border-color: var(--text-dim); }
+  .ctl.primary { border-color: rgba(122,162,247,.45); background: rgba(122,162,247,.12); color: var(--accent); }
+  .ctl.danger { border-color: rgba(247,118,142,.4); color: var(--red); margin-left: auto; }
+  .ctl.warn-c { border-color: rgba(224,175,104,.4); color: var(--amber); }
+
+  .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 36px; }
+  .cfg-row { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 12px; }
+  .cfg-row .k { color: var(--text-dim); }
+  .cfg-row .k small { display: block; color: var(--text-faint); font-size: 10px; }
+  .cfg-row .v { color: var(--text); text-align: right; }
+
+  .ledger-row { display: grid; grid-template-columns: 80px 1fr auto auto; gap: 14px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 12px; align-items: baseline; }
+  .ledger-row:last-child { border: none; }
+  .ledger-kind { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+  .k-pnl-pos { color: var(--green); } .k-pnl-neg { color: var(--red); } .k-dep { color: var(--cyan); } .k-fee { color: var(--text-dim); }
+  .ledger-amt { text-align: right; } .ledger-bal { color: var(--text-faint); text-align: right; }
+
+  .hidden { display: none; }
+  .num { font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="topbar">
+    <div class="wordmark">poly<span>tryhard</span></div>
+    <span class="env-chip">staging · live backend</span>
+    <span style="font-size:11px;color:var(--text-faint)">tick 04:32 ago</span>
+    <div class="spacer"></div>
+    <button class="kill-btn">⏻ Kill switch</button>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="show('overview', this)">Overview</button>
+    <button class="tab" onclick="show('detail', this)">Strategy: weather_baseline_v2</button>
+  </div>
+
+  <!-- ═══════════ OVERVIEW ═══════════ -->
+  <div id="overview">
+
+    <div class="status-strip">
+      <div class="status-cell">
+        <div class="status-label">Total bankroll</div>
+        <div class="status-value num">$847<small>.35</small></div>
+        <div class="status-sub num">across 3 strategies · $96 idle in paused</div>
+      </div>
+      <div class="status-cell">
+        <div class="status-label">Today</div>
+        <div class="status-value num delta-up">+$1.76</div>
+        <div class="status-sub num">7 orders · 11 skips · 0 blocks</div>
+      </div>
+      <div class="status-cell">
+        <div class="status-label">Proven edge</div>
+        <div class="status-value num">1<small>/3</small></div>
+        <div class="status-sub">baseline_v2 CI-low <span class="delta-up num">+0.8%</span></div>
+      </div>
+      <div class="status-cell">
+        <div class="status-label">System</div>
+        <div class="status-value ok"><span class="pulse"></span>TRADING</div>
+        <div class="status-sub"><span class="attention-count num">2 items</span> need attention ↓</div>
+      </div>
+    </div>
+
+    <div class="attention">
+      <div class="attention-row">
+        <span class="tag crit">paused</span>
+        <span class="msg"><b>weather_stale_quote</b> hit its 12% drawdown stop 2 days ago — $96.20 idle</span>
+        <span class="act">Review →</span>
+      </div>
+      <div class="attention-row">
+        <span class="tag warn">stale</span>
+        <span class="msg"><b>NWS Forecast</b> hasn't fetched in 3h 12m — strategies fail closed on stale inputs</span>
+        <span class="act">Probe source →</span>
+      </div>
+    </div>
+
+    <h2 class="sect">Strategies</h2>
+    <div class="strat-grid">
+
+      <div class="strat-card" onclick="show('detail', document.querySelectorAll('.tab')[1])">
+        <div class="edge-bar pos"></div>
+        <div class="strat-head">
+          <div class="strat-name">weather_baseline_v2</div>
+          <span class="state-pill active">active</span>
+        </div>
+        <div class="strat-verdict">Profitable &amp; well calibrated over 142 trades. <b>The one earning its keep.</b></div>
+        <div class="strat-numbers">
+          <div class="big-pnl delta-up num">+$3.18<span class="lbl">today</span></div>
+          <svg class="spark" viewBox="0 0 120 36" width="120"><polyline stroke="#9ece6a" points="0,30 12,28 24,29 36,24 48,25 60,20 72,21 84,16 96,17 108,12 120,8"/></svg>
+        </div>
+        <div class="strat-foot num">
+          <span>bank <b>$512.40</b></span><span>edge <b style="color:var(--green)">+2.1%</b></span><span>brier <b>.214</b></span><span>dd <b>2.1%</b></span>
+        </div>
+      </div>
+
+      <div class="strat-card" onclick="alert('Mockup — would open weather_ensemble_disagreement')">
+        <div class="edge-bar flat"></div>
+        <div class="strat-head">
+          <div class="strat-name">weather_ensemble_disagreement</div>
+          <span class="state-pill active">active</span>
+        </div>
+        <div class="strat-verdict">Roughly breakeven over 87 trades — edge CI still straddles zero. <b>Needs more data.</b></div>
+        <div class="strat-numbers">
+          <div class="big-pnl delta-down num">−$1.42<span class="lbl">today</span></div>
+          <svg class="spark" viewBox="0 0 120 36" width="120"><polyline stroke="#565f89" points="0,18 12,16 24,20 36,17 48,22 60,19 72,23 84,20 96,24 108,21 120,23"/></svg>
+        </div>
+        <div class="strat-foot num">
+          <span>bank <b>$238.75</b></span><span>edge <b>−1.1%</b></span><span>brier <b>.241</b></span><span>dd <b>4.8%</b></span>
+        </div>
+      </div>
+
+      <div class="strat-card paused" onclick="alert('Mockup — would open weather_stale_quote')">
+        <div class="edge-bar neg"></div>
+        <div class="strat-head">
+          <div class="strat-name">weather_stale_quote</div>
+          <span class="state-pill paused">drawdown stop</span>
+        </div>
+        <div class="strat-verdict">Lost 12.4% from high-water mark and auto-paused. <b>Decide: refund or retire.</b></div>
+        <div class="strat-numbers">
+          <div class="big-pnl num" style="color:var(--text-dim)">$0.00<span class="lbl">today (paused)</span></div>
+          <svg class="spark" viewBox="0 0 120 36" width="120"><polyline stroke="#f7768e" points="0,8 12,10 24,9 36,14 48,13 60,18 72,22 84,21 96,27 108,28 120,28"/></svg>
+        </div>
+        <div class="strat-foot num">
+          <span>bank <b>$96.20</b></span><span>edge <b style="color:var(--red)">−4.2%</b></span><span>brier <b>.297</b></span><span>dd <b style="color:var(--red)">12.4%</b></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="panel">
+        <h2 class="sect">Signal tape — today</h2>
+        <div class="tape-row">
+          <span class="tape-time num">14:02</span>
+          <span class="tape-desc"><span class="who">baseline_v2</span> · NYC high ≥ 72°F · saw 78% vs market 64¢</span>
+          <span class="tape-out out-placed num">▲ bought 12 YES @ 64¢</span>
+        </div>
+        <div class="tape-row">
+          <span class="tape-time num">14:02</span>
+          <span class="tape-desc"><span class="who">ensemble_dis</span> · NYC high ≥ 72°F · models disagree by 4.1°</span>
+          <span class="tape-out out-skip">— skipped · edge below threshold</span>
+        </div>
+        <div class="tape-row">
+          <span class="tape-time num">13:01</span>
+          <span class="tape-desc"><span class="who">baseline_v2</span> · Chicago high ≥ 68°F · saw 41% vs market 52¢</span>
+          <span class="tape-out out-placed num">▼ bought 9 NO @ 48¢</span>
+        </div>
+        <div class="tape-row">
+          <span class="tape-time num">13:01</span>
+          <span class="tape-desc"><span class="who">ensemble_dis</span> · Austin high ≥ 94°F · NWS input 3h old</span>
+          <span class="tape-out out-block">⚠ blocked · stale inputs</span>
+        </div>
+        <div class="tape-row">
+          <span class="tape-time num">12:00</span>
+          <span class="tape-desc"><span class="who">baseline_v2</span> · Miami high ≥ 88°F · saw 91% vs market 89¢</span>
+          <span class="tape-out out-skip">— skipped · Kelly sized to zero</span>
+        </div>
+        <div class="tape-row">
+          <span class="tape-time num">11:00</span>
+          <span class="tape-desc"><span class="who">ensemble_dis</span> · Chicago high ≥ 68°F · saw 35% vs market 51¢</span>
+          <span class="tape-out out-placed num">▼ bought 6 NO @ 49¢</span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2 class="sect">Data sources</h2>
+        <div class="src-row"><span class="src-dot ok"></span><span class="src-name">Kalshi Markets</span><span class="src-age num">2m ago</span></div>
+        <div class="src-row"><span class="src-dot ok"></span><span class="src-name">Open-Meteo (GFS + ECMWF)</span><span class="src-age num">11m ago</span></div>
+        <div class="src-row"><span class="src-dot warn"></span><span class="src-name">NWS Forecast</span><span class="src-age stale num">3h 12m ago</span></div>
+        <div class="src-row"><span class="src-dot ok"></span><span class="src-name">GFS Ensemble</span><span class="src-age num">26m ago</span></div>
+
+        <h2 class="sect" style="margin-top:22px">Yesterday's resolutions</h2>
+        <div class="tape-row" style="grid-template-columns: 1fr auto;">
+          <span class="tape-desc">NYC high ≥ 70°F resolved <b style="color:var(--green)">YES</b></span>
+          <span class="out-placed num">+$2.41</span>
+        </div>
+        <div class="tape-row" style="grid-template-columns: 1fr auto;">
+          <span class="tape-desc">Chicago high ≥ 66°F resolved <b style="color:var(--red)">NO</b></span>
+          <span class="out-placed num" style="color:var(--red)">−$0.88</span>
+        </div>
+        <div class="tape-row" style="grid-template-columns: 1fr auto;">
+          <span class="tape-desc">Austin high ≥ 92°F resolved <b style="color:var(--green)">YES</b></span>
+          <span class="out-placed num">+$1.12</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ STRATEGY DETAIL ═══════════ -->
+  <div id="detail" class="hidden">
+    <div class="crumb"><a href="#">Overview</a> / strategies / weather_baseline_v2</div>
+    <div class="detail-head">
+      <h1>weather_baseline_v2</h1>
+      <span class="state-pill active">active</span>
+    </div>
+    <p class="verdict-line">
+      Over the last 30 days: <b>71 trades, 44 won, +$11.27</b>. Calibration is tight (Brier .214) with mild
+      <span class="warn">overconfidence above the 70% bucket</span>. The posterior edge is +2.1% and — more importantly —
+      the <b>worst-case bound is +0.8%</b>, so this edge is statistically real. Risk is calm: 2.1% off the high-water mark.
+    </p>
+
+    <div class="vitals">
+      <div class="vital"><div class="l">Bankroll</div><div class="v num">$512.40</div><div class="s num">$489.10 free · $23.30 in positions</div></div>
+      <div class="vital"><div class="l">P&amp;L · 30d</div><div class="v num delta-up">+$11.27</div><div class="s num">today +$3.18</div></div>
+      <div class="vital"><div class="l">Edge (worst case)</div><div class="v num" style="color:var(--green)">+0.8%</div><div class="s num">mean +2.1%, best +3.8%</div></div>
+      <div class="vital"><div class="l">Hit rate</div><div class="v num">62<small>%</small></div><div class="s num">44 of 71 · Brier .214</div></div>
+      <div class="vital"><div class="l">Drawdown</div><div class="v num">2.1<small>%</small></div><div class="s num">stops at 12% · HWM $523.60</div></div>
+    </div>
+
+    <div class="controls-row">
+      <button class="ctl primary">Deposit</button>
+      <button class="ctl">Withdraw</button>
+      <button class="ctl warn-c">Pause</button>
+      <button class="ctl">Kelly 25% ▾</button>
+      <button class="ctl danger">Decommission…</button>
+    </div>
+
+    <div class="detail-grid">
+      <div class="panel">
+        <h2 class="sect">Bankroll — 14 days</h2>
+        <svg class="chart-area" viewBox="0 0 480 150" preserveAspectRatio="none">
+          <defs><linearGradient id="bg1" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#7aa2f7" stop-opacity=".18"/><stop offset="1" stop-color="#7aa2f7" stop-opacity="0"/>
+          </linearGradient></defs>
+          <polygon fill="url(#bg1)" points="0,150 0,108 34,112 68,104 102,98 136,101 170,92 204,95 238,84 272,88 306,76 340,70 374,73 408,58 442,52 480,40 480,150"/>
+          <polyline fill="none" stroke="#7aa2f7" stroke-width="1.5" points="0,108 34,112 68,104 102,98 136,101 170,92 204,95 238,84 272,88 306,76 340,70 374,73 408,58 442,52 480,40"/>
+          <line x1="0" y1="120" x2="480" y2="120" stroke="#292e42" stroke-dasharray="4 4"/>
+          <text x="6" y="134" font-size="9" fill="#565f89" font-family="JetBrains Mono">initial deposit $500</text>
+        </svg>
+      </div>
+      <div class="panel">
+        <div class="window-pills">
+          <button class="wpill">7d</button><button class="wpill on">30d</button><button class="wpill">all</button>
+        </div>
+        <h2 class="sect">Calibration</h2>
+        <svg class="chart-area" viewBox="0 0 220 130" style="height:130px">
+          <line x1="20" y1="110" x2="200" y2="20" stroke="#3b4261" stroke-dasharray="3 3"/>
+          <line x1="20" y1="110" x2="200" y2="110" stroke="#292e42"/><line x1="20" y1="110" x2="20" y2="20" stroke="#292e42"/>
+          <circle cx="38" cy="103" r="3.5" fill="#7aa2f7"/><circle cx="56" cy="93" r="4" fill="#7aa2f7"/>
+          <circle cx="74" cy="86" r="4.5" fill="#7aa2f7"/><circle cx="92" cy="74" r="5" fill="#7aa2f7"/>
+          <circle cx="110" cy="67" r="5" fill="#7aa2f7"/><circle cx="128" cy="56" r="4.5" fill="#7aa2f7"/>
+          <circle cx="146" cy="52" r="4" fill="#e0af68"/><circle cx="164" cy="46" r="4" fill="#e0af68"/>
+          <circle cx="182" cy="38" r="3.5" fill="#e0af68"/>
+        </svg>
+        <p class="cal-note"><b>Reading:</b> dots on the dashed line = predictions match reality. The amber dots above 70% sit
+        below the line — when this strategy says "very likely," it's been <b>a touch too sure</b> (predicted 82%, observed 76%).</p>
+      </div>
+    </div>
+
+    <div class="detail-grid">
+      <div class="panel">
+        <h2 class="sect">Signals <span style="margin-left:auto;font-size:10px;color:var(--text-faint)">filter: all ▾</span></h2>
+        <div class="signal-group-day">Today · May 26</div>
+        <div class="sig-row">
+          <span class="tape-time num">14:02</span>
+          <span class="sig-market">NYC high ≥ 72°F <span class="raw">KXHIGHNY-25MAY26-T72</span></span>
+          <span class="sig-prob num">saw <b>78%</b></span>
+          <span class="tape-out out-placed num">▲ 12 YES @ 64¢</span>
+        </div>
+        <div class="sig-row">
+          <span class="tape-time num">13:01</span>
+          <span class="sig-market">Chicago high ≥ 68°F <span class="raw">KXHIGHCHI-25MAY26-T68</span></span>
+          <span class="sig-prob num">saw <b>41%</b></span>
+          <span class="tape-out out-placed num">▼ 9 NO @ 48¢</span>
+        </div>
+        <div class="sig-row">
+          <span class="tape-time num">12:00</span>
+          <span class="sig-market">Miami high ≥ 88°F <span class="raw">KXHIGHMIA-25MAY26-T88</span></span>
+          <span class="sig-prob num">saw <b>91%</b></span>
+          <span class="tape-out out-skip">— skipped · Kelly sized to zero</span>
+        </div>
+        <div class="signal-group-day">Yesterday · May 25</div>
+        <div class="sig-row">
+          <span class="tape-time num">15:03</span>
+          <span class="sig-market">NYC high ≥ 70°F <span class="raw">KXHIGHNY-25MAY25-T70</span></span>
+          <span class="sig-prob num">saw <b>83%</b></span>
+          <span class="tape-out out-placed num">▲ 14 YES @ 71¢ · won +$2.41</span>
+        </div>
+        <div class="sig-row">
+          <span class="tape-time num">14:02</span>
+          <span class="sig-market">Austin high ≥ 94°F <span class="raw">KXHIGHAUS-25MAY25-T94</span></span>
+          <span class="sig-prob num">saw <b>52%</b></span>
+          <span class="tape-out out-skip">— skipped · edge below threshold</span>
+        </div>
+        <div class="sig-row">
+          <span class="tape-time num">11:00</span>
+          <span class="sig-market">Chicago high ≥ 66°F <span class="raw">KXHIGHCHI-25MAY25-T66</span></span>
+          <span class="sig-prob num">saw <b>37%</b></span>
+          <span class="tape-out out-placed num" style="color:var(--red)">▼ 8 NO @ 47¢ · lost −$0.88</span>
+        </div>
+      </div>
+
+      <div>
+        <div class="panel" style="margin-bottom:14px">
+          <h2 class="sect">Money ledger</h2>
+          <div class="ledger-row">
+            <span class="ledger-kind k-pnl-pos">won trade</span>
+            <span style="color:var(--text-dim)">NYC high ≥ 70°F resolved YES</span>
+            <span class="ledger-amt num delta-up">+$2.41</span>
+            <span class="ledger-bal num">$512.40</span>
+          </div>
+          <div class="ledger-row">
+            <span class="ledger-kind k-pnl-neg">lost trade</span>
+            <span style="color:var(--text-dim)">Chicago high ≥ 66°F resolved NO</span>
+            <span class="ledger-amt num delta-down">−$0.88</span>
+            <span class="ledger-bal num">$509.99</span>
+          </div>
+          <div class="ledger-row">
+            <span class="ledger-kind k-fee">fee</span>
+            <span style="color:var(--text-dim)">Kalshi maker fee</span>
+            <span class="ledger-amt num">−$0.07</span>
+            <span class="ledger-bal num">$510.87</span>
+          </div>
+          <div class="ledger-row">
+            <span class="ledger-kind k-dep">deposit</span>
+            <span style="color:var(--text-dim)">"topping up after good week" — you</span>
+            <span class="ledger-amt num" style="color:var(--cyan)">+$50.00</span>
+            <span class="ledger-bal num">$510.94</span>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2 class="sect">Rules this strategy runs under</h2>
+          <div class="cfg-row"><span class="k">Pause if bankroll drops below</span><span class="v num">$50.00</span></div>
+          <div class="cfg-row"><span class="k">Stop trading at drawdown</span><span class="v num">12% from HWM</span></div>
+          <div class="cfg-row"><span class="k">Ignore inputs older than</span><span class="v num">45 min</span></div>
+          <div class="cfg-row"><span class="k">Only trade when confidence ≥</span><span class="v num">0.62</span></div>
+          <div class="cfg-row"><span class="k">Bet sizing</span><span class="v num">25% Kelly</span></div>
+          <div class="cfg-row"><span class="k">Max exposure per market</span><span class="v num">10% of bankroll</span></div>
+          <div class="cfg-row"><span class="k">Auto-resume on deposit</span><span class="v">yes</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function show(id, tabEl) {
+  document.getElementById('overview').classList.toggle('hidden', id !== 'overview');
+  document.getElementById('detail').classList.toggle('hidden', id !== 'detail');
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  tabEl.classList.add('active');
+}
+</script>
+</body>
+</html>

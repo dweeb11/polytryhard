@@ -1,19 +1,31 @@
 @import 'tailwindcss';
+@import '@fontsource-variable/jetbrains-mono';
+@import '@fontsource-variable/archivo';
 
 @theme {
-	--font-sans: ui-sans-serif, system-ui, sans-serif;
-	--color-surface: #0f1419;
-	--color-panel: #1a2332;
-	--color-border: #2d3a4f;
-	--color-muted: #8b9cb3;
-	--color-accent: #3b82f6;
-	--color-danger: #ef4444;
-	--color-warn: #f59e0b;
-	--color-ok: #22c55e;
+	--font-sans: 'Archivo Variable', ui-sans-serif, system-ui, sans-serif;
+	--font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, monospace;
+	/* Tokyo Night */
+	--color-surface: #16161e;
+	--color-panel: #1a1b26;
+	--color-panel-2: #1f2335;
+	--color-border: #292e42;
+	--color-border-bright: #3b4261;
+	--color-muted: #787c99;
+	--color-faint: #565f89;
+	--color-bright: #c0caf5;
+	--color-heading: #dde3ff;
+	--color-accent: #7aa2f7;
+	--color-purple: #bb9af7;
+	--color-cyan: #7dcfff;
+	--color-ok: #9ece6a;
+	--color-warn: #e0af68;
+	--color-danger: #f7768e;
 }
 
 html,
 body {
-	@apply h-full overflow-hidden bg-[var(--color-surface)] text-slate-100 antialiased;
-	font-family: var(--font-sans);
+	@apply h-full overflow-hidden bg-[var(--color-surface)] text-[var(--color-bright)] antialiased;
+	font-family: var(--font-mono);
+	font-size: 13.5px;
 }
