@@ -1,7 +1,6 @@
-"""Engine→strategy feature bundle seam (APP-294 slice 1).
+"""Engine→strategy feature bundle seam (APP-294).
 
-Proves ``strategy_features_for_market`` is the final dict strategies should
-receive — legacy ``scoped_features`` is a no-op on its output.
+Proves ``strategy_features_for_market`` is the final dict strategies receive.
 """
 
 from datetime import UTC, datetime
@@ -15,7 +14,6 @@ from core.strategies.weather_ensemble_disagreement.strategy import (
     WeatherEnsembleDisagreementStrategy,
 )
 from core.strategies.weather_stale_quote.strategy import WeatherStaleQuoteStrategy
-from core.strategies.weather_utils import scoped_features
 
 AS_OF = datetime(2026, 5, 28, 12, 0, tzinfo=UTC)
 TICKER = "KXHIGHNY-25MAY28-T72"
@@ -104,16 +102,17 @@ def _strategy_context(strategy_name: str) -> StrategyContext:
     )
 
 
-def test_engine_delivered_features_are_identity_under_legacy_scoped_filter() -> None:
+def test_engine_delivered_features_scope_to_market() -> None:
     indexed = _provider_index()
     delivered = strategy_features_for_market(
         indexed, location_id=LOCATION_ID, ticker=TICKER
     )
-    refiltered = scoped_features(delivered, LOCATION_ID, TICKER)
-    assert refiltered == delivered
     assert set(delivered) == {"ensemble_mean_temp", "forecast_disagreement", "kalshi_spread"}
     assert delivered["kalshi_spread"].subject_id == TICKER
     assert delivered["ensemble_mean_temp"].subject_id == LOCATION_ID
+    assert delivered["forecast_disagreement"].subject_id == LOCATION_ID
+    assert delivered["kalshi_spread"].value_numeric == Decimal("0.15")
+    assert delivered["ensemble_mean_temp"].value_numeric == Decimal("90")
 
 
 def test_weather_strategies_accept_engine_delivered_features() -> None:
