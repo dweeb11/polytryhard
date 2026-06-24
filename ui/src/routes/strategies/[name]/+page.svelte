@@ -40,8 +40,17 @@
 		strategySoakConfigRows
 	} from '$lib/strategyConfigDisplay';
 	import { evalByStrategy, evalRoster } from '$lib/stores';
-	import { hydrateStrategyEval, mapCalibrationBins } from '$lib/api/hydrate';
+	import { hydrateStrategyEval } from '$lib/api/hydrate';
 	import { apiMode } from '$lib/api/mode';
+	import {
+		activeEvalSnapshot,
+		calibrationBucketsForSnapshot,
+		evalWindowOptions,
+		findOverconfidentHighBin,
+		isBrierTight,
+		isEdgeProven,
+		resolveSelectedEvalWindow
+	} from '$lib/evalAnalytics';
 	import type { CashEvent } from '$lib/types';
 
 	const name = $derived($page.params.name ?? '');
@@ -71,48 +80,26 @@
 	});
 
 	const evalWindows = $derived($evalByStrategy[name]?.windows ?? []);
-	const evalWindowOptions = $derived(
-		evalWindows.length > 0 ? evalWindows.map((w) => w.window) : ['7d', '30d', 'all']
-	);
+	const windowOptions = $derived(evalWindowOptions(evalWindows));
 
 	$effect(() => {
 		if (evalWindows.length === 0) return;
-		if (!evalWindows.some((w) => w.window === selectedWindow)) {
-			selectedWindow =
-				evalWindows.find((w) => w.window === '30d')?.window ?? evalWindows[0].window;
-		}
+		const resolved = resolveSelectedEvalWindow(evalWindows, selectedWindow);
+		if (resolved !== selectedWindow) selectedWindow = resolved;
 	});
-	const activeSnapshot = $derived(
-		evalWindows.find((w) => w.window === selectedWindow) ?? evalWindows[0]
-	);
+	const activeSnapshot = $derived(activeEvalSnapshot(evalWindows, selectedWindow));
 
 	const calibration = $derived(
-		activeSnapshot
-			? mapCalibrationBins(activeSnapshot.calibrationBins)
-			: ($calibrationByStrategy[name] ?? [])
+		calibrationBucketsForSnapshot(activeSnapshot, $calibrationByStrategy[name] ?? [])
 	);
 	const freeCash = $derived(strat ? freeCashCents(strat, $positions) : 0);
 	const inPositions = $derived(strat ? strat.bankrollCents - freeCash : 0);
 
-	// Overconfidence callout: high-probability bins (≥70%) where reality
-	// resolved yes meaningfully less often than predicted.
-	const overconfidentHigh = $derived.by(() => {
-		if (!activeSnapshot) return null;
-		const high = activeSnapshot.calibrationBins.filter(
-			(b) => b.predictedMean >= 0.7 && b.count > 0 && b.predictedMean - b.observedFreq > 0.03
-		);
-		if (high.length === 0) return null;
-		const worst = high.reduce((a, b) =>
-			a.predictedMean - a.observedFreq > b.predictedMean - b.observedFreq ? a : b
-		);
-		return {
-			predicted: Math.round(worst.predictedMean * 100),
-			observed: Math.round(worst.observedFreq * 100)
-		};
-	});
-
+	const overconfidentHigh = $derived(
+		activeSnapshot ? findOverconfidentHighBin(activeSnapshot.calibrationBins) : null
+	);
 	const edgeProven = $derived(
-		activeSnapshot != null && activeSnapshot.posteriorEdgeCiLow > 0
+		activeSnapshot != null && isEdgeProven(activeSnapshot.posteriorEdgeCiLow)
 	);
 
 	let depositModal = $state(false);
@@ -203,7 +190,7 @@
 					: ''}{formatCents(activeSnapshot.pnlCents)}</b
 			>.
 			{#if activeSnapshot.brierScore != null}
-				Calibration {activeSnapshot.brierScore <= 0.23 ? 'is tight' : 'is loose'} (Brier {activeSnapshot.brierScore.toFixed(3)}){#if overconfidentHigh}
+				Calibration {isBrierTight(activeSnapshot.brierScore) ? 'is tight' : 'is loose'} (Brier {activeSnapshot.brierScore.toFixed(3)}){#if overconfidentHigh}
 					with <span class="text-[var(--color-warn)]"
 						>overconfidence in the high buckets (says {overconfidentHigh.predicted}%, reality
 						{overconfidentHigh.observed}%)</span
@@ -362,7 +349,7 @@
 			<div class="mb-2 flex items-center justify-between">
 				<h2 class="text-[11px] uppercase tracking-[0.18em] text-[var(--color-faint)]">Calibration</h2>
 				<div class="flex gap-1.5">
-					{#each evalWindowOptions as w (w)}
+					{#each windowOptions as w (w)}
 						<button
 							type="button"
 							class="rounded border px-2.5 py-0.5 text-[10.5px] {selectedWindow === w
