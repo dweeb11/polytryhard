@@ -12,7 +12,6 @@ from core.strategies.weather_utils import (
     location_for_series,
     numeric_feature,
     prob_to_temp,
-    scoped_features,
     weather_series,
 )
 
@@ -49,16 +48,15 @@ class WeatherStaleQuoteStrategy(Strategy):
         location_id = location_for_series(market.series)
         if location_id is None:
             return None
-        scoped = scoped_features(features, location_id, market.ticker)
         if not required_features_present(
             self.required_features,
-            scoped,
+            features,
             tolerate_missing=ctx.tolerate_missing_features,
         ):
             return None
 
-        spread = numeric_feature(scoped.get("kalshi_spread"))
-        ensemble_mean = numeric_feature(scoped.get("ensemble_mean_temp"))
+        spread = numeric_feature(features.get("kalshi_spread"))
+        ensemble_mean = numeric_feature(features.get("ensemble_mean_temp"))
         mid = market.mid_yes
         if spread is None or ensemble_mean is None or mid is None:
             return None
