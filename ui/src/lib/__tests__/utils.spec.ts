@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+	compactIsoTime,
 	formatAge,
+	groupItemsByDayLabel,
 	isUtcToday,
 	signalDayGroupLabel,
 	utcDayKey,
@@ -63,5 +65,40 @@ describe('utc day helpers', () => {
 	it('computes yesterday in UTC', () => {
 		const now = Date.parse('2026-06-02T12:00:00Z');
 		expect(utcYesterdayKey(now)).toBe('2026-06-01');
+	});
+});
+
+describe('compactIsoTime', () => {
+	it('returns a placeholder for missing or invalid timestamps', () => {
+		expect(compactIsoTime('')).toBe('—');
+		expect(compactIsoTime('not-a-date')).toBe('—');
+	});
+
+	it('formats valid ISO timestamps as 24h local time', () => {
+		const formatted = compactIsoTime('2026-06-01T14:05:00Z');
+		expect(formatted).toMatch(/^\d{2}:\d{2}$/);
+		expect(formatted).toBe(
+			new Date('2026-06-01T14:05:00Z').toLocaleTimeString([], {
+				hour: '2-digit',
+				minute: '2-digit',
+				hour12: false
+			})
+		);
+	});
+});
+
+describe('groupItemsByDayLabel', () => {
+	it('groups consecutive items with the same day label', () => {
+		const now = Date.parse('2026-06-02T12:00:00Z');
+		const items = [
+			{ id: 'a', at: '2026-06-02T10:00:00Z' },
+			{ id: 'b', at: '2026-06-02T09:00:00Z' },
+			{ id: 'c', at: '2026-06-01T12:00:00Z' }
+		];
+
+		expect(groupItemsByDayLabel(items, (item) => item.at, now)).toEqual([
+			{ day: 'Today · Jun 2', items: [items[0], items[1]] },
+			{ day: 'Yesterday · Jun 1', items: [items[2]] }
+		]);
 	});
 });

@@ -25,12 +25,13 @@
 	import { isDeveloperMode } from '$lib/stores/uiMode';
 	import {
 		compareIsoDesc,
+		compactIsoTime,
 		drawdownPct,
 		formatCents,
 		freeCashCents,
+		groupItemsByDayLabel,
 		PAUSABLE_STATES,
-		RESUMABLE_STATES,
-		signalDayGroupLabel
+		RESUMABLE_STATES
 	} from '$lib/utils';
 	import { pushToast } from '$lib/stores/toasts';
 	import { humanizeTicker, outcomeLabel, outcomeTone, strategyVerdict } from '$lib/humanize';
@@ -51,7 +52,12 @@
 			.sort((a, b) => compareIsoDesc(a.evaluatedAt, b.evaluatedAt))
 	);
 	const history = $derived($bankrollHistoryByStrategy[name] ?? []);
-	const stratCash = $derived($cashEvents.filter((c) => c.strategyName === name).slice(0, 10));
+	const stratCash = $derived(
+		$cashEvents
+			.filter((c) => c.strategyName === name)
+			.sort((a, b) => compareIsoDesc(a.occurredAt, b.occurredAt))
+			.slice(0, 10)
+	);
 
 	let selectedWindow: string = $state('30d');
 
@@ -136,22 +142,11 @@
 			: stratSignals.filter((s) => s.outcome === outcomeFilter)
 	);
 
-	function signalTime(iso: string): string {
-		const ms = Date.parse(iso);
-		if (Number.isNaN(ms)) return '—';
-		return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-	}
+	const signalsByDay = $derived(
+		groupItemsByDayLabel(filteredSignals.slice(0, 40), (sig) => sig.evaluatedAt)
+	);
 
-	const signalsByDay = $derived.by(() => {
-		const groups: Array<{ day: string; items: typeof filteredSignals }> = [];
-		for (const sig of filteredSignals.slice(0, 40)) {
-			const day = signalDayGroupLabel(sig.evaluatedAt);
-			const group = groups.at(-1);
-			if (group && group.day === day) group.items.push(sig);
-			else groups.push({ day, items: [sig] });
-		}
-		return groups;
-	});
+	const cashByDay = $derived(groupItemsByDayLabel(stratCash, (c) => c.occurredAt));
 
 	function cashKind(c: CashEvent): { label: string; cls: string } {
 		if (c.kind === 'realized_pnl') {
@@ -464,7 +459,7 @@
 							class="grid grid-cols-[40px_1fr_56px_auto] items-baseline gap-3 border-b border-[var(--color-border)] py-1.5 text-xs last:border-0"
 						>
 							<span class="text-[11px] tabular-nums text-[var(--color-faint)]"
-								>{signalTime(sig.evaluatedAt)}</span
+								>{compactIsoTime(sig.evaluatedAt)}</span
 							>
 							<span class="min-w-0">
 								<span class="text-[var(--color-bright)]">{humanizeTicker(sig.ticker)}</span>
@@ -493,23 +488,34 @@
 				>
 					Money ledger
 				</h2>
-				{#each stratCash as c (c.id)}
-					{@const kind = cashKind(c)}
+				{#each cashByDay as group (group.day)}
 					<div
-						class="grid grid-cols-[72px_1fr_auto_auto] items-baseline gap-3 border-b border-[var(--color-border)] py-1.5 text-xs last:border-0"
+						class="pb-1.5 pt-3 text-[10px] uppercase tracking-[0.14em] text-[var(--color-faint)]"
 					>
-						<span class="text-[10px] uppercase tracking-[0.08em] {kind.cls}">{kind.label}</span>
-						<span class="min-w-0 truncate text-[var(--color-muted)]" title={c.reason}>{c.reason}</span>
-						<span
-							class="tabular-nums {c.amountCents >= 0
-								? 'text-[var(--color-ok)]'
-								: 'text-[var(--color-danger)]'}"
-							>{c.amountCents >= 0 ? '+' : ''}{formatCents(c.amountCents)}</span
-						>
-						<span class="w-16 text-right tabular-nums text-[var(--color-faint)]"
-							>{formatCents(c.balanceAfterCents)}</span
-						>
+						{group.day}
 					</div>
+					{#each group.items as c (c.id)}
+						{@const kind = cashKind(c)}
+						<div
+							class="grid grid-cols-[40px_72px_1fr_auto_auto] items-baseline gap-3 border-b border-[var(--color-border)] py-1.5 text-xs last:border-0"
+							title={c.occurredAt ? new Date(c.occurredAt).toLocaleString() : undefined}
+						>
+							<span class="text-[11px] tabular-nums text-[var(--color-faint)]"
+								>{compactIsoTime(c.occurredAt)}</span
+							>
+							<span class="text-[10px] uppercase tracking-[0.08em] {kind.cls}">{kind.label}</span>
+							<span class="min-w-0 truncate text-[var(--color-muted)]" title={c.reason}>{c.reason}</span>
+							<span
+								class="tabular-nums {c.amountCents >= 0
+									? 'text-[var(--color-ok)]'
+									: 'text-[var(--color-danger)]'}"
+								>{c.amountCents >= 0 ? '+' : ''}{formatCents(c.amountCents)}</span
+							>
+							<span class="w-16 text-right tabular-nums text-[var(--color-faint)]"
+								>{formatCents(c.balanceAfterCents)}</span
+							>
+						</div>
+					{/each}
 				{:else}
 					<p class="py-2 text-xs text-[var(--color-faint)]">No cash events.</p>
 				{/each}
