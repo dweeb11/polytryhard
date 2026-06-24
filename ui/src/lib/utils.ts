@@ -75,6 +75,34 @@ export function formatUtcMonthDay(iso: string): string {
 	});
 }
 
+/** Compact 24h time for ledger/signal rows (local timezone). */
+export function compactIsoTime(iso: string): string {
+	if (!iso) return '—';
+	const ms = Date.parse(iso);
+	if (Number.isNaN(ms)) return '—';
+	return new Date(ms).toLocaleTimeString([], {
+		hour: '2-digit',
+		minute: '2-digit',
+		hour12: false
+	});
+}
+
+/** Group list items under consecutive `signalDayGroupLabel` headings. */
+export function groupItemsByDayLabel<T>(
+	items: readonly T[],
+	getIso: (item: T) => string,
+	nowMs: number = Date.now()
+): Array<{ day: string; items: T[] }> {
+	const groups: Array<{ day: string; items: T[] }> = [];
+	for (const item of items) {
+		const day = signalDayGroupLabel(getIso(item), nowMs);
+		const group = groups.at(-1);
+		if (group && group.day === day) group.items.push(item);
+		else groups.push({ day, items: [item] });
+	}
+	return groups;
+}
+
 /** Group label for signal lists: `Today · Jun 1`, `Yesterday · …`, or `Jun 1`. */
 export function signalDayGroupLabel(iso: string, nowMs: number = Date.now()): string {
 	const key = utcDayKey(iso);
