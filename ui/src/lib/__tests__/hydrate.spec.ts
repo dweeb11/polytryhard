@@ -28,6 +28,7 @@ import {
 	system
 } from '$lib/stores';
 import { FIXTURE } from '$lib/mocks/fixtures';
+import type { ApiPaperPositionRecord, ApiSignalRecord } from '$lib/api/schemas';
 
 const { apiGetMock } = vi.hoisted(() => ({
 	apiGetMock: vi.fn()
@@ -60,6 +61,38 @@ const EVAL_ROSTER = [
 	}
 ];
 
+function apiSignal(overrides: Partial<ApiSignalRecord> & Pick<ApiSignalRecord, 'id'>): ApiSignalRecord {
+	return {
+		strategyName: 'weather_ensemble_disagreement',
+		ticker: 'KXHIGHNY-26JUN01',
+		evaluatedAt: '2026-06-01T12:00:00Z',
+		probYes: 0.5,
+		confidence: 0.5,
+		outcome: 'order_placed',
+		rejectionReason: null,
+		...overrides
+	};
+}
+
+function apiPosition(
+	overrides: Partial<ApiPaperPositionRecord> & Pick<ApiPaperPositionRecord, 'id'>
+): ApiPaperPositionRecord {
+	return {
+		strategyName: 'weather_ensemble_disagreement',
+		ticker: 'KXHIGHNY-26JUN01',
+		side: 'yes',
+		openedAt: '2026-06-01T12:00:00Z',
+		closedAt: null,
+		openAvgPrice: 0.5,
+		qty: 1,
+		costBasisCents: 50,
+		realizedPnlCents: null,
+		unrealizedPnlCents: null,
+		status: 'open',
+		...overrides
+	};
+}
+
 function mockCoreHydrate(): void {
 	apiGetMock.mockImplementation((path: string) => {
 		if (path === '/v1/strategies') return Promise.resolve(STRATEGY_LIST);
@@ -89,7 +122,10 @@ describe('hydrate mappers', () => {
 
 	it('maps unknown signal outcomes to unknown_outcome with raw value in rejectionReason', () => {
 		expect(parseSignalOutcome('not_a_real_outcome')).toBe('unknown_outcome');
-		const signal = mapSignalRecord({ outcome: 'bogus' });
+		const signal = mapSignalRecord({
+			...apiSignal({ id: 'sig-bogus' }),
+			outcome: 'bogus'
+		} as unknown as ApiSignalRecord);
 		expect(signal.outcome).toBe('unknown_outcome');
 		expect(signal.rejectionReason).toBe('Unknown API outcome: bogus');
 	});
@@ -115,17 +151,17 @@ describe('hydrate mappers', () => {
 
 	it('sorts signals newest-first by evaluatedAt', () => {
 		const sorted = sortSignalsByEvaluatedAt([
-			mapSignalRecord({ id: 'a', evaluatedAt: '2026-06-01T10:00:00Z' }),
-			mapSignalRecord({ id: 'b', evaluatedAt: '2026-06-01T12:00:00Z' }),
-			mapSignalRecord({ id: 'c', evaluatedAt: '2026-06-01T11:00:00Z' })
+			mapSignalRecord(apiSignal({ id: 'a', evaluatedAt: '2026-06-01T10:00:00Z' })),
+			mapSignalRecord(apiSignal({ id: 'b', evaluatedAt: '2026-06-01T12:00:00Z' })),
+			mapSignalRecord(apiSignal({ id: 'c', evaluatedAt: '2026-06-01T11:00:00Z' }))
 		]);
 		expect(sorted.map((s) => s.id)).toEqual(['b', 'c', 'a']);
 	});
 
 	it('sorts positions newest-first by openedAt', () => {
 		const sorted = sortPositionsByOpenedAt([
-			mapPositionRecord({ id: 'a', openedAt: '2026-06-01T10:00:00Z' }),
-			mapPositionRecord({ id: 'b', openedAt: '2026-06-01T12:00:00Z' })
+			mapPositionRecord(apiPosition({ id: 'a', openedAt: '2026-06-01T10:00:00Z' })),
+			mapPositionRecord(apiPosition({ id: 'b', openedAt: '2026-06-01T12:00:00Z' }))
 		]);
 		expect(sorted.map((p) => p.id)).toEqual(['b', 'a']);
 	});
@@ -228,8 +264,8 @@ describe('hydrateLedgerFromApi', () => {
 	});
 
 	it('keeps existing signals and positions when trading endpoints fail', async () => {
-		signals.set([mapSignalRecord({ id: 'local-sig', evaluatedAt: '2026-06-01T09:00:00Z' })]);
-		positions.set([mapPositionRecord({ id: 'local-pos', openedAt: '2026-06-01T09:00:00Z' })]);
+		signals.set([mapSignalRecord(apiSignal({ id: 'local-sig', evaluatedAt: '2026-06-01T09:00:00Z' }))]);
+		positions.set([mapPositionRecord(apiPosition({ id: 'local-pos', openedAt: '2026-06-01T09:00:00Z' }))]);
 		mockCoreHydrate();
 		apiGetMock.mockImplementation((path: string) => {
 			if (path === '/v1/signals' || path === '/v1/positions') {
@@ -258,7 +294,7 @@ describe('hydrateLedgerFromApi', () => {
 	});
 
 	it('updates signals but keeps positions when only positions endpoint fails', async () => {
-		positions.set([mapPositionRecord({ id: 'local-pos', openedAt: '2026-06-01T09:00:00Z' })]);
+		positions.set([mapPositionRecord(apiPosition({ id: 'local-pos', openedAt: '2026-06-01T09:00:00Z' }))]);
 		mockCoreHydrate();
 		apiGetMock.mockImplementation((path: string) => {
 			if (path === '/v1/signals') {
