@@ -97,8 +97,21 @@ describe('groupItemsByDayLabel', () => {
 		];
 
 		expect(groupItemsByDayLabel(items, (item) => item.at, now)).toEqual([
-			{ day: 'Today · Jun 2', items: [items[0], items[1]] },
-			{ day: 'Yesterday · Jun 1', items: [items[2]] }
+			{ key: '2026-06-02', day: 'Today · Jun 2', items: [items[0], items[1]] },
+			{ key: '2026-06-01', day: 'Yesterday · Jun 1', items: [items[2]] }
+		]);
+	});
+
+	it('keeps separate groups when the same month/day repeats in different years', () => {
+		const items = [
+			{ id: 'a', at: '2026-06-01T10:00:00Z' },
+			{ id: 'b', at: '2025-06-01T09:00:00Z' }
+		];
+
+		const groups = groupItemsByDayLabel(items, (item) => item.at);
+		expect(groups).toEqual([
+			{ key: '2026-06-01', day: 'Jun 1', items: [items[0]] },
+			{ key: '2025-06-01', day: 'Jun 1', items: [items[1]] }
 		]);
 	});
 });

@@ -448,7 +448,7 @@
 				</select>
 			</div>
 			<div class="max-h-96 overflow-y-auto">
-				{#each signalsByDay as group (group.day)}
+				{#each signalsByDay as group (group.key)}
 					<div
 						class="pb-1.5 pt-3 text-[10px] uppercase tracking-[0.14em] text-[var(--color-faint)]"
 					>
@@ -488,7 +488,7 @@
 				>
 					Money ledger
 				</h2>
-				{#each cashByDay as group (group.day)}
+				{#each cashByDay as group (group.key)}
 					<div
 						class="pb-1.5 pt-3 text-[10px] uppercase tracking-[0.14em] text-[var(--color-faint)]"
 					>
