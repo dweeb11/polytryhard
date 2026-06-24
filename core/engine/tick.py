@@ -17,9 +17,9 @@ from core.domain.state_machine import can_emit_signals
 from core.domain.trading import Rejection
 from core.engine.markets import (
     build_market_states,
-    features_for_market,
     features_snapshot,
     index_features,
+    strategy_features_for_market,
     total_bankroll_cents,
 )
 from core.executors.registry import default_executor
@@ -93,16 +93,16 @@ async def run_engine_tick(
         strategy_open = _strategy_open_positions(per_env_session, row.name)
 
         for market in markets:
-            scoped_features = features_for_market(
+            market_features = strategy_features_for_market(
                 feature_index,
                 location_id=market.location_id,
                 ticker=market.ticker,
             )
-            signal = strategy_impl.evaluate(market, scoped_features, ctx)
+            signal = strategy_impl.evaluate(market, market_features, ctx)
             if signal is None:
                 continue
 
-            snapshot = features_snapshot(scoped_features)
+            snapshot = features_snapshot(market_features)
             sizing = size_order(
                 SizingInput(
                     signal=signal,
@@ -110,7 +110,7 @@ async def run_engine_tick(
                     strategy=row,
                     system_state=system_state,
                     open_positions=strategy_open,
-                    features=scoped_features,
+                    features=market_features,
                     free_cash_cents=free_cash_cents(per_env_session, row.name),
                     total_bankroll_cents=bankroll_total,
                 )
