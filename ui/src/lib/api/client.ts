@@ -1,4 +1,6 @@
 import { env } from '$env/dynamic/public';
+import type { ApiGetResponse } from './responses';
+import type { paths } from './types';
 
 type JsonBody = Record<string, unknown>;
 
@@ -34,10 +36,11 @@ async function parseJson<T>(response: Response): Promise<T> {
 	return (await response.json()) as T;
 }
 
-export async function apiGet(
+/** GET with typed JSON body. Use `ApiGetResponse<'/v1/...'>` for static OpenAPI paths. */
+export async function apiGet<T>(
 	path: string,
 	query?: Record<string, string | number | undefined>
-): Promise<unknown> {
+): Promise<T> {
 	const { backendUrl, backendToken } = publicEnv();
 	const url = new URL(`${backendUrl}${path}`);
 	if (query) {
@@ -50,10 +53,18 @@ export async function apiGet(
 	const response = await fetch(url, {
 		headers: { Authorization: `Bearer ${backendToken}` }
 	});
-	return parseJson(response);
+	return parseJson<T>(response);
 }
 
-export async function apiPost(path: string, body?: JsonBody): Promise<unknown> {
+/** Typed GET when the path is a static OpenAPI route key. */
+export async function apiGetPath<P extends keyof paths>(
+	path: P,
+	query?: Record<string, string | number | undefined>
+): Promise<ApiGetResponse<P>> {
+	return apiGet(path, query);
+}
+
+export async function apiPost<T = void>(path: string, body?: JsonBody): Promise<T> {
 	const { backendUrl, backendToken } = publicEnv();
 	const response = await fetch(`${backendUrl}${path}`, {
 		method: 'POST',
@@ -63,5 +74,5 @@ export async function apiPost(path: string, body?: JsonBody): Promise<unknown> {
 		},
 		body: body ? JSON.stringify(body) : undefined
 	});
-	return parseJson(response);
+	return parseJson<T>(response);
 }
