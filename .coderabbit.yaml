@@ -1,0 +1,18 @@
+# CodeRabbit — https://docs.coderabbit.ai/reference/configuration
+#
+# Primary PR review for polytryhard. Feature PRs target staging; promote PRs target main.
+
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  review_status: true
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - staging
+      - main
+  pre_merge_checks:
+    docstrings:
+      mode: off

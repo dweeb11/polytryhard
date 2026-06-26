@@ -82,20 +82,22 @@ def _aggregate_location_parts(
     )
 
 
-def features_for_market(
+def strategy_features_for_market(
     indexed: dict[str, FeatureValue],
     *,
     location_id: str | None,
     ticker: str,
 ) -> dict[str, FeatureValue]:
-    """Scope indexed features to one market by subject kind, not provider name.
+    """Build the final feature dict passed to ``Strategy.evaluate()`` for one market.
 
-    Market-subject features match the market ticker; location-subject features
-    match the market's location. Per-model location parts (subject_id
-    ``"<location>:<model>"``) are aggregated into a single location rollup when
-    the provider did not already emit one. Unrecognized ``subject_kind`` values
-    are dropped with a warning. Provider names are unique in the returned dict;
-    the first matching row wins (stable index order).
+    Keys are provider names (e.g. ``ensemble_mean_temp``). Market-subject features
+    match the market ticker; location-subject features match the market's
+    location. Per-model location parts (subject_id ``"<location>:<model>"``) are
+    aggregated into a single location rollup when the provider did not already
+    emit one. Unrecognized ``subject_kind`` values are dropped with a warning.
+    Provider names are unique in the returned dict; the first matching row wins
+    (stable index order). Strategies must consume this dict as-is — no per-strategy
+    re-scoping.
     """
     by_name: dict[str, FeatureValue] = {}
     parts_by_provider: dict[str, list[FeatureValue]] = {}
@@ -115,7 +117,7 @@ def features_for_market(
             unknown_kinds.add(feature.subject_kind)
     if unknown_kinds:
         logger.warning(
-            "features_for_market dropped unrecognized subject_kind(s): %s",
+            "strategy_features_for_market dropped unrecognized subject_kind(s): %s",
             sorted(unknown_kinds),
         )
     if location_id is not None:

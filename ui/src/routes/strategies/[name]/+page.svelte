@@ -25,12 +25,13 @@
 	import { isDeveloperMode } from '$lib/stores/uiMode';
 	import {
 		compareIsoDesc,
+		compactIsoTime,
 		drawdownPct,
 		formatCents,
 		freeCashCents,
+		groupItemsByDayLabel,
 		PAUSABLE_STATES,
-		RESUMABLE_STATES,
-		signalDayGroupLabel
+		RESUMABLE_STATES
 	} from '$lib/utils';
 	import { pushToast } from '$lib/stores/toasts';
 	import { humanizeTicker, outcomeLabel, outcomeTone, strategyVerdict } from '$lib/humanize';
@@ -39,8 +40,17 @@
 		strategySoakConfigRows
 	} from '$lib/strategyConfigDisplay';
 	import { evalByStrategy, evalRoster } from '$lib/stores';
-	import { hydrateStrategyEval, mapCalibrationBins } from '$lib/api/hydrate';
+	import { hydrateStrategyEval } from '$lib/api/hydrate';
 	import { apiMode } from '$lib/api/mode';
+	import {
+		activeEvalSnapshot,
+		calibrationBucketsForSnapshot,
+		evalWindowOptions,
+		findOverconfidentHighBin,
+		isBrierTight,
+		isEdgeProven,
+		resolveSelectedEvalWindow
+	} from '$lib/evalAnalytics';
 	import type { CashEvent } from '$lib/types';
 
 	const name = $derived($page.params.name ?? '');
@@ -51,7 +61,12 @@
 			.sort((a, b) => compareIsoDesc(a.evaluatedAt, b.evaluatedAt))
 	);
 	const history = $derived($bankrollHistoryByStrategy[name] ?? []);
-	const stratCash = $derived($cashEvents.filter((c) => c.strategyName === name).slice(0, 10));
+	const stratCash = $derived(
+		$cashEvents
+			.filter((c) => c.strategyName === name)
+			.sort((a, b) => compareIsoDesc(a.occurredAt, b.occurredAt))
+			.slice(0, 10)
+	);
 
 	let selectedWindow: string = $state('30d');
 
@@ -65,48 +80,26 @@
 	});
 
 	const evalWindows = $derived($evalByStrategy[name]?.windows ?? []);
-	const evalWindowOptions = $derived(
-		evalWindows.length > 0 ? evalWindows.map((w) => w.window) : ['7d', '30d', 'all']
-	);
+	const windowOptions = $derived(evalWindowOptions(evalWindows));
 
 	$effect(() => {
 		if (evalWindows.length === 0) return;
-		if (!evalWindows.some((w) => w.window === selectedWindow)) {
-			selectedWindow =
-				evalWindows.find((w) => w.window === '30d')?.window ?? evalWindows[0].window;
-		}
+		const resolved = resolveSelectedEvalWindow(evalWindows, selectedWindow);
+		if (resolved !== selectedWindow) selectedWindow = resolved;
 	});
-	const activeSnapshot = $derived(
-		evalWindows.find((w) => w.window === selectedWindow) ?? evalWindows[0]
-	);
+	const activeSnapshot = $derived(activeEvalSnapshot(evalWindows, selectedWindow));
 
 	const calibration = $derived(
-		activeSnapshot
-			? mapCalibrationBins(activeSnapshot.calibrationBins)
-			: ($calibrationByStrategy[name] ?? [])
+		calibrationBucketsForSnapshot(activeSnapshot, $calibrationByStrategy[name] ?? [])
 	);
 	const freeCash = $derived(strat ? freeCashCents(strat, $positions) : 0);
 	const inPositions = $derived(strat ? strat.bankrollCents - freeCash : 0);
 
-	// Overconfidence callout: high-probability bins (≥70%) where reality
-	// resolved yes meaningfully less often than predicted.
-	const overconfidentHigh = $derived.by(() => {
-		if (!activeSnapshot) return null;
-		const high = activeSnapshot.calibrationBins.filter(
-			(b) => b.predictedMean >= 0.7 && b.count > 0 && b.predictedMean - b.observedFreq > 0.03
-		);
-		if (high.length === 0) return null;
-		const worst = high.reduce((a, b) =>
-			a.predictedMean - a.observedFreq > b.predictedMean - b.observedFreq ? a : b
-		);
-		return {
-			predicted: Math.round(worst.predictedMean * 100),
-			observed: Math.round(worst.observedFreq * 100)
-		};
-	});
-
+	const overconfidentHigh = $derived(
+		activeSnapshot ? findOverconfidentHighBin(activeSnapshot.calibrationBins) : null
+	);
 	const edgeProven = $derived(
-		activeSnapshot != null && activeSnapshot.posteriorEdgeCiLow > 0
+		activeSnapshot != null && isEdgeProven(activeSnapshot.posteriorEdgeCiLow)
 	);
 
 	let depositModal = $state(false);
@@ -136,22 +129,11 @@
 			: stratSignals.filter((s) => s.outcome === outcomeFilter)
 	);
 
-	function signalTime(iso: string): string {
-		const ms = Date.parse(iso);
-		if (Number.isNaN(ms)) return '—';
-		return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-	}
+	const signalsByDay = $derived(
+		groupItemsByDayLabel(filteredSignals.slice(0, 40), (sig) => sig.evaluatedAt)
+	);
 
-	const signalsByDay = $derived.by(() => {
-		const groups: Array<{ day: string; items: typeof filteredSignals }> = [];
-		for (const sig of filteredSignals.slice(0, 40)) {
-			const day = signalDayGroupLabel(sig.evaluatedAt);
-			const group = groups.at(-1);
-			if (group && group.day === day) group.items.push(sig);
-			else groups.push({ day, items: [sig] });
-		}
-		return groups;
-	});
+	const cashByDay = $derived(groupItemsByDayLabel(stratCash, (c) => c.occurredAt));
 
 	function cashKind(c: CashEvent): { label: string; cls: string } {
 		if (c.kind === 'realized_pnl') {
@@ -208,7 +190,7 @@
 					: ''}{formatCents(activeSnapshot.pnlCents)}</b
 			>.
 			{#if activeSnapshot.brierScore != null}
-				Calibration {activeSnapshot.brierScore <= 0.23 ? 'is tight' : 'is loose'} (Brier {activeSnapshot.brierScore.toFixed(3)}){#if overconfidentHigh}
+				Calibration {isBrierTight(activeSnapshot.brierScore) ? 'is tight' : 'is loose'} (Brier {activeSnapshot.brierScore.toFixed(3)}){#if overconfidentHigh}
 					with <span class="text-[var(--color-warn)]"
 						>overconfidence in the high buckets (says {overconfidentHigh.predicted}%, reality
 						{overconfidentHigh.observed}%)</span
@@ -367,7 +349,7 @@
 			<div class="mb-2 flex items-center justify-between">
 				<h2 class="text-[11px] uppercase tracking-[0.18em] text-[var(--color-faint)]">Calibration</h2>
 				<div class="flex gap-1.5">
-					{#each evalWindowOptions as w (w)}
+					{#each windowOptions as w (w)}
 						<button
 							type="button"
 							class="rounded border px-2.5 py-0.5 text-[10.5px] {selectedWindow === w
@@ -453,7 +435,7 @@
 				</select>
 			</div>
 			<div class="max-h-96 overflow-y-auto">
-				{#each signalsByDay as group (group.day)}
+				{#each signalsByDay as group (group.key)}
 					<div
 						class="pb-1.5 pt-3 text-[10px] uppercase tracking-[0.14em] text-[var(--color-faint)]"
 					>
@@ -464,7 +446,7 @@
 							class="grid grid-cols-[40px_1fr_56px_auto] items-baseline gap-3 border-b border-[var(--color-border)] py-1.5 text-xs last:border-0"
 						>
 							<span class="text-[11px] tabular-nums text-[var(--color-faint)]"
-								>{signalTime(sig.evaluatedAt)}</span
+								>{compactIsoTime(sig.evaluatedAt)}</span
 							>
 							<span class="min-w-0">
 								<span class="text-[var(--color-bright)]">{humanizeTicker(sig.ticker)}</span>
@@ -493,23 +475,34 @@
 				>
 					Money ledger
 				</h2>
-				{#each stratCash as c (c.id)}
-					{@const kind = cashKind(c)}
+				{#each cashByDay as group (group.key)}
 					<div
-						class="grid grid-cols-[72px_1fr_auto_auto] items-baseline gap-3 border-b border-[var(--color-border)] py-1.5 text-xs last:border-0"
+						class="pb-1.5 pt-3 text-[10px] uppercase tracking-[0.14em] text-[var(--color-faint)]"
 					>
-						<span class="text-[10px] uppercase tracking-[0.08em] {kind.cls}">{kind.label}</span>
-						<span class="min-w-0 truncate text-[var(--color-muted)]" title={c.reason}>{c.reason}</span>
-						<span
-							class="tabular-nums {c.amountCents >= 0
-								? 'text-[var(--color-ok)]'
-								: 'text-[var(--color-danger)]'}"
-							>{c.amountCents >= 0 ? '+' : ''}{formatCents(c.amountCents)}</span
-						>
-						<span class="w-16 text-right tabular-nums text-[var(--color-faint)]"
-							>{formatCents(c.balanceAfterCents)}</span
-						>
+						{group.day}
 					</div>
+					{#each group.items as c (c.id)}
+						{@const kind = cashKind(c)}
+						<div
+							class="grid grid-cols-[40px_72px_1fr_auto_auto] items-baseline gap-3 border-b border-[var(--color-border)] py-1.5 text-xs last:border-0"
+							title={c.occurredAt ? new Date(c.occurredAt).toLocaleString() : undefined}
+						>
+							<span class="text-[11px] tabular-nums text-[var(--color-faint)]"
+								>{compactIsoTime(c.occurredAt)}</span
+							>
+							<span class="text-[10px] uppercase tracking-[0.08em] {kind.cls}">{kind.label}</span>
+							<span class="min-w-0 truncate text-[var(--color-muted)]" title={c.reason}>{c.reason}</span>
+							<span
+								class="tabular-nums {c.amountCents >= 0
+									? 'text-[var(--color-ok)]'
+									: 'text-[var(--color-danger)]'}"
+								>{c.amountCents >= 0 ? '+' : ''}{formatCents(c.amountCents)}</span
+							>
+							<span class="w-16 text-right tabular-nums text-[var(--color-faint)]"
+								>{formatCents(c.balanceAfterCents)}</span
+							>
+						</div>
+					{/each}
 				{:else}
 					<p class="py-2 text-xs text-[var(--color-faint)]">No cash events.</p>
 				{/each}

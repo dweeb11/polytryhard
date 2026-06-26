@@ -108,3 +108,81 @@ The `api_client` fixture from `conftest.py` gives a `TestClient` wired to SQLite
 ## Git workflow
 
 Feature branches from `staging`, not `main`. PRs always target `staging`. Promote to `main` via `staging → main` PR after staging soak. Branch naming: `feat/<linear-id>-<slug>`. One concern per PR (target < ~300 lines). **PR review:** CodeRabbit only — do not invoke Codex review on polytryhard PRs. See `.cursor/rules/git-workflow.mdc` and `.cursor/rules/pr-slicing.mdc` for full rules.
+
+## GBrain Configuration (configured by /setup-gbrain)
+
+- Mode: **remote-http** (primary brain on bot-top) + **local PGLite** (per-machine code index)
+- Remote MCP: `http://100.79.29.118:3131/mcp` (bot-top via Tailscale; LAN `192.168.1.197:3131` when on home network)
+- Local code source: `gstack-code-polytryhard-e50058b4` (pinned via `.gbrain-source`)
+- Setup date: 2026-06-25
+- MCP registered: yes (`~/.cursor/mcp.json` → server name `gbrain`, Tailscale URL above)
+- Token: `~/.cursor/mcp.json` + `~/.config/gbrain/token` (do not commit)
+- Artifacts repo: `https://github.com/dweeb11/gstack-artifacts-davidpaolone-webb.git`
+- Artifacts sync: full
+- Current repo policy: read-write (`github.com/dweeb11/polytryhard`)
+- CLI PATH: `~/.bun/bin` (fish: `config.fish`; zsh: `~/.zshrc` for Cursor agent shell)
+- **Cursor MCP status:** configured in `~/.cursor/mcp.json`; if the `user-gbrain` server shows errored in Cursor Settings, confirm bot-top is up and Tailscale can reach `100.79.29.118:3131`. Local `gbrain` CLI still works against `~/.gbrain/brain.pglite` when remote is down.
+
+### Call-graph quirks (this repo)
+
+The call graph is built (`code-callers` status `ready`), but bare symbol names often miss:
+
+| Intent | Command |
+|--------|---------|
+| Python `writer.deposit` callers | `gbrain code-callers "core.ledger::deposit"` (not bare `deposit`) |
+| TS `actions.deposit` body | `gbrain code-callees deposit` |
+| Both definitions | `gbrain code-def deposit` → Python `writer.py` + TS `actions.ts` |
+| UI / Svelte call sites | **Not in graph** — `.svelte` is not code-synced; use `gbrain code-refs deposit` or grep |
+| Vitest merged chunks | Caller edges from `ui/src/lib/__tests__/*.spec.ts` are often dropped (no `symbol_name_qualified` on merged chunks) |
+
+After meaningful code changes: `gbrain sync --strategy code` then `gbrain extract --stale` if sync reports un-extracted edges. Re-run `gbrain dream --source "$(cat .gbrain-source)"` only when the graph is stale — it does not fix Svelte gaps or qualified-name lookup.
+
+## GBrain Search Guidance (configured by /sync-gbrain)
+<!-- gstack-gbrain-search-guidance:start -->
+
+GBrain is set up and synced on this machine. The agent should prefer gbrain
+over Grep when the question is semantic or when you don't know the exact
+identifier yet.
+
+**This worktree is pinned to a worktree-scoped code source** via the
+`.gbrain-source` file in the repo root (kubectl-style context).
+`gbrain code-def`, `code-refs`, `code-callers`, `code-callees`, `search`, and
+`query` from anywhere under this worktree route to that source by default —
+no `--source` flag needed (gbrain >= 0.41.38.0; on older gbrain the call-graph
+commands need `--source "$(cat .gbrain-source)"`). Conductor sibling worktrees
+of the same repo each have their own pin and their own indexed pages, so
+semantic results match the code on disk here.
+
+Call-graph queries (`code-callers`/`code-callees`) also need the graph to be
+built first — run `/sync-gbrain --dream` (or `--full`) if they return
+`count: 0`. This only works if this source's gbrain schema pack extracts code
+symbols; on a non-code-aware pack `--dream` completes but the graph stays empty
+and reports a WARN. `code-def`/`code-refs` need the same extraction.
+
+Two indexed corpora available via the `gbrain` CLI:
+- This worktree's code (auto-pinned via `.gbrain-source`).
+- `~/.gstack/` curated memory (registered as `gstack-brain-<user>` source via
+  the existing federation pipeline).
+
+Prefer gbrain when:
+- "Where is X handled?" / semantic intent, no exact string yet:
+    `gbrain search "<terms>"` or `gbrain query "<question>"`
+- "Where is symbol Y defined?" / symbol-based code questions:
+    `gbrain code-def <symbol>` or `gbrain code-refs <symbol>`
+- "What calls Y?" / "What does Y depend on?":
+    `gbrain code-callers <symbol>` / `gbrain code-callees <symbol>`
+- "What did we decide last time?" / past plans, retros, learnings:
+    `gbrain search "<terms>" --source gstack-brain-<user>`
+
+Grep is still right for known exact strings, regex, multiline patterns, and
+file globs. Run `/sync-gbrain` after meaningful code changes; for ongoing
+auto-sync across all worktrees, run `gbrain autopilot --install` once per
+machine — gbrain's daemon handles incremental refresh on a schedule.
+
+Safety: don't run `/sync-gbrain` while `gbrain autopilot` is active — the
+orchestrator refuses destructive source ops when it detects a running autopilot
+to avoid racing it (#1734). Prefer registering user repos with `gbrain sources
+add --path <dir>` (no `--url`): URL-managed sources can auto-reclone, and the
+sync code walk for them requires an explicit `--allow-reclone` opt-in.
+
+<!-- gstack-gbrain-search-guidance:end -->
