@@ -46,16 +46,23 @@ run_upgrade("per_env", os.environ["DATABASE_URL_PER_ENV"])
 PY
 ```
 
+Note: the README's `alembic -c alembic.ini upgrade head` does **not** work standalone (fails with
+`KeyError: 'url'` because `alembic.ini` sets no URL). Use the `core.migrations.run_upgrade` helper
+above, or rely on the API lifespan / `scripts/start-api.sh`, which run both trees automatically on boot.
+
 ### Non-obvious gotchas
 
 - **Node version**: the non-interactive shell's `node` resolves to a system `node` v22 ahead of
   nvm on `PATH`. CI uses Node 24. Run UI commands from a login/`tmux` shell (which sources
   `~/.bashrc` where nvm's default Node 24 is prepended), or explicitly prefix:
   `export PATH="$HOME/.nvm/versions/node/v24.18.0/bin:$PATH"`.
-- **Do not export `DATABASE_URL_*` when running `pytest`.** Tests use SQLite via `conftest.py`
-  with `REQUIRE_DBS=0`; a real `DATABASE_URL_SHARED`/`DATABASE_URL_PER_ENV` in the environment
-  leaks into `tests/test_healthz.py` and makes it fail (it expects an `unconfigured`/`503` health
-  state). Run tests clean, e.g. `env -u DATABASE_URL_SHARED -u DATABASE_URL_PER_ENV REQUIRE_DBS=0 pytest -q`.
+- **Do not configure real DBs when running `pytest`.** Tests use SQLite via `conftest.py` with
+  `REQUIRE_DBS=0`. A real `DATABASE_URL_SHARED`/`DATABASE_URL_PER_ENV` reaching the suite makes
+  `tests/test_healthz.py` fail (it expects an `unconfigured`/`503` health state). This applies both
+  to **exported** env vars and to a root `.env` file — pydantic `Settings` auto-loads `.env`, so do
+  not `cp .env.example .env` at the repo root (keep dev env elsewhere, e.g. `.env.local`, which is
+  not auto-read). Run tests clean, e.g.
+  `env -u DATABASE_URL_SHARED -u DATABASE_URL_PER_ENV REQUIRE_DBS=0 pytest -q`.
 - **Scheduler + healthz**: when `SCHEDULER_ENABLED=1` and no engine tick has run yet, `/healthz`
   reports `degraded` (503) until the first cycle. Set `SCHEDULER_ENABLED=0` for a clean control-plane
   demo, or wait for the first tick.

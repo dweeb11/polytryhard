@@ -68,9 +68,9 @@ class KalshiMarketsSource(IngestionSource):
                 if not cursor:
                     break
 
-        active_markets = list(ctx.markets)
-        tickers = {market.ticker for market in active_markets}
-        tickers.update(market.ticker for market in result.market_upserts)
+        # Orderbooks only for markets returned by discovery this run — not every
+        # stale reference_market row (expired tickers 404/503 and amplify outages).
+        tickers = {upsert.ticker for upsert in result.market_upserts}
         as_of = clock.now()
 
         for ticker in sorted(tickers):
@@ -94,9 +94,7 @@ class KalshiMarketsSource(IngestionSource):
                 status=SourceRunStatus.DEGRADED,
                 error_text="Kalshi returned no markets or snapshots",
             )
-        if tickers and not result.market_snapshots and (
-            result.market_upserts or active_markets
-        ):
+        if tickers and not result.market_snapshots and result.market_upserts:
             return FetchResult(
                 status=SourceRunStatus.DEGRADED,
                 error_text="Kalshi orderbook fetch produced no snapshots",
