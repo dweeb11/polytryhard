@@ -87,18 +87,23 @@ export function compactIsoTime(iso: string): string {
 	});
 }
 
-/** Group list items under consecutive `signalDayGroupLabel` headings. */
+/**
+ * Group list items under consecutive day headings.
+ * Items should be newest-first by `getIso` so same-calendar-day rows stay adjacent.
+ */
 export function groupItemsByDayLabel<T>(
 	items: readonly T[],
 	getIso: (item: T) => string,
 	nowMs: number = Date.now()
-): Array<{ day: string; items: T[] }> {
-	const groups: Array<{ day: string; items: T[] }> = [];
+): Array<{ key: string; day: string; items: T[] }> {
+	const groups: Array<{ key: string; day: string; items: T[] }> = [];
 	for (const item of items) {
-		const day = signalDayGroupLabel(getIso(item), nowMs);
+		const iso = getIso(item);
+		const key = utcDayKey(iso) || '—';
+		const day = signalDayGroupLabel(iso, nowMs);
 		const group = groups.at(-1);
-		if (group && group.day === day) group.items.push(item);
-		else groups.push({ day, items: [item] });
+		if (group && group.key === key) group.items.push(item);
+		else groups.push({ key, day, items: [item] });
 	}
 	return groups;
 }
