@@ -23,6 +23,12 @@ alwaysApply: true
 4. **Release PR:** after staging soak / user testing, open a PR **`staging` → `main`**. Do not cherry-pick feature commits onto `main`.
 5. **Commits:** conventional prefixes (`feat/`, `fix/`, …); include AI co-author line when assisted.
 
+## PR review
+
+- **CodeRabbit** is the PR review path (`.coderabbit.yaml`; auto-review on PRs to `staging` and `main`).
+- **Do not** comment `@codex review`, run ship-it's Codex step, or otherwise invoke Codex review on polytryhard PRs.
+- **Cursor Bugbot** and **Approval Agent** are disabled for this repo — do not re-enable or work around them.
+
 ## Agent checklist (new work)
 
 ```bash

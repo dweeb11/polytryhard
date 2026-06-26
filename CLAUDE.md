@@ -107,4 +107,4 @@ The `api_client` fixture from `conftest.py` gives a `TestClient` wired to SQLite
 
 ## Git workflow
 
-Feature branches from `staging`, not `main`. PRs always target `staging`. Promote to `main` via `staging → main` PR after staging soak. Branch naming: `feat/<linear-id>-<slug>`. One concern per PR (target < ~300 lines). See `.cursor/rules/git-workflow.mdc` and `.cursor/rules/pr-slicing.mdc` for full rules.
+Feature branches from `staging`, not `main`. PRs always target `staging`. Promote to `main` via `staging → main` PR after staging soak. Branch naming: `feat/<linear-id>-<slug>`. One concern per PR (target < ~300 lines). **PR review:** CodeRabbit only — do not invoke Codex review on polytryhard PRs. See `.cursor/rules/git-workflow.mdc` and `.cursor/rules/pr-slicing.mdc` for full rules.
