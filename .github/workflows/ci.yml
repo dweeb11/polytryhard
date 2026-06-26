@@ -92,7 +92,7 @@ jobs:
         run: pytest -v
 
   docker:
-    name: Docker build (API + UI)
+    name: Docker build
     runs-on: ubuntu-latest
     needs: [ui, backend]
 

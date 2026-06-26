@@ -17,7 +17,7 @@ Set or confirm these API environment variables:
 ```env
 KALSHI_API_KEY_ID=...
 KALSHI_PRIVATE_KEY=...
-KALSHI_API_BASE=https://demo-api.kalshi.co
+KALSHI_API_BASE=https://api.elections.kalshi.com
 KALSHI_SERIES_PREFIXES=KXHIGHNY
 PAPER_INITIAL_BANKROLL_CENTS=10000
 PAPER_STRATEGY_BANKROLL_CENTS_JSON={}
