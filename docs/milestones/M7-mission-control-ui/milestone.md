@@ -7,7 +7,7 @@
 - [x] Design — docs/design/ui-redesign/option-a-mission-control.html (approved mockup, Tokyo Night)
 - [x] Milestone — this doc
 - [x] Implement
-- [ ] **Verify** <- current stage (local gates + dev-mode verify done; staging spot-check after merges)
+- [x] **Verify** — local gates pass on `staging` (2026-06-26): ruff/mypy/pytest 273 passed; ui check/lint/test/build green. Staging spot-check pending (deploy URL unreachable from dev machine this session).
 - [ ] Ship
 
 ## Tasks
