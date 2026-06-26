@@ -30,21 +30,6 @@ def location_for_series(series: str) -> str | None:
     return None
 
 
-def scoped_features(
-    features: dict[str, FeatureValue],
-    location_id: str,
-    ticker: str,
-) -> dict[str, FeatureValue]:
-    scoped: dict[str, FeatureValue] = {}
-    for name, feature in features.items():
-        if name == "kalshi_spread":
-            if feature.subject_id == ticker:
-                scoped[name] = feature
-        elif feature.subject_id == location_id:
-            scoped[name] = feature
-    return scoped
-
-
 def ensemble_to_prob(temp_f: Decimal) -> Decimal:
     return max(Decimal("0.05"), min(Decimal("0.95"), (temp_f - Decimal("32")) / Decimal("100")))
 
