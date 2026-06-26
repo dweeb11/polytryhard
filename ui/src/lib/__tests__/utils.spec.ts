@@ -103,12 +103,13 @@ describe('groupItemsByDayLabel', () => {
 	});
 
 	it('keeps separate groups when the same month/day repeats in different years', () => {
+		const now = Date.parse('2030-01-01T00:00:00Z');
 		const items = [
 			{ id: 'a', at: '2026-06-01T10:00:00Z' },
 			{ id: 'b', at: '2025-06-01T09:00:00Z' }
 		];
 
-		const groups = groupItemsByDayLabel(items, (item) => item.at);
+		const groups = groupItemsByDayLabel(items, (item) => item.at, now);
 		expect(groups).toEqual([
 			{ key: '2026-06-01', day: 'Jun 1', items: [items[0]] },
 			{ key: '2025-06-01', day: 'Jun 1', items: [items[1]] }
