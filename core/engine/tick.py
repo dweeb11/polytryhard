@@ -14,6 +14,7 @@ from core.db.models import PaperPositionRow, StrategyInstanceRow
 from core.domain.enums import AuditActor, SignalOutcome, StrategyState
 from core.domain.feature import FeatureValue
 from core.domain.state_machine import can_emit_signals
+from core.domain.strategy import effective_strategy_config
 from core.domain.trading import Rejection
 from core.engine.markets import (
     build_market_states,
@@ -82,6 +83,28 @@ async def run_engine_tick(
         row = strategy_rows.get(strategy_impl.name)
         if row is None:
             continue
+
+        config = effective_strategy_config(row.config_jsonb, strategy_name=row.name)
+        if (
+            StrategyState(row.state) == StrategyState.ACTIVE
+            and row.bankroll_hwm_cents > 0
+        ):
+            drawdown_pct = (
+                (row.bankroll_hwm_cents - row.bankroll_cents)
+                / row.bankroll_hwm_cents
+                * 100
+            )
+            if drawdown_pct >= config.max_drawdown_pct_from_hwm:
+                writer.drawdown_pause_strategy(
+                    per_env_session,
+                    row.name,
+                    f"drawdown {drawdown_pct:.1f}% >= "
+                    f"{config.max_drawdown_pct_from_hwm}% from HWM",
+                    AuditActor.SCHEDULER,
+                    tick_id,
+                )
+                continue
+
         if not can_emit_signals(
             enabled=row.enabled,
             state=StrategyState(row.state),
