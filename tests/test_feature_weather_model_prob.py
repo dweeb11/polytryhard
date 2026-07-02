@@ -7,7 +7,11 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from core.contracts.feature import FeatureContext
 from core.db.shared_enums import ForecastSource
-from core.db.shared_models import RawForecastRunRow, ReferenceMarketRow
+from core.db.shared_models import (
+    RawForecastRunRow,
+    ReferenceLocationRow,
+    ReferenceMarketRow,
+)
 from core.domain.feature import FeatureStatus
 from core.features.queries import TEMPERATURE_VARIABLE, daily_max_by_member
 from core.features.weather_model_prob import WeatherModelProbProvider
@@ -405,3 +409,30 @@ async def test_weather_model_prob_missing_unknown_location(
 
     assert fv.status == FeatureStatus.MISSING
     assert fv.reason == "unknown location"
+
+
+@pytest.mark.asyncio
+async def test_weather_model_prob_missing_invalid_timezone(
+    per_env_sqlite_urls: tuple[str, str],
+) -> None:
+    session = _session_from_shared_url(per_env_sqlite_urls[0])
+    seed_locations_if_needed(session)
+    nyc = session.get(ReferenceLocationRow, "nyc")
+    assert nyc is not None
+    nyc.timezone = "Not/AZone"
+    session.add(nyc)
+    _seed_nyc_market(session)
+    session.commit()
+
+    provider = WeatherModelProbProvider()
+    ctx = FeatureContext(
+        request_id="test",
+        settings=Settings(REQUIRE_DBS=False),
+        session=session,
+    )
+    values = await provider.compute(datetime(2025, 5, 28, 12, tzinfo=UTC), ctx)
+    by_subject = {v.subject_id: v for v in values}
+    fv = by_subject["KXHIGHNY-25MAY28-T73"]
+
+    assert fv.status == FeatureStatus.MISSING
+    assert fv.reason == "invalid timezone"

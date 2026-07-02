@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, time, timedelta
 from decimal import Decimal
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from core.contracts.feature import FeatureContext, FeatureProvider
 from core.db.shared_enums import FeatureSubjectKind, ForecastSource
@@ -71,7 +71,11 @@ class WeatherModelProbProvider(FeatureProvider):
                 results.append(self._missing(market.ticker, "unparsable target date"))
                 continue
 
-            tz = ZoneInfo(locations[location_id].timezone)
+            try:
+                tz = ZoneInfo(locations[location_id].timezone)
+            except (ZoneInfoNotFoundError, ValueError):
+                results.append(self._missing(market.ticker, "invalid timezone"))
+                continue
             day_start = datetime.combine(target_day, time.min, tzinfo=tz)
             day_start_utc = day_start.astimezone(_UTC)
             day_end_utc = (day_start + timedelta(days=1)).astimezone(_UTC)
