@@ -64,3 +64,56 @@ def test_decommission_strategy_rejects_blank_reason(
     session.refresh(row)
     assert row.state == before_state
     assert row.enabled is True
+
+
+def test_drawdown_pause_moves_active_strategy_to_drawdown_paused(
+    session: Session,
+) -> None:
+    name = "weather_stale_quote"
+    row = session.get(StrategyInstanceRow, name)
+    assert row is not None
+
+    writer.drawdown_pause_strategy(
+        session,
+        name,
+        "drawdown 31.0% >= 30.0% from HWM",
+        AuditActor.SCHEDULER,
+        "req-1",
+    )
+
+    session.refresh(row)
+    assert row.state == DbStrategyState.DRAWDOWN_PAUSED
+
+
+@pytest.mark.parametrize("reason", ["", "   "])
+def test_drawdown_pause_strategy_rejects_blank_reason(
+    session: Session, reason: str
+) -> None:
+    name = "weather_stale_quote"
+    row = session.get(StrategyInstanceRow, name)
+    assert row is not None
+    assert row.state == DbStrategyState.ACTIVE
+
+    with pytest.raises(LedgerError, match="Reason is required"):
+        writer.drawdown_pause_strategy(session, name, reason, AuditActor.SCHEDULER, "req-1")
+
+    session.refresh(row)
+    assert row.state == DbStrategyState.ACTIVE
+
+
+def test_drawdown_pause_strategy_rejects_from_non_active_state(
+    session: Session,
+) -> None:
+    name = "weather_stale_quote"
+    row = session.get(StrategyInstanceRow, name)
+    assert row is not None
+    row.state = DbStrategyState.OPERATOR_PAUSED
+    session.commit()
+
+    with pytest.raises(LedgerError, match="Cannot pause from state operator_paused"):
+        writer.drawdown_pause_strategy(
+            session, name, "drawdown check", AuditActor.SCHEDULER, "req-1"
+        )
+
+    session.refresh(row)
+    assert row.state == DbStrategyState.OPERATOR_PAUSED

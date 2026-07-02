@@ -771,6 +771,12 @@ _PAUSE = _LifecycleTransition(
     verb="pause",
     can_transition=can_pause,
 )
+_DRAWDOWN_PAUSE = _LifecycleTransition(
+    action="pause_strategy",
+    target_fn=lambda: StrategyState.DRAWDOWN_PAUSED,
+    verb="pause",
+    can_transition=can_pause,
+)
 _RESUME = _LifecycleTransition(
     action="resume_strategy",
     target_fn=resume_target_state,
@@ -820,6 +826,18 @@ def pause_strategy(
 ) -> None:
     _apply_lifecycle_transition(
         session, strategy_name, reason, actor, request_id, transition=_PAUSE
+    )
+
+
+def drawdown_pause_strategy(
+    session: Session,
+    strategy_name: str,
+    reason: str,
+    actor: AuditActor,
+    request_id: str,
+) -> None:
+    _apply_lifecycle_transition(
+        session, strategy_name, reason, actor, request_id, transition=_DRAWDOWN_PAUSE
     )
 
 
