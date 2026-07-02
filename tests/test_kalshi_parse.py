@@ -65,6 +65,31 @@ def test_parse_market_derives_series_from_live_active_ticker() -> None:
     assert upsert.status == "active"
 
 
+def test_parse_market_extracts_strike_fields() -> None:
+    payload = {
+        "ticker": "KXHIGHNY-25MAY28-B72.5",
+        "series_ticker": "KXHIGHNY",
+        "title": "High temp in NYC on May 28",
+        "status": "active",
+        "strike_type": "between",
+        "floor_strike": 72,
+        "cap_strike": 73,
+    }
+    upsert = parse_market(payload)
+    assert upsert is not None
+    assert upsert.strike_type == "between"
+    assert upsert.floor_strike == Decimal("72")
+    assert upsert.cap_strike == Decimal("73")
+
+
+def test_parse_market_strike_fields_default_none() -> None:
+    upsert = parse_market({"ticker": "KXHIGHNY-25MAY28-T72", "status": "active"})
+    assert upsert is not None
+    assert upsert.strike_type is None
+    assert upsert.floor_strike is None
+    assert upsert.cap_strike is None
+
+
 def test_parse_orderbook_from_fp_cassette() -> None:
     payload = _load_cassette("kalshi_orderbook.json")
     as_of = datetime(2026, 5, 28, 12, 0, tzinfo=UTC)
