@@ -18,6 +18,7 @@ from core.domain.strategy import (
 from core.domain.system import SystemEnvState
 from core.domain.trading import Order, Rejection
 from core.domain.weather_markets import location_for_series
+from core.utils.time import as_utc
 
 MIN_QTY = 1
 PRICE_SCALE = Decimal("100")
@@ -118,7 +119,7 @@ def _stale_feature(
     features: dict[str, FeatureValue],
     market: MarketState,
 ) -> str | None:
-    cutoff = market.as_of - timedelta(seconds=max_age_seconds)
+    cutoff = as_utc(market.as_of) - timedelta(seconds=max_age_seconds)
     location_id = location_for_series(market.series)
     scoped_subjects = {market.ticker, location_id}
     for feature in features.values():
@@ -128,7 +129,7 @@ def _stale_feature(
             return f"stale feature {feature.provider_name}"
         if feature.status != FeatureStatus.PRESENT:
             return f"missing feature {feature.provider_name}"
-        if feature.as_of is None or feature.as_of < cutoff:
+        if feature.as_of is None or as_utc(feature.as_of) < cutoff:
             return f"stale feature {feature.provider_name}"
     return None
 
