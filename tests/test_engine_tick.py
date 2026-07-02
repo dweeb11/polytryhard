@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from core.clock import FakeClock
 from core.db.enums import SignalOutcome
 from core.db.enums import StrategyState as DbStrategyState
-from core.db.models import SignalRow, StrategyInstanceRow
+from core.db.models import PaperFillRow, PaperPositionRow, SignalRow, StrategyInstanceRow
 from core.db.shared_enums import ForecastSource
 from core.db.shared_models import RawForecastRunRow, RawMarketSnapshotRow, ReferenceMarketRow
 from core.domain.enums import AuditActor, PositionSide
@@ -185,7 +185,12 @@ async def test_engine_tick_second_market_hits_correlation_cap_after_first_fill(
     stale_row.config_jsonb = {
         **dict(stale_row.config_jsonb),
         "exposureCapPct": 1.0,
-        "correlationCapPct": 0.02,
+        # Binary Kelly (fee-aware, /(1-price) denominator) roughly doubles the
+        # stake vs. the old formula, so the first order alone now costs 250
+        # cents (bankroll 10_000 * kelly ~0.0259). 0.03 (cap 300) still lets
+        # the first order through while the second, correlated order (total
+        # 500) trips the cap.
+        "correlationCapPct": 0.03,
     }
     other = per_env.get(StrategyInstanceRow, "weather_ensemble_disagreement")
     assert other is not None
@@ -322,3 +327,111 @@ async def test_engine_tick_leaves_strategy_active_below_drawdown_cap(
 
     per_env.refresh(stale_row)
     assert stale_row.state == DbStrategyState.ACTIVE
+
+
+@pytest.mark.asyncio
+async def test_engine_tick_fill_carries_nonzero_fees(
+    per_env_sqlite_urls: tuple[str, str],
+) -> None:
+    shared_url, per_env_url = per_env_sqlite_urls
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    shared_engine = create_engine(shared_url)
+    per_env_engine = create_engine(per_env_url)
+    shared = sessionmaker(bind=shared_engine, expire_on_commit=False)()
+    per_env = sessionmaker(bind=per_env_engine, expire_on_commit=False)()
+
+    _seed_shared(shared)
+    seed_strategies_if_needed(per_env, request_id="seed-fees")
+
+    other = per_env.get(StrategyInstanceRow, "weather_ensemble_disagreement")
+    assert other is not None
+    other.enabled = False
+    other.bankroll_cents = 0
+    per_env.flush()
+    per_env.commit()
+
+    settings = Settings(
+        REQUIRE_DBS=False,
+        CONTROL_PLANE_TOKEN="dev-token",
+        DATABASE_URL_SHARED=shared_url,
+        DATABASE_URL_PER_ENV=per_env_url,
+        SCHEDULER_ENABLED=False,
+    )
+    clock = FakeClock(start=datetime(2026, 5, 28, 12, 0, tzinfo=UTC))
+
+    stats = await run_engine_tick(
+        settings=settings,
+        clock=clock,
+        shared_session=shared,
+        per_env_session=per_env,
+        request_id="fees-tick",
+    )
+
+    assert stats["orders"] == 1
+    fill = per_env.scalars(select(PaperFillRow)).first()
+    assert fill is not None
+    assert fill.fees_cents > 0
+
+
+@pytest.mark.asyncio
+async def test_engine_tick_does_not_reenter_already_positioned_ticker(
+    per_env_sqlite_urls: tuple[str, str],
+) -> None:
+    shared_url, per_env_url = per_env_sqlite_urls
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    shared_engine = create_engine(shared_url)
+    per_env_engine = create_engine(per_env_url)
+    shared = sessionmaker(bind=shared_engine, expire_on_commit=False)()
+    per_env = sessionmaker(bind=per_env_engine, expire_on_commit=False)()
+
+    _seed_shared(shared)
+    seed_strategies_if_needed(per_env, request_id="seed-dedupe")
+
+    other = per_env.get(StrategyInstanceRow, "weather_ensemble_disagreement")
+    assert other is not None
+    other.enabled = False
+    other.bankroll_cents = 0
+    per_env.flush()
+    per_env.commit()
+
+    settings = Settings(
+        REQUIRE_DBS=False,
+        CONTROL_PLANE_TOKEN="dev-token",
+        DATABASE_URL_SHARED=shared_url,
+        DATABASE_URL_PER_ENV=per_env_url,
+        SCHEDULER_ENABLED=False,
+    )
+    clock = FakeClock(start=datetime(2026, 5, 28, 12, 0, tzinfo=UTC))
+
+    first_stats = await run_engine_tick(
+        settings=settings,
+        clock=clock,
+        shared_session=shared,
+        per_env_session=per_env,
+        request_id="dedupe-tick-1",
+    )
+    assert first_stats["orders"] == 1
+
+    second_stats = await run_engine_tick(
+        settings=settings,
+        clock=clock,
+        shared_session=shared,
+        per_env_session=per_env,
+        request_id="dedupe-tick-2",
+    )
+    assert second_stats["orders"] == 0
+
+    signals = list(
+        per_env.scalars(
+            select(SignalRow).where(SignalRow.strategy_name == "weather_stale_quote")
+        ).all()
+    )
+    outcomes = [row.outcome for row in signals]
+    assert SignalOutcome.REJECTED_ALREADY_POSITIONED in outcomes
+
+    position_count = per_env.scalar(select(func.count()).select_from(PaperPositionRow))
+    assert position_count == 1

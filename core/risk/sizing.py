@@ -18,6 +18,7 @@ from core.domain.strategy import (
 from core.domain.system import SystemEnvState
 from core.domain.trading import Order, Rejection
 from core.domain.weather_markets import location_for_series
+from core.risk.fees import fee_per_contract_dollars, trading_fee_cents
 from core.utils.time import as_utc
 
 MIN_QTY = 1
@@ -33,7 +34,6 @@ class SizingInput:
     open_positions: tuple[PaperPositionRow, ...]
     features: dict[str, FeatureValue]
     free_cash_cents: int
-    total_bankroll_cents: int
 
 
 def size_order(input_data: SizingInput) -> Order | Rejection:
@@ -52,18 +52,27 @@ def size_order(input_data: SizingInput) -> Order | Rejection:
     if input_data.signal.confidence < confidence_floor:
         return Rejection(SignalOutcome.REJECTED_BELOW_THRESHOLD, "below confidence threshold")
 
+    for pos in input_data.open_positions:
+        if pos.status == PositionStatus.OPEN and pos.ticker == input_data.signal.ticker:
+            return Rejection(
+                SignalOutcome.REJECTED_ALREADY_POSITIONED,
+                "already positioned in ticker",
+            )
+
     price = _entry_price(input_data.signal.side, input_data.market)
     if price is None or price <= 0 or price >= 1:
         return Rejection(SignalOutcome.REJECTED_MARKET_CLOSED, "invalid market price")
 
     edge = _edge(input_data.signal, price)
-    if edge <= 0:
-        return Rejection(SignalOutcome.REJECTED_KELLY_ZERO, "non-positive edge")
+    net_edge = edge - fee_per_contract_dollars(price)
+    if net_edge <= 0:
+        return Rejection(SignalOutcome.REJECTED_KELLY_ZERO, "edge below fees")
 
+    # Binary Kelly: f* = (q - p) / (1 - p), scaled by fraction and confidence.
     kelly = (
         float(input_data.strategy.kelly_fraction)
         * float(input_data.signal.confidence)
-        * float(edge)
+        * float(net_edge / (Decimal("1") - price))
     )
     if kelly <= 0:
         return Rejection(SignalOutcome.REJECTED_KELLY_ZERO, "kelly zero")
@@ -81,7 +90,13 @@ def size_order(input_data: SizingInput) -> Order | Rejection:
         return Rejection(SignalOutcome.REJECTED_BELOW_MIN_POSITION, "below minimum position size")
 
     cost_basis_cents = int((price * PRICE_SCALE * qty).to_integral_value(rounding=ROUND_DOWN))
-    if cost_basis_cents > input_data.free_cash_cents:
+    fees_cents = trading_fee_cents(qty, price)
+
+    gross_edge_cents = edge * Decimal(qty) * PRICE_SCALE
+    if gross_edge_cents <= Decimal(fees_cents):
+        return Rejection(SignalOutcome.REJECTED_KELLY_ZERO, "edge below fees")
+
+    if cost_basis_cents + fees_cents > input_data.free_cash_cents:
         return Rejection(SignalOutcome.REJECTED_BELOW_MIN_POSITION, "insufficient free cash")
 
     if _exposure_cap_exceeded(input_data, cost_basis_cents, config):
@@ -96,6 +111,7 @@ def size_order(input_data: SizingInput) -> Order | Rejection:
         qty=qty,
         limit_price=price,
         cost_basis_cents=cost_basis_cents,
+        fees_cents=fees_cents,
     )
 
 
@@ -150,7 +166,7 @@ def _exposure_cap_exceeded(
         if pos.status == PositionStatus.OPEN
     )
     total_exposure = open_cost + new_cost_basis_cents
-    cap = int(input_data.total_bankroll_cents * cap_pct)
+    cap = int(input_data.strategy.bankroll_cents * cap_pct)
     return total_exposure > cap
 
 

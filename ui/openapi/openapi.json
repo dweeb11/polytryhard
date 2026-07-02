@@ -1588,7 +1588,8 @@
           "rejected_below_min_position",
           "rejected_market_closed",
           "rejected_stale_inputs",
-          "rejected_system_paused"
+          "rejected_system_paused",
+          "rejected_already_positioned"
         ],
         "title": "SignalOutcome"
       },

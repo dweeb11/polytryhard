@@ -571,7 +571,7 @@ export type components = {
          * SignalOutcome
          * @enum {string}
          */
-        SignalOutcome: "order_placed" | "rejected_kelly_zero" | "rejected_exposure_cap" | "rejected_correlation_cap" | "rejected_below_threshold" | "rejected_below_min_position" | "rejected_market_closed" | "rejected_stale_inputs" | "rejected_system_paused";
+        SignalOutcome: "order_placed" | "rejected_kelly_zero" | "rejected_exposure_cap" | "rejected_correlation_cap" | "rejected_below_threshold" | "rejected_below_min_position" | "rejected_market_closed" | "rejected_stale_inputs" | "rejected_system_paused" | "rejected_already_positioned";
         /** SignalRecord */
         SignalRecord: {
             /** Id */
