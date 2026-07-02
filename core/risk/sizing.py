@@ -91,6 +91,11 @@ def size_order(input_data: SizingInput) -> Order | Rejection:
 
     cost_basis_cents = int((price * PRICE_SCALE * qty).to_integral_value(rounding=ROUND_DOWN))
     fees_cents = trading_fee_cents(qty, price)
+
+    gross_edge_cents = edge * Decimal(qty) * PRICE_SCALE
+    if gross_edge_cents <= Decimal(fees_cents):
+        return Rejection(SignalOutcome.REJECTED_KELLY_ZERO, "edge below fees")
+
     if cost_basis_cents + fees_cents > input_data.free_cash_cents:
         return Rejection(SignalOutcome.REJECTED_BELOW_MIN_POSITION, "insufficient free cash")
 

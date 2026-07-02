@@ -357,3 +357,29 @@ def test_order_carries_fees_cents() -> None:
     result = size_order(_sizing_input())
     assert isinstance(result, Order)
     assert result.fees_cents == trading_fee_cents(result.qty, result.limit_price)
+
+
+def test_rejects_when_rounded_fee_wipes_out_edge() -> None:
+    # price=0.50, edge=0.019 clears the un-rounded per-contract fee (0.0175),
+    # so the early net-edge gate passes. But at qty=1 the *rounded* fee
+    # (ceil(0.0175 * 100) = 2 cents) exceeds the gross edge in cents (1.9),
+    # so the order should still be rejected once qty is known.
+    price = Decimal("0.50")
+    prob_yes = Decimal("0.519")
+    edge = prob_yes - price
+    net_edge = edge - fee_per_contract_dollars(price)
+    assert net_edge > 0  # sanity: un-rounded gate would pass
+
+    # Large bankroll needed because kelly stake is tiny here; tuned so qty == 1.
+    strategy = _strategy_row(bankroll_cents=83_400)
+    result = size_order(
+        _sizing_input(
+            signal=_signal(prob_yes=prob_yes),
+            market=_market(ask_yes=price),
+            strategy=strategy,
+            free_cash_cents=83_400,
+        )
+    )
+    assert isinstance(result, Rejection)
+    assert result.outcome == SignalOutcome.REJECTED_KELLY_ZERO
+    assert result.reason == "edge below fees"
