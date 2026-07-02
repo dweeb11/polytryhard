@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import Select, and_, func, or_, select
@@ -16,15 +16,10 @@ from core.db.shared_models import (
     ReferenceLocationRow,
     ReferenceMarketRow,
 )
+from core.utils.time import as_utc
 
 TEMPERATURE_VARIABLE = "temperature_2m"
 TRADABLE_MARKET_STATUSES = frozenset({"open", "active"})
-
-
-def _as_utc(value: datetime) -> datetime:
-    if value.tzinfo is None:
-        return value.replace(tzinfo=UTC)
-    return value.astimezone(UTC)
 
 
 def list_locations(session: Session) -> list[ReferenceLocationRow]:
@@ -58,11 +53,11 @@ def resolve_target_valid_window(
 ) -> datetime | None:
     if not rows:
         return None
-    windows = {_as_utc(row.valid_window_start) for row in rows}
+    windows = {as_utc(row.valid_window_start) for row in rows}
     if target_window_start is not None:
-        target = _as_utc(target_window_start)
+        target = as_utc(target_window_start)
         return target if target in windows else None
-    as_of_utc = _as_utc(as_of)
+    as_of_utc = as_utc(as_of)
     eligible = [window for window in windows if window <= as_of_utc]
     if not eligible:
         return None
@@ -102,7 +97,47 @@ def latest_forecast_rows(
     )
     if window is None:
         return []
-    return [row for row in rows if _as_utc(row.valid_window_start) == window]
+    return [row for row in rows if as_utc(row.valid_window_start) == window]
+
+
+def daily_max_by_member(
+    session: Session,
+    *,
+    location_id: str,
+    source: ForecastSource,
+    variable: str,
+    as_of: datetime,
+    day_start_utc: datetime,
+    day_end_utc: datetime,
+) -> dict[int | None, Decimal]:
+    """Per-ensemble-member max value over [day_start_utc, day_end_utc) from the latest run."""
+    latest_run = session.scalar(
+        select(func.max(RawForecastRunRow.run_time)).where(
+            RawForecastRunRow.location_id == location_id,
+            RawForecastRunRow.source == source,
+            RawForecastRunRow.variable == variable,
+            RawForecastRunRow.run_time <= as_of,
+        )
+    )
+    if latest_run is None:
+        return {}
+    rows = session.scalars(
+        select(RawForecastRunRow).where(
+            RawForecastRunRow.location_id == location_id,
+            RawForecastRunRow.source == source,
+            RawForecastRunRow.variable == variable,
+            RawForecastRunRow.run_time == latest_run,
+        )
+    ).all()
+    maxes: dict[int | None, Decimal] = {}
+    for row in rows:
+        window = as_utc(row.valid_window_start)
+        if not (day_start_utc <= window < day_end_utc):
+            continue
+        current = maxes.get(row.ensemble_member)
+        if current is None or row.value > current:
+            maxes[row.ensemble_member] = row.value
+    return maxes
 
 
 def ensemble_mean(rows: list[RawForecastRunRow]) -> Decimal | None:

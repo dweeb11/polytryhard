@@ -401,4 +401,9 @@ def test_build_market_states_skips_expired_active_market(
 
 def test_feature_providers_are_registered() -> None:
     names = {provider.name for provider in registered_feature_providers()}
-    assert names == {"ensemble_mean_temp", "forecast_disagreement", "kalshi_spread"}
+    assert names == {
+        "ensemble_mean_temp",
+        "forecast_disagreement",
+        "kalshi_spread",
+        "weather_model_prob",
+    }

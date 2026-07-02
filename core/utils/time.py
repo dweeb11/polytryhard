@@ -16,6 +16,13 @@ def utc_now() -> datetime:
     return datetime.now(tz=UTC)
 
 
+def as_utc(value: datetime) -> datetime:
+    """Normalize a datetime to UTC; naive values are assumed UTC (DB round-trip convention)."""
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
 def format_dt(value: datetime) -> str:
     return to_iso(value)
 

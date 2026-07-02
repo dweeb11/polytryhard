@@ -26,12 +26,20 @@ def _add_open_market_with_snapshot(
     as_of: datetime,
     snap_id: str,
 ) -> None:
+    # Ticker suffix like "-T72" means "greater than 72" (Kalshi threshold bracket).
+    # Forecast maxes seeded by `_seed_shared` (95/97 GFS, 88/92 ECMWF) clear every
+    # threshold used in this module's fixtures, so weather_model_prob resolves
+    # PRESENT with high probability rather than tripping the fail-closed staleness
+    # gate in core/risk/sizing.py::_stale_feature.
+    cap_strike = Decimal(ticker.rsplit("T", 1)[-1])
     session.add(
         ReferenceMarketRow(
             ticker=ticker,
             series="KXHIGHNY",
             title=f"test market {ticker}",
             status="open",
+            strike_type="greater",
+            cap_strike=cap_strike,
             raw_jsonb={},
         )
     )
@@ -58,7 +66,7 @@ def _seed_shared(session: Session, *, extra_tickers: tuple[str, ...] = ()) -> No
     seed_locations_if_needed(session)
     as_of = datetime(2026, 5, 28, 12, 0, tzinfo=UTC)
     _add_open_market_with_snapshot(
-        session, ticker="KXHIGHNY-25MAY28-T72", as_of=as_of, snap_id="snap-1"
+        session, ticker="KXHIGHNY-26MAY28-T72", as_of=as_of, snap_id="snap-1"
     )
     for idx, ticker in enumerate(extra_tickers, start=2):
         _add_open_market_with_snapshot(
@@ -140,7 +148,7 @@ def test_strategy_open_positions_sees_flushed_open_row(
     writer.open_paper_position(
         per_env,
         strategy_name="weather_stale_quote",
-        order_ticker="KXHIGHNY-25MAY28-T72",
+        order_ticker="KXHIGHNY-26MAY28-T72",
         side=PositionSide.YES,
         qty=1,
         price=Decimal("0.15"),
@@ -169,7 +177,7 @@ async def test_engine_tick_second_market_hits_correlation_cap_after_first_fill(
     shared = sessionmaker(bind=shared_engine, expire_on_commit=False)()
     per_env = sessionmaker(bind=per_env_engine, expire_on_commit=False)()
 
-    _seed_shared(shared, extra_tickers=("KXHIGHNY-25MAY28-T75",))
+    _seed_shared(shared, extra_tickers=("KXHIGHNY-26MAY28-T75",))
     seed_strategies_if_needed(per_env, request_id="seed-exposure-cap")
 
     stale_row = per_env.get(StrategyInstanceRow, "weather_stale_quote")
@@ -209,8 +217,8 @@ async def test_engine_tick_second_market_hits_correlation_cap_after_first_fill(
     )
     by_ticker = {row.ticker: row.outcome for row in signals}
     assert stats["orders"] == 1
-    assert by_ticker["KXHIGHNY-25MAY28-T72"] == SignalOutcome.ORDER_PLACED
-    assert by_ticker["KXHIGHNY-25MAY28-T75"] == SignalOutcome.REJECTED_CORRELATION_CAP
+    assert by_ticker["KXHIGHNY-26MAY28-T72"] == SignalOutcome.ORDER_PLACED
+    assert by_ticker["KXHIGHNY-26MAY28-T75"] == SignalOutcome.REJECTED_CORRELATION_CAP
 
 
 @pytest.mark.asyncio
