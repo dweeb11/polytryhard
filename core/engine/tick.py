@@ -21,7 +21,6 @@ from core.engine.markets import (
     features_snapshot,
     index_features,
     strategy_features_for_market,
-    total_bankroll_cents,
 )
 from core.executors.registry import default_executor
 from core.features.persistence import persist_feature_values
@@ -72,7 +71,6 @@ async def run_engine_tick(
     feature_index = index_features(computed)
     markets = build_market_states(shared_session, as_of)
     system_state = get_system_state(per_env_session)
-    bankroll_total = total_bankroll_cents(per_env_session)
     strategy_rows = {
         row.name: row
         for row in per_env_session.scalars(select(StrategyInstanceRow)).all()
@@ -135,7 +133,6 @@ async def run_engine_tick(
                     open_positions=strategy_open,
                     features=market_features,
                     free_cash_cents=free_cash_cents(per_env_session, row.name),
-                    total_bankroll_cents=bankroll_total,
                 )
             )
 
@@ -173,7 +170,7 @@ async def run_engine_tick(
                     session=per_env_session,
                     strategy_name=row.name,
                     signal_id=signal_row.id,
-                    fees_cents=0,
+                    fees_cents=sizing.fees_cents,
                 ),
             )
             stats["orders"] += 1

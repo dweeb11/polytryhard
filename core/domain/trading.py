@@ -16,6 +16,7 @@ class Order:
     qty: int
     limit_price: Decimal
     cost_basis_cents: int
+    fees_cents: int = 0
 
 
 @dataclass(frozen=True)

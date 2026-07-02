@@ -45,6 +45,7 @@ class SignalOutcome(StrEnum):
     REJECTED_MARKET_CLOSED = "rejected_market_closed"
     REJECTED_STALE_INPUTS = "rejected_stale_inputs"
     REJECTED_SYSTEM_PAUSED = "rejected_system_paused"
+    REJECTED_ALREADY_POSITIONED = "rejected_already_positioned"
 
 
 class AuditActor(StrEnum):

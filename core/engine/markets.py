@@ -136,12 +136,3 @@ def strategy_features_for_market(
 
 def features_snapshot(features: dict[str, FeatureValue]) -> dict[str, object]:
     return {name: feature.to_snapshot() for name, feature in features.items()}
-
-
-def total_bankroll_cents(session: Session) -> int:
-    from sqlalchemy import func, select
-
-    from core.db.models import StrategyInstanceRow
-
-    total = session.scalar(select(func.coalesce(func.sum(StrategyInstanceRow.bankroll_cents), 0)))
-    return int(total or 0)
