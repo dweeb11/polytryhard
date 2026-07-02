@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from core.clock import FakeClock
 from core.db.enums import SignalOutcome
+from core.db.enums import StrategyState as DbStrategyState
 from core.db.models import SignalRow, StrategyInstanceRow
 from core.db.shared_enums import ForecastSource
 from core.db.shared_models import RawForecastRunRow, RawMarketSnapshotRow, ReferenceMarketRow
@@ -218,3 +219,106 @@ async def test_engine_tick_second_market_hits_correlation_cap_after_first_fill(
     assert stats["orders"] == 1
     assert by_ticker["KXHIGHNY-26MAY28-T72"] == SignalOutcome.ORDER_PLACED
     assert by_ticker["KXHIGHNY-26MAY28-T75"] == SignalOutcome.REJECTED_CORRELATION_CAP
+
+
+@pytest.mark.asyncio
+async def test_engine_tick_auto_pauses_strategy_breaching_drawdown_cap(
+    per_env_sqlite_urls: tuple[str, str],
+) -> None:
+    shared_url, per_env_url = per_env_sqlite_urls
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    shared_engine = create_engine(shared_url)
+    per_env_engine = create_engine(per_env_url)
+    shared = sessionmaker(bind=shared_engine, expire_on_commit=False)()
+    per_env = sessionmaker(bind=per_env_engine, expire_on_commit=False)()
+
+    _seed_shared(shared)
+    seed_strategies_if_needed(per_env, request_id="seed-drawdown-pause")
+
+    stale_row = per_env.get(StrategyInstanceRow, "weather_stale_quote")
+    assert stale_row is not None
+    stale_row.bankroll_hwm_cents = 10_000
+    stale_row.bankroll_cents = 6_900  # 31% drawdown, config max is 30%
+    other = per_env.get(StrategyInstanceRow, "weather_ensemble_disagreement")
+    assert other is not None
+    other.enabled = False
+    other.bankroll_cents = 0
+    per_env.flush()
+    per_env.commit()
+
+    settings = Settings(
+        REQUIRE_DBS=False,
+        CONTROL_PLANE_TOKEN="dev-token",
+        DATABASE_URL_SHARED=shared_url,
+        DATABASE_URL_PER_ENV=per_env_url,
+        SCHEDULER_ENABLED=False,
+    )
+    clock = FakeClock(start=datetime(2026, 5, 28, 12, 0, tzinfo=UTC))
+
+    stats = await run_engine_tick(
+        settings=settings,
+        clock=clock,
+        shared_session=shared,
+        per_env_session=per_env,
+        request_id="drawdown-pause-tick",
+    )
+
+    per_env.refresh(stale_row)
+    assert stale_row.state == DbStrategyState.DRAWDOWN_PAUSED
+    signal_count = per_env.scalar(
+        select(func.count()).select_from(SignalRow).where(
+            SignalRow.strategy_name == "weather_stale_quote"
+        )
+    )
+    assert signal_count == 0
+    assert stats["signals"] == 0
+
+
+@pytest.mark.asyncio
+async def test_engine_tick_leaves_strategy_active_below_drawdown_cap(
+    per_env_sqlite_urls: tuple[str, str],
+) -> None:
+    shared_url, per_env_url = per_env_sqlite_urls
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    shared_engine = create_engine(shared_url)
+    per_env_engine = create_engine(per_env_url)
+    shared = sessionmaker(bind=shared_engine, expire_on_commit=False)()
+    per_env = sessionmaker(bind=per_env_engine, expire_on_commit=False)()
+
+    _seed_shared(shared)
+    seed_strategies_if_needed(per_env, request_id="seed-drawdown-ok")
+
+    stale_row = per_env.get(StrategyInstanceRow, "weather_stale_quote")
+    assert stale_row is not None
+    stale_row.bankroll_hwm_cents = 10_000
+    stale_row.bankroll_cents = 7_100  # 29% drawdown, config max is 30%
+    other = per_env.get(StrategyInstanceRow, "weather_ensemble_disagreement")
+    assert other is not None
+    other.enabled = False
+    other.bankroll_cents = 0
+    per_env.flush()
+    per_env.commit()
+
+    settings = Settings(
+        REQUIRE_DBS=False,
+        CONTROL_PLANE_TOKEN="dev-token",
+        DATABASE_URL_SHARED=shared_url,
+        DATABASE_URL_PER_ENV=per_env_url,
+        SCHEDULER_ENABLED=False,
+    )
+    clock = FakeClock(start=datetime(2026, 5, 28, 12, 0, tzinfo=UTC))
+
+    await run_engine_tick(
+        settings=settings,
+        clock=clock,
+        shared_session=shared,
+        per_env_session=per_env,
+        request_id="drawdown-ok-tick",
+    )
+
+    per_env.refresh(stale_row)
+    assert stale_row.state == DbStrategyState.ACTIVE
