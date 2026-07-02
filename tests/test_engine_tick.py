@@ -26,12 +26,13 @@ def _add_open_market_with_snapshot(
     as_of: datetime,
     snap_id: str,
 ) -> None:
-    # Ticker suffix like "-T72" means "greater than 72" (Kalshi threshold bracket).
+    # Ticker suffix like "-T72" means "greater than 72" (Kalshi threshold bracket;
+    # "greater" markets carry only floor_strike — see core/domain/weather_markets.py).
     # Forecast maxes seeded by `_seed_shared` (95/97 GFS, 88/92 ECMWF) clear every
     # threshold used in this module's fixtures, so weather_model_prob resolves
     # PRESENT with high probability rather than tripping the fail-closed staleness
     # gate in core/risk/sizing.py::_stale_feature.
-    cap_strike = Decimal(ticker.rsplit("T", 1)[-1])
+    floor_strike = Decimal(ticker.rsplit("T", 1)[-1])
     session.add(
         ReferenceMarketRow(
             ticker=ticker,
@@ -39,7 +40,7 @@ def _add_open_market_with_snapshot(
             title=f"test market {ticker}",
             status="open",
             strike_type="greater",
-            cap_strike=cap_strike,
+            floor_strike=floor_strike,
             raw_jsonb={},
         )
     )

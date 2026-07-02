@@ -1,10 +1,12 @@
 """Pure domain logic for Kalshi weather bracket markets.
 
-Bracket semantics (per Kalshi API docs; verify empirically against recorded
-resolutions with scripts/verify_bracket_semantics.py — mismatches must be 0
-before strategies trade on these semantics):
-  greater  -> value strictly greater than cap_strike
-  less     -> value strictly less than floor_strike
+Bracket semantics — EMPIRICALLY VERIFIED against 66 recorded settlement
+resolutions with observed temperatures, 0 mismatches, 2026-07-02
+(see scripts/verify_bracket_semantics.py):
+  greater  -> value strictly greater than floor_strike (markets carry only
+              floor_strike for this type; there is no cap_strike)
+  less     -> value strictly less than cap_strike (markets carry only
+              cap_strike for this type; there is no floor_strike)
   between  -> floor_strike <= value <= cap_strike (inclusive both ends)
 Unknown strike types return None -> callers fail closed.
 """
@@ -73,13 +75,13 @@ def bracket_satisfied(
 ) -> bool | None:
     kind = strike_type.lower()
     if kind == "greater":
-        if cap_strike is None:
-            return None
-        return value > cap_strike
-    if kind == "less":
         if floor_strike is None:
             return None
-        return value < floor_strike
+        return value > floor_strike
+    if kind == "less":
+        if cap_strike is None:
+            return None
+        return value < cap_strike
     if kind == "between":
         if floor_strike is None or cap_strike is None:
             return None
