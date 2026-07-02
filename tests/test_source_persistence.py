@@ -36,6 +36,9 @@ def test_persist_fetch_result_new_ticker_parents_before_dependents(
                 series="KXHIGHNY",
                 title="Test market",
                 status="open",
+                strike_type="between",
+                floor_strike=Decimal("72"),
+                cap_strike=Decimal("73"),
                 raw_jsonb={"ticker": ticker},
             )
         ],
@@ -79,6 +82,9 @@ def test_persist_fetch_result_new_ticker_parents_before_dependents(
         market = session.get(ReferenceMarketRow, ticker)
         assert market is not None
         assert market.series == "KXHIGHNY"
+        assert market.strike_type == "between"
+        assert market.floor_strike == Decimal("72")
+        assert market.cap_strike == Decimal("73")
 
         persisted_run = session.get(SourceRunRow, run_row.id)
         assert persisted_run is not None

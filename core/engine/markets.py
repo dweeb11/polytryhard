@@ -36,6 +36,9 @@ def build_market_states(session: Session, as_of: datetime) -> list[MarketState]:
                 mid_yes=snapshot.mid_yes,
                 as_of=snapshot.as_of,
                 location_id=location_for_series(series),
+                strike_type=market.strike_type,
+                floor_strike=market.floor_strike,
+                cap_strike=market.cap_strike,
             )
         )
     return markets

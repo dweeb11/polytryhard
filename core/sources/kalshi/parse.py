@@ -11,6 +11,17 @@ def _series_from_ticker(ticker: str) -> str:
     return ticker.split("-", 1)[0]
 
 
+def _parse_strike(value: object) -> Decimal | None:
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float, str)):
+        try:
+            return Decimal(str(value))
+        except ArithmeticError:
+            return None
+    return None
+
+
 def parse_market(payload: dict[str, Any]) -> ReferenceMarketUpsert | None:
     ticker = payload.get("ticker")
     if not isinstance(ticker, str):
@@ -38,6 +49,9 @@ def parse_market(payload: dict[str, Any]) -> ReferenceMarketUpsert | None:
         open_time=_parse_dt(payload.get("open_time")),
         close_time=_parse_dt(payload.get("close_time")),
         settlement_time=_parse_dt(payload.get("settlement_time")),
+        strike_type=str(payload["strike_type"]) if payload.get("strike_type") else None,
+        floor_strike=_parse_strike(payload.get("floor_strike")),
+        cap_strike=_parse_strike(payload.get("cap_strike")),
         raw_jsonb=dict(payload),
     )
 
