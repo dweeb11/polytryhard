@@ -1830,6 +1830,28 @@
               }
             ],
             "title": "Correlationcappct"
+          },
+          "minEdge": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minedge"
+          },
+          "maxDisagreementF": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maxdisagreementf"
           }
         },
         "type": "object",

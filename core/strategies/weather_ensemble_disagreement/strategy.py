@@ -6,26 +6,28 @@ from core.contracts.strategy import Strategy, StrategyContext, required_features
 from core.domain.enums import PositionSide
 from core.domain.feature import FeatureValue
 from core.domain.market import MarketState, SignalDraft
+from core.domain.weather_markets import weather_series
 from core.settings import Settings
-from core.strategies.weather_utils import (
-    ensemble_to_prob,
-    location_for_series,
-    numeric_feature,
-    prob_to_temp,
-    weather_series,
-)
+from core.strategies.weather_utils import numeric_feature
 
-REQUIRED_FEATURES = frozenset({"ensemble_mean_temp", "kalshi_spread"})
+REQUIRED_FEATURES = frozenset({"weather_model_prob", "kalshi_spread", "forecast_disagreement"})
 
 
 class WeatherEnsembleDisagreementStrategy(Strategy):
+    """Value trade on the ensemble bracket probability, gated by model agreement.
+
+    High GFS/ECMWF disagreement means the forecast is uncertain -> stand down.
+    Trade only when models agree AND the market mid diverges from the model
+    probability by more than half the spread plus a configured edge margin.
+    """
+
     @property
     def name(self) -> str:
         return "weather_ensemble_disagreement"
 
     @property
     def required_features(self) -> frozenset[str]:
-        return REQUIRED_FEATURES | frozenset({"forecast_disagreement"})
+        return REQUIRED_FEATURES
 
     def is_enabled(self, settings: Settings) -> bool:
         return True
@@ -38,9 +40,6 @@ class WeatherEnsembleDisagreementStrategy(Strategy):
     ) -> SignalDraft | None:
         if not weather_series(market.series):
             return None
-        location_id = location_for_series(market.series)
-        if location_id is None:
-            return None
         if not required_features_present(
             self.required_features,
             features,
@@ -48,34 +47,27 @@ class WeatherEnsembleDisagreementStrategy(Strategy):
         ):
             return None
 
-        disagreement = numeric_feature(features.get("forecast_disagreement"))
+        model_prob = numeric_feature(features.get("weather_model_prob"))
         spread = numeric_feature(features.get("kalshi_spread"))
-        ensemble_mean = numeric_feature(features.get("ensemble_mean_temp"))
+        disagreement = numeric_feature(features.get("forecast_disagreement"))
         mid = market.mid_yes
-        if disagreement is None or spread is None or ensemble_mean is None or mid is None:
+        if model_prob is None or spread is None or disagreement is None or mid is None:
             return None
 
         config = ctx.effective_config()
-        disagreement_threshold = Decimal(str(config.disagreement_threshold))
-        spread_margin = Decimal(str(config.spread_margin_multiplier))
-        confidence_floor = Decimal(str(config.confidence_floor))
-
-        if disagreement < disagreement_threshold:
+        if disagreement > Decimal(str(config.max_disagreement_f)):
             return None
 
-        model_prob_yes = ensemble_to_prob(ensemble_mean)
-        divergence = abs(mid - model_prob_yes)
-        if divergence <= spread * spread_margin:
+        divergence = model_prob - mid
+        threshold = spread / Decimal("2") + Decimal(str(config.min_edge))
+        if abs(divergence) <= threshold:
             return None
 
-        side = PositionSide.YES if ensemble_mean >= prob_to_temp(mid) else PositionSide.NO
-        confidence = min(
-            Decimal("1"),
-            confidence_floor + (disagreement / Decimal("10")) + (divergence / Decimal("0.2")),
-        )
+        side = PositionSide.YES if divergence > 0 else PositionSide.NO
+        confidence = min(Decimal("1"), abs(divergence) / Decimal("0.15"))
         return SignalDraft(
             ticker=market.ticker,
-            prob_yes=model_prob_yes,
+            prob_yes=model_prob,
             confidence=confidence,
             side=side,
         )

@@ -6,25 +6,16 @@ from core.contracts.strategy import Strategy, StrategyContext, required_features
 from core.domain.enums import PositionSide
 from core.domain.feature import FeatureValue
 from core.domain.market import MarketState, SignalDraft
+from core.domain.weather_markets import weather_series
 from core.settings import Settings
-from core.strategies.weather_utils import (
-    ensemble_to_prob,
-    location_for_series,
-    numeric_feature,
-    prob_to_temp,
-    weather_series,
-)
+from core.strategies.weather_utils import numeric_feature
 
-REQUIRED_FEATURES = frozenset({"ensemble_mean_temp", "kalshi_spread"})
+REQUIRED_FEATURES = frozenset({"weather_model_prob", "kalshi_spread"})
 
 
 class WeatherStaleQuoteStrategy(Strategy):
-    """Detect stale Kalshi quotes via unusually wide spreads.
-
-    MVP: compares spread to a static ``wideSpreadThreshold`` from strategy config.
-    Design doc (m4-engine.md) also describes spread vs recent history; that needs
-    a history feature and is deferred to a follow-up slice.
-    """
+    """Trade wide-spread (possibly stale) books only when the model edge
+    survives the actual crossing price, not the mid."""
 
     @property
     def name(self) -> str:
@@ -45,9 +36,6 @@ class WeatherStaleQuoteStrategy(Strategy):
     ) -> SignalDraft | None:
         if not weather_series(market.series):
             return None
-        location_id = location_for_series(market.series)
-        if location_id is None:
-            return None
         if not required_features_present(
             self.required_features,
             features,
@@ -55,25 +43,31 @@ class WeatherStaleQuoteStrategy(Strategy):
         ):
             return None
 
+        model_prob = numeric_feature(features.get("weather_model_prob"))
         spread = numeric_feature(features.get("kalshi_spread"))
-        ensemble_mean = numeric_feature(features.get("ensemble_mean_temp"))
-        mid = market.mid_yes
-        if spread is None or ensemble_mean is None or mid is None:
+        if model_prob is None or spread is None:
+            return None
+        if market.ask_yes is None or market.bid_yes is None:
             return None
 
         config = ctx.effective_config()
-        wide_spread_threshold = Decimal(str(config.wide_spread_threshold))
-        confidence_floor = Decimal(str(config.confidence_floor))
+        if spread < Decimal(str(config.wide_spread_threshold)):
+            return None
+        min_edge = Decimal(str(config.min_edge))
 
-        if spread < wide_spread_threshold:
+        yes_edge = model_prob - market.ask_yes
+        no_edge = market.bid_yes - model_prob
+        if yes_edge >= no_edge and yes_edge > min_edge:
+            side, edge = PositionSide.YES, yes_edge
+        elif no_edge > min_edge:
+            side, edge = PositionSide.NO, no_edge
+        else:
             return None
 
-        model_prob_yes = ensemble_to_prob(ensemble_mean)
-        side = PositionSide.YES if ensemble_mean >= prob_to_temp(mid) else PositionSide.NO
-        confidence = min(Decimal("1"), confidence_floor + spread)
+        confidence = min(Decimal("1"), edge / Decimal("0.15"))
         return SignalDraft(
             ticker=market.ticker,
-            prob_yes=model_prob_yes,
+            prob_yes=model_prob,
             confidence=confidence,
             side=side,
         )

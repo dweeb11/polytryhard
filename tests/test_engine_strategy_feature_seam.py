@@ -22,56 +22,58 @@ LOCATION_ID = "nyc"
 
 def _provider_index(**overrides: Decimal) -> dict[str, FeatureValue]:
     """Simulate indexed provider output for NYC weather + one Kalshi market."""
-    defaults = {
-        "ensemble_mean_temp": Decimal("90"),
-        "forecast_disagreement": Decimal("5"),
+    market_defaults = {
+        "weather_model_prob": Decimal("0.90"),
         "kalshi_spread": Decimal("0.15"),
     }
-    defaults.update(overrides)
+    location_defaults = {
+        "forecast_disagreement": Decimal("1.0"),
+    }
+    market_defaults.update({k: v for k, v in overrides.items() if k in market_defaults})
+    location_defaults.update({k: v for k, v in overrides.items() if k in location_defaults})
     rows: list[FeatureValue] = []
-    for name, value in defaults.items():
-        if name == "kalshi_spread":
-            rows.append(
-                FeatureValue.present(
-                    provider_name=name,
-                    provider_version="1",
-                    subject_kind="market",
-                    subject_id=TICKER,
-                    as_of=AS_OF,
-                    value_numeric=value,
-                )
+    for name, value in market_defaults.items():
+        rows.append(
+            FeatureValue.present(
+                provider_name=name,
+                provider_version="1",
+                subject_kind="market",
+                subject_id=TICKER,
+                as_of=AS_OF,
+                value_numeric=value,
             )
-            rows.append(
-                FeatureValue.present(
-                    provider_name=name,
-                    provider_version="1",
-                    subject_kind="market",
-                    subject_id="KXHIGHCHI-25MAY28-T72",
-                    as_of=AS_OF,
-                    value_numeric=Decimal("0.99"),
-                )
+        )
+        rows.append(
+            FeatureValue.present(
+                provider_name=name,
+                provider_version="1",
+                subject_kind="market",
+                subject_id="KXHIGHCHI-25MAY28-T72",
+                as_of=AS_OF,
+                value_numeric=Decimal("0.99"),
             )
-        else:
-            rows.append(
-                FeatureValue.present(
-                    provider_name=name,
-                    provider_version="1",
-                    subject_kind="location",
-                    subject_id=LOCATION_ID,
-                    as_of=AS_OF,
-                    value_numeric=value,
-                )
+        )
+    for name, value in location_defaults.items():
+        rows.append(
+            FeatureValue.present(
+                provider_name=name,
+                provider_version="1",
+                subject_kind="location",
+                subject_id=LOCATION_ID,
+                as_of=AS_OF,
+                value_numeric=value,
             )
-            rows.append(
-                FeatureValue.present(
-                    provider_name=name,
-                    provider_version="1",
-                    subject_kind="location",
-                    subject_id="chicago",
-                    as_of=AS_OF,
-                    value_numeric=Decimal("99"),
-                )
+        )
+        rows.append(
+            FeatureValue.present(
+                provider_name=name,
+                provider_version="1",
+                subject_kind="location",
+                subject_id="chicago",
+                as_of=AS_OF,
+                value_numeric=Decimal("99"),
             )
+        )
     return index_features(rows)
 
 
@@ -107,12 +109,12 @@ def test_engine_delivered_features_scope_to_market() -> None:
     delivered = strategy_features_for_market(
         indexed, location_id=LOCATION_ID, ticker=TICKER
     )
-    assert set(delivered) == {"ensemble_mean_temp", "forecast_disagreement", "kalshi_spread"}
+    assert set(delivered) == {"weather_model_prob", "forecast_disagreement", "kalshi_spread"}
     assert delivered["kalshi_spread"].subject_id == TICKER
-    assert delivered["ensemble_mean_temp"].subject_id == LOCATION_ID
+    assert delivered["weather_model_prob"].subject_id == TICKER
     assert delivered["forecast_disagreement"].subject_id == LOCATION_ID
     assert delivered["kalshi_spread"].value_numeric == Decimal("0.15")
-    assert delivered["ensemble_mean_temp"].value_numeric == Decimal("90")
+    assert delivered["weather_model_prob"].value_numeric == Decimal("0.90")
 
 
 def test_weather_strategies_accept_engine_delivered_features() -> None:
