@@ -10,6 +10,7 @@ from core.domain.feature import FeatureValue
 from core.domain.weather_markets import (
     bracket_probability,
     location_for_series,
+    plausible_temperature_strike,
     target_local_date,
     weather_series,
 )
@@ -22,18 +23,6 @@ from core.features.queries import (
 from core.settings import Settings
 
 _UTC = ZoneInfo("UTC")
-
-# Some Kalshi payloads deliver micro-scaled strikes (e.g. floor_strike ~ 1e-5,
-# the true strike x 1e-6). We do not normalize heuristically — fail closed
-# with MISSING instead of trading on garbage metadata.
-_PLAUSIBLE_STRIKE_MIN = Decimal("-50")
-_PLAUSIBLE_STRIKE_MAX = Decimal("150")
-
-
-def _implausible_strike(strike: Decimal | None) -> bool:
-    if strike is None:
-        return False
-    return not (_PLAUSIBLE_STRIKE_MIN <= strike <= _PLAUSIBLE_STRIKE_MAX)
 
 
 def _mean(values: list[Decimal]) -> float | None:
@@ -78,9 +67,9 @@ class WeatherModelProbProvider(FeatureProvider):
             if market.strike_type is None:
                 results.append(self._missing(market.ticker, "no strike metadata"))
                 continue
-            if _implausible_strike(market.floor_strike) or _implausible_strike(
-                market.cap_strike
-            ):
+            if not plausible_temperature_strike(
+                market.floor_strike
+            ) or not plausible_temperature_strike(market.cap_strike):
                 results.append(self._missing(market.ticker, "implausible strike metadata"))
                 continue
             target_day = target_local_date(market.ticker)

@@ -24,16 +24,11 @@ from sqlalchemy.orm import Session
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.db.shared_models import ContractResolutionRow, ReferenceMarketRow  # noqa: E402
-from core.domain.weather_markets import bracket_satisfied, weather_series  # noqa: E402
-
-_PLAUSIBLE_STRIKE_MIN = Decimal("-50")
-_PLAUSIBLE_STRIKE_MAX = Decimal("150")
-
-
-def _implausible(strike: Decimal | None) -> bool:
-    if strike is None:
-        return False
-    return not (_PLAUSIBLE_STRIKE_MIN <= strike <= _PLAUSIBLE_STRIKE_MAX)
+from core.domain.weather_markets import (  # noqa: E402
+    bracket_satisfied,
+    plausible_temperature_strike,
+    weather_series,
+)
 
 
 def main() -> int:
@@ -58,7 +53,9 @@ def main() -> int:
             if market.strike_type is None:
                 skipped += 1
                 continue
-            if _implausible(market.floor_strike) or _implausible(market.cap_strike):
+            if not plausible_temperature_strike(
+                market.floor_strike
+            ) or not plausible_temperature_strike(market.cap_strike):
                 skipped += 1
                 continue
             raw_observed = resolution.source_evidence_jsonb.get("expiration_value")

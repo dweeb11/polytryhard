@@ -7,6 +7,7 @@ from core.domain.weather_markets import (
     bracket_probability,
     bracket_satisfied,
     location_for_series,
+    plausible_temperature_strike,
     target_local_date,
     weather_series,
 )
@@ -99,3 +100,18 @@ def test_bracket_probability_empty_members_is_none() -> None:
 def test_series_helpers_moved_here() -> None:
     assert weather_series("KXHIGHNY") is True
     assert location_for_series("KXHIGHCHI") == "chicago"
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (Decimal("0.000089"), False),  # micro-scaled strike (true strike x 1e-6)
+        (Decimal("89"), True),
+        (Decimal("-10"), True),
+        (Decimal("200"), False),
+        (None, True),  # not this guard's business; missing-strike handling elsewhere
+        (Decimal("0"), True),  # 0 is a legitimate temperature strike
+    ],
+)
+def test_plausible_temperature_strike(value: Decimal | None, expected: bool) -> None:
+    assert plausible_temperature_strike(value) is expected

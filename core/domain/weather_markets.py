@@ -36,6 +36,29 @@ _MONTHS = {
     "JUL": 7, "AUG": 8, "SEP": 9, "OCT": 10, "NOV": 11, "DEC": 12,
 }
 
+# Some Kalshi payloads deliver implausibly-scaled strike metadata (e.g. a
+# floor_strike ~1e-5, the true strike x 1e-6). Legitimate Kalshi temperature
+# strikes are always integers or x.5 and never fall strictly between 0 and 1
+# in absolute value, so that band is also implausible. We do not normalize
+# heuristically — fail closed instead of trading on garbage metadata.
+_PLAUSIBLE_STRIKE_MIN = Decimal("-50")
+_PLAUSIBLE_STRIKE_MAX = Decimal("150")
+
+
+def plausible_temperature_strike(value: Decimal | None) -> bool:
+    """Whether `value` looks like a real Kalshi temperature strike.
+
+    A `None` strike is not this guard's business — missing-strike handling
+    lives elsewhere, so `None` is considered plausible here.
+    """
+    if value is None:
+        return True
+    if not (_PLAUSIBLE_STRIKE_MIN <= value <= _PLAUSIBLE_STRIKE_MAX):
+        return False
+    if 0 < abs(value) < 1:
+        return False
+    return True
+
 
 def weather_series(series: str) -> bool:
     return bool(WEATHER_SERIES_PATTERN.match(series))

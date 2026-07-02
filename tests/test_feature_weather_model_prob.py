@@ -444,6 +444,39 @@ async def test_weather_model_prob_missing_implausible_strike(
 
 
 @pytest.mark.asyncio
+async def test_weather_model_prob_missing_micro_scaled_strike(
+    per_env_sqlite_urls: tuple[str, str],
+) -> None:
+    session = _session_from_shared_url(per_env_sqlite_urls[0])
+    _seed_nyc_market(
+        session,
+        ticker="KXHIGHNY-25MAY28-T89",
+        strike_type="greater",
+        # Real-world hazard: strike delivered as true_strike x 1e-6 (a Kalshi
+        # payload-units variant). Numerically inside -50..150 but never a
+        # legitimate Kalshi temperature strike (fractional below 1) — must
+        # still fail closed to MISSING.
+        floor_strike=Decimal("0.000089"),
+        cap_strike=None,
+    )
+    run_time = datetime(2025, 5, 28, 6, tzinfo=UTC)
+    _seed_nyc_members(session, run_time)
+
+    provider = WeatherModelProbProvider()
+    ctx = FeatureContext(
+        request_id="test",
+        settings=Settings(REQUIRE_DBS=False),
+        session=session,
+    )
+    values = await provider.compute(datetime(2025, 5, 28, 12, tzinfo=UTC), ctx)
+    by_subject = {v.subject_id: v for v in values}
+    fv = by_subject["KXHIGHNY-25MAY28-T89"]
+
+    assert fv.status == FeatureStatus.MISSING
+    assert fv.reason == "implausible strike metadata"
+
+
+@pytest.mark.asyncio
 async def test_weather_model_prob_missing_invalid_timezone(
     per_env_sqlite_urls: tuple[str, str],
 ) -> None:
