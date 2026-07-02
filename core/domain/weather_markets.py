@@ -1,7 +1,8 @@
 """Pure domain logic for Kalshi weather bracket markets.
 
-Bracket semantics (per Kalshi API docs, and verified empirically against
-contract_resolution rows by scripts/verify_bracket_semantics.py):
+Bracket semantics (per Kalshi API docs; verify empirically against recorded
+resolutions with scripts/verify_bracket_semantics.py — mismatches must be 0
+before strategies trade on these semantics):
   greater  -> value strictly greater than cap_strike
   less     -> value strictly less than floor_strike
   between  -> floor_strike <= value <= cap_strike (inclusive both ends)
