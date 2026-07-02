@@ -17,7 +17,7 @@ from core.domain.strategy import (
 )
 from core.domain.system import SystemEnvState
 from core.domain.trading import Order, Rejection
-from core.strategies.weather_utils import location_for_series
+from core.domain.weather_markets import location_for_series
 
 MIN_QTY = 1
 PRICE_SCALE = Decimal("100")

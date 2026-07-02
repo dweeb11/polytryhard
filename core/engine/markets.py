@@ -9,8 +9,8 @@ from sqlalchemy.orm import Session
 from core.db.shared_enums import FeatureSubjectKind
 from core.domain.feature import FeatureStatus, FeatureValue
 from core.domain.market import MarketState
+from core.domain.weather_markets import location_for_series
 from core.features.queries import latest_market_snapshot, list_open_markets
-from core.strategies.weather_utils import location_for_series
 
 logger = logging.getLogger(__name__)
 
