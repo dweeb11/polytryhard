@@ -10,6 +10,7 @@ from core.domain.feature import FeatureValue
 from core.domain.weather_markets import (
     bracket_probability,
     location_for_series,
+    plausible_temperature_strike,
     target_local_date,
     weather_series,
 )
@@ -65,6 +66,11 @@ class WeatherModelProbProvider(FeatureProvider):
                 continue
             if market.strike_type is None:
                 results.append(self._missing(market.ticker, "no strike metadata"))
+                continue
+            if not plausible_temperature_strike(
+                market.floor_strike
+            ) or not plausible_temperature_strike(market.cap_strike):
+                results.append(self._missing(market.ticker, "implausible strike metadata"))
                 continue
             target_day = target_local_date(market.ticker)
             if target_day is None:

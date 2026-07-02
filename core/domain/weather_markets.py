@@ -1,10 +1,12 @@
 """Pure domain logic for Kalshi weather bracket markets.
 
-Bracket semantics (per Kalshi API docs; verify empirically against recorded
-resolutions with scripts/verify_bracket_semantics.py — mismatches must be 0
-before strategies trade on these semantics):
-  greater  -> value strictly greater than cap_strike
-  less     -> value strictly less than floor_strike
+Bracket semantics — EMPIRICALLY VERIFIED against 66 recorded settlement
+resolutions with observed temperatures, 0 mismatches, 2026-07-02
+(see scripts/verify_bracket_semantics.py):
+  greater  -> value strictly greater than floor_strike (markets carry only
+              floor_strike for this type; there is no cap_strike)
+  less     -> value strictly less than cap_strike (markets carry only
+              cap_strike for this type; there is no floor_strike)
   between  -> floor_strike <= value <= cap_strike (inclusive both ends)
 Unknown strike types return None -> callers fail closed.
 """
@@ -33,6 +35,29 @@ _MONTHS = {
     "JAN": 1, "FEB": 2, "MAR": 3, "APR": 4, "MAY": 5, "JUN": 6,
     "JUL": 7, "AUG": 8, "SEP": 9, "OCT": 10, "NOV": 11, "DEC": 12,
 }
+
+# Some Kalshi payloads deliver implausibly-scaled strike metadata (e.g. a
+# floor_strike ~1e-5, the true strike x 1e-6). Legitimate Kalshi temperature
+# strikes are always integers or x.5 and never fall strictly between 0 and 1
+# in absolute value, so that band is also implausible. We do not normalize
+# heuristically — fail closed instead of trading on garbage metadata.
+_PLAUSIBLE_STRIKE_MIN = Decimal("-50")
+_PLAUSIBLE_STRIKE_MAX = Decimal("150")
+
+
+def plausible_temperature_strike(value: Decimal | None) -> bool:
+    """Whether `value` looks like a real Kalshi temperature strike.
+
+    A `None` strike is not this guard's business — missing-strike handling
+    lives elsewhere, so `None` is considered plausible here.
+    """
+    if value is None:
+        return True
+    if not (_PLAUSIBLE_STRIKE_MIN <= value <= _PLAUSIBLE_STRIKE_MAX):
+        return False
+    if 0 < abs(value) < 1:
+        return False
+    return True
 
 
 def weather_series(series: str) -> bool:
@@ -73,13 +98,13 @@ def bracket_satisfied(
 ) -> bool | None:
     kind = strike_type.lower()
     if kind == "greater":
-        if cap_strike is None:
-            return None
-        return value > cap_strike
-    if kind == "less":
         if floor_strike is None:
             return None
-        return value < floor_strike
+        return value > floor_strike
+    if kind == "less":
+        if cap_strike is None:
+            return None
+        return value < cap_strike
     if kind == "between":
         if floor_strike is None or cap_strike is None:
             return None
