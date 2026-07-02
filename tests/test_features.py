@@ -321,6 +321,9 @@ def test_build_market_states_treats_active_market_with_blank_series_as_tradable(
             series="",
             title="live active market",
             status="active",
+            strike_type="between",
+            floor_strike=Decimal("72"),
+            cap_strike=Decimal("73"),
             raw_jsonb={},
         )
     )
@@ -351,6 +354,9 @@ def test_build_market_states_treats_active_market_with_blank_series_as_tradable(
     assert markets[0].ticker == ticker
     assert markets[0].series == "KXHIGHNY"
     assert markets[0].location_id == "nyc"
+    assert markets[0].strike_type == "between"
+    assert markets[0].floor_strike == Decimal("72")
+    assert markets[0].cap_strike == Decimal("73")
 
 
 def test_build_market_states_skips_expired_active_market(

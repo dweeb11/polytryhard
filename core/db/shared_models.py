@@ -53,6 +53,9 @@ class ReferenceMarketRow(SharedBase):
     close_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     settlement_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(32))
+    strike_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    floor_strike: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    cap_strike: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
     raw_jsonb: Mapped[dict[str, object]] = mapped_column(JSON)
 
 

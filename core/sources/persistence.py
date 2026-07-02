@@ -61,6 +61,9 @@ def load_markets(session: Session) -> tuple[ReferenceMarketUpsert, ...]:
             open_time=row.open_time,
             close_time=row.close_time,
             settlement_time=row.settlement_time,
+            strike_type=row.strike_type,
+            floor_strike=row.floor_strike,
+            cap_strike=row.cap_strike,
             raw_jsonb=row.raw_jsonb,
         )
         for row in rows
@@ -103,6 +106,9 @@ def persist_fetch_result(
                     close_time=upsert.close_time,
                     settlement_time=upsert.settlement_time,
                     status=upsert.status,
+                    strike_type=upsert.strike_type,
+                    floor_strike=upsert.floor_strike,
+                    cap_strike=upsert.cap_strike,
                     raw_jsonb=upsert.raw_jsonb,
                 )
             )
@@ -115,6 +121,9 @@ def persist_fetch_result(
             existing.close_time = upsert.close_time
             existing.settlement_time = upsert.settlement_time
             existing.status = upsert.status
+            existing.strike_type = upsert.strike_type
+            existing.floor_strike = upsert.floor_strike
+            existing.cap_strike = upsert.cap_strike
             existing.raw_jsonb = upsert.raw_jsonb
 
     session.flush()

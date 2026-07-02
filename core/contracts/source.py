@@ -33,6 +33,9 @@ class ReferenceMarketUpsert:
     open_time: datetime | None = None
     close_time: datetime | None = None
     settlement_time: datetime | None = None
+    strike_type: str | None = None
+    floor_strike: Decimal | None = None
+    cap_strike: Decimal | None = None
     raw_jsonb: dict[str, object] = field(default_factory=dict)
 
 
