@@ -1,33 +1,12 @@
 from __future__ import annotations
 
-import re
 from decimal import Decimal
 
 from core.domain.feature import FeatureValue
-
-WEATHER_SERIES_PATTERN = re.compile(r"^KXHIGH", re.IGNORECASE)
-
-# Ticker like KXHIGHNY-25MAY28-T72 -> location slug nyc (Kalshi NY = NYC metro)
-SERIES_TO_LOCATION: dict[str, str] = {
-    "KXHIGHNY": "nyc",
-    "KXHIGHCHI": "chicago",
-    "KXHIGHLAX": "la",
-    "KXHIGHMIA": "miami",
-    "KXHIGHHOU": "houston",
-    "KXHIGHAUS": "austin",
-}
-
-
-def weather_series(series: str) -> bool:
-    return bool(WEATHER_SERIES_PATTERN.match(series))
-
-
-def location_for_series(series: str) -> str | None:
-    upper = series.upper()
-    for prefix, location_id in SERIES_TO_LOCATION.items():
-        if upper.startswith(prefix):
-            return location_id
-    return None
+from core.domain.weather_markets import SERIES_TO_LOCATION as SERIES_TO_LOCATION
+from core.domain.weather_markets import WEATHER_SERIES_PATTERN as WEATHER_SERIES_PATTERN
+from core.domain.weather_markets import location_for_series as location_for_series
+from core.domain.weather_markets import weather_series as weather_series
 
 
 def ensemble_to_prob(temp_f: Decimal) -> Decimal:
