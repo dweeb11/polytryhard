@@ -639,6 +639,10 @@ export type components = {
             exposureCapPct?: number | null;
             /** Correlationcappct */
             correlationCapPct?: number | null;
+            /** Minedge */
+            minEdge?: number | null;
+            /** Maxdisagreementf */
+            maxDisagreementF?: number | null;
         };
         /** StrategyEval */
         StrategyEval: {

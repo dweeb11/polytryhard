@@ -12,6 +12,8 @@ DEFAULT_SPREAD_MARGIN_MULTIPLIER = 1.5
 DEFAULT_WIDE_SPREAD_THRESHOLD = 0.08
 DEFAULT_EXPOSURE_CAP_PCT = 0.5
 DEFAULT_CORRELATION_CAP_PCT = 0.5
+DEFAULT_MIN_EDGE = 0.05
+DEFAULT_MAX_DISAGREEMENT_F = 3.0
 
 WEATHER_ENSEMBLE_DISAGREEMENT = "weather_ensemble_disagreement"
 WEATHER_STALE_QUOTE = "weather_stale_quote"
@@ -31,6 +33,8 @@ class StrategyConfig(BaseModel):
     wide_spread_threshold: float | None = None
     exposure_cap_pct: float | None = None
     correlation_cap_pct: float | None = None
+    min_edge: float | None = None
+    max_disagreement_f: float | None = None
 
 
 class StrategyInstance(BaseModel):
@@ -64,11 +68,17 @@ def effective_strategy_config(
     if config.correlation_cap_pct is None:
         updates["correlation_cap_pct"] = DEFAULT_CORRELATION_CAP_PCT
 
+    if strategy_name in (WEATHER_ENSEMBLE_DISAGREEMENT, WEATHER_STALE_QUOTE):
+        if config.min_edge is None:
+            updates["min_edge"] = DEFAULT_MIN_EDGE
+
     if strategy_name == WEATHER_ENSEMBLE_DISAGREEMENT:
         if config.disagreement_threshold is None:
             updates["disagreement_threshold"] = DEFAULT_DISAGREEMENT_THRESHOLD
         if config.spread_margin_multiplier is None:
             updates["spread_margin_multiplier"] = DEFAULT_SPREAD_MARGIN_MULTIPLIER
+        if config.max_disagreement_f is None:
+            updates["max_disagreement_f"] = DEFAULT_MAX_DISAGREEMENT_F
     elif strategy_name == WEATHER_STALE_QUOTE:
         if config.wide_spread_threshold is None:
             updates["wide_spread_threshold"] = DEFAULT_WIDE_SPREAD_THRESHOLD

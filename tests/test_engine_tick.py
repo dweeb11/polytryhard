@@ -185,12 +185,13 @@ async def test_engine_tick_second_market_hits_correlation_cap_after_first_fill(
     stale_row.config_jsonb = {
         **dict(stale_row.config_jsonb),
         "exposureCapPct": 1.0,
-        # Binary Kelly (fee-aware, /(1-price) denominator) roughly doubles the
-        # stake vs. the old formula, so the first order alone now costs 250
-        # cents (bankroll 10_000 * kelly ~0.0259). 0.03 (cap 300) still lets
-        # the first order through while the second, correlated order (total
-        # 500) trips the cap.
-        "correlationCapPct": 0.03,
+        # weather_model_prob resolves near 0.83 for this fixture's forecast
+        # maxes (both T72 and T75 clear every ensemble max), a much larger
+        # honest edge than the old fake temp->prob mapping produced. Each
+        # order now costs 1250 cents (bankroll 10_000 * kelly ~0.125). 0.15
+        # (cap 1500) lets the first order through while the second,
+        # correlated order (total 2500) trips the cap.
+        "correlationCapPct": 0.15,
     }
     other = per_env.get(StrategyInstanceRow, "weather_ensemble_disagreement")
     assert other is not None
@@ -349,6 +350,17 @@ async def test_engine_tick_fill_carries_nonzero_fees(
     assert other is not None
     other.enabled = False
     other.bankroll_cents = 0
+    stale_row = per_env.get(StrategyInstanceRow, "weather_stale_quote")
+    assert stale_row is not None
+    # weather_model_prob resolves near 0.83 for this fixture's forecast maxes,
+    # a much larger honest edge than the old fake temp->prob mapping produced.
+    # Bump exposure/correlation caps so the single order isn't rejected by the
+    # default 10%/5% caps; this test is about fee bookkeeping, not risk caps.
+    stale_row.config_jsonb = {
+        **dict(stale_row.config_jsonb),
+        "exposureCapPct": 1.0,
+        "correlationCapPct": 1.0,
+    }
     per_env.flush()
     per_env.commit()
 
@@ -395,6 +407,17 @@ async def test_engine_tick_does_not_reenter_already_positioned_ticker(
     assert other is not None
     other.enabled = False
     other.bankroll_cents = 0
+    stale_row = per_env.get(StrategyInstanceRow, "weather_stale_quote")
+    assert stale_row is not None
+    # See test_engine_tick_fill_carries_nonzero_fees: weather_model_prob's
+    # honest edge for this fixture is much larger than the old fake mapping's,
+    # so the default exposure/correlation caps must be widened for the
+    # single-order asserts below.
+    stale_row.config_jsonb = {
+        **dict(stale_row.config_jsonb),
+        "exposureCapPct": 1.0,
+        "correlationCapPct": 1.0,
+    }
     per_env.flush()
     per_env.commit()
 

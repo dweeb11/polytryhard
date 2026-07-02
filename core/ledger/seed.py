@@ -29,6 +29,8 @@ SEED_STRATEGIES: tuple[tuple[str, dict[str, object]], ...] = (
             "confidenceFloor": 0.55,
             "exposureCapPct": 0.10,
             "correlationCapPct": 0.05,
+            "minEdge": 0.05,
+            "maxDisagreementF": 3.0,
         },
     ),
     (
@@ -41,6 +43,7 @@ SEED_STRATEGIES: tuple[tuple[str, dict[str, object]], ...] = (
             "confidenceFloor": 0.55,
             "exposureCapPct": 0.10,
             "correlationCapPct": 0.05,
+            "minEdge": 0.05,
         },
     ),
 )

@@ -3,6 +3,8 @@ from core.domain.strategy import (
     DEFAULT_CORRELATION_CAP_PCT,
     DEFAULT_DISAGREEMENT_THRESHOLD,
     DEFAULT_EXPOSURE_CAP_PCT,
+    DEFAULT_MAX_DISAGREEMENT_F,
+    DEFAULT_MIN_EDGE,
     DEFAULT_SPREAD_MARGIN_MULTIPLIER,
     DEFAULT_WIDE_SPREAD_THRESHOLD,
     WEATHER_ENSEMBLE_DISAGREEMENT,
@@ -49,6 +51,22 @@ def test_effective_strategy_config_applies_stale_quote_defaults() -> None:
     assert config.wide_spread_threshold == DEFAULT_WIDE_SPREAD_THRESHOLD
     assert config.disagreement_threshold is None
     assert config.spread_margin_multiplier is None
+
+
+def test_effective_strategy_config_applies_min_edge_and_max_disagreement_defaults() -> None:
+    ensemble_config = effective_strategy_config(
+        _baseline_config(),
+        strategy_name=WEATHER_ENSEMBLE_DISAGREEMENT,
+    )
+    assert ensemble_config.min_edge == DEFAULT_MIN_EDGE
+    assert ensemble_config.max_disagreement_f == DEFAULT_MAX_DISAGREEMENT_F
+
+    stale_quote_config = effective_strategy_config(
+        _baseline_config(),
+        strategy_name=WEATHER_STALE_QUOTE,
+    )
+    assert stale_quote_config.min_edge == DEFAULT_MIN_EDGE
+    assert stale_quote_config.max_disagreement_f is None
 
 
 def test_effective_strategy_config_preserves_explicit_values() -> None:
