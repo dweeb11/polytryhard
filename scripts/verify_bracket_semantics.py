@@ -52,6 +52,9 @@ def main() -> int:
             if predicted is None:
                 skipped += 1
                 continue
+            if resolution.resolution.value == "void":
+                skipped += 1
+                continue
             actual_yes = resolution.resolution.value == "yes"
             checked += 1
             if predicted is not actual_yes:
