@@ -105,6 +105,46 @@ def latest_forecast_rows(
     return [row for row in rows if _as_utc(row.valid_window_start) == window]
 
 
+def daily_max_by_member(
+    session: Session,
+    *,
+    location_id: str,
+    source: ForecastSource,
+    variable: str,
+    as_of: datetime,
+    day_start_utc: datetime,
+    day_end_utc: datetime,
+) -> dict[int | None, Decimal]:
+    """Per-ensemble-member max value over [day_start_utc, day_end_utc) from the latest run."""
+    latest_run = session.scalar(
+        select(func.max(RawForecastRunRow.run_time)).where(
+            RawForecastRunRow.location_id == location_id,
+            RawForecastRunRow.source == source,
+            RawForecastRunRow.variable == variable,
+            RawForecastRunRow.run_time <= as_of,
+        )
+    )
+    if latest_run is None:
+        return {}
+    rows = session.scalars(
+        select(RawForecastRunRow).where(
+            RawForecastRunRow.location_id == location_id,
+            RawForecastRunRow.source == source,
+            RawForecastRunRow.variable == variable,
+            RawForecastRunRow.run_time == latest_run,
+        )
+    ).all()
+    maxes: dict[int | None, Decimal] = {}
+    for row in rows:
+        window = _as_utc(row.valid_window_start)
+        if not (day_start_utc <= window < day_end_utc):
+            continue
+        current = maxes.get(row.ensemble_member)
+        if current is None or row.value > current:
+            maxes[row.ensemble_member] = row.value
+    return maxes
+
+
 def ensemble_mean(rows: list[RawForecastRunRow]) -> Decimal | None:
     if not rows:
         return None

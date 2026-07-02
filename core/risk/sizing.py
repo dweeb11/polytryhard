@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import ROUND_DOWN, Decimal
 
 from core.db.enums import PositionStatus
@@ -113,12 +113,18 @@ def _edge(signal: SignalDraft, price: Decimal) -> Decimal:
     return no_prob - price
 
 
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
 def _stale_feature(
     max_age_seconds: int,
     features: dict[str, FeatureValue],
     market: MarketState,
 ) -> str | None:
-    cutoff = market.as_of - timedelta(seconds=max_age_seconds)
+    cutoff = _as_utc(market.as_of) - timedelta(seconds=max_age_seconds)
     location_id = location_for_series(market.series)
     scoped_subjects = {market.ticker, location_id}
     for feature in features.values():
@@ -128,7 +134,7 @@ def _stale_feature(
             return f"stale feature {feature.provider_name}"
         if feature.status != FeatureStatus.PRESENT:
             return f"missing feature {feature.provider_name}"
-        if feature.as_of is None or feature.as_of < cutoff:
+        if feature.as_of is None or _as_utc(feature.as_of) < cutoff:
             return f"stale feature {feature.provider_name}"
     return None
 
