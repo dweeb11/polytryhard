@@ -520,7 +520,7 @@ from core.domain.weather_markets import (  # noqa: F401  (re-export for existing
 )
 ```
 
-Keep `scoped_features`, `numeric_feature`, `ensemble_to_prob`, `prob_to_temp` untouched for now (Task 7 deletes the last two). `core/engine/markets.py` and `core/risk/sizing.py` keep working via the re-export; optionally repoint their imports to `core.domain.weather_markets` in this PR.
+Keep `numeric_feature`, `ensemble_to_prob`, `prob_to_temp` untouched for now (Task 7 deletes the last two; `scoped_features` was already removed upstream by APP-294). `core/engine/markets.py` and `core/risk/sizing.py` keep working via the re-export; optionally repoint their imports to `core.domain.weather_markets` in this PR.
 
 - [ ] **Step 5: Run tests + full gate**
 
@@ -1134,7 +1134,7 @@ Both strategies become honest value trades against a real probability. `weather_
 **Files:**
 - Modify: `core/strategies/weather_ensemble_disagreement/strategy.py` (rewrite)
 - Modify: `core/strategies/weather_stale_quote/strategy.py` (rewrite)
-- Modify: `core/strategies/weather_utils.py` (delete `ensemble_to_prob`, `prob_to_temp`, `scoped_features` — the engine already scopes; keep `numeric_feature` + re-exports)
+- Modify: `core/strategies/weather_utils.py` (delete `ensemble_to_prob`, `prob_to_temp`; `scoped_features` is already gone via APP-294 — the engine scopes; keep `numeric_feature` + re-exports)
 - Modify: `core/domain/strategy.py` (`StrategyConfig`: add `min_edge`, `max_disagreement_f`; keep the old fields — API contract — just stop using them)
 - Modify: `core/ledger/seed.py` (seed new config keys)
 - Test: `tests/test_weather_strategies.py` (rewrite), `tests/test_strategy_config.py` (extend)
@@ -1391,7 +1391,7 @@ class WeatherStaleQuoteStrategy(Strategy):
         )
 ```
 
-- [ ] **Step 6: Clean `weather_utils`.** Delete `ensemble_to_prob`, `prob_to_temp`, and `scoped_features` from `core/strategies/weather_utils.py`. Run `grep -rn "ensemble_to_prob\|prob_to_temp\|scoped_features" core tests` — must return nothing outside this file's history. Keep `numeric_feature` and the `weather_markets` re-exports.
+- [ ] **Step 6: Clean `weather_utils`.** Delete `ensemble_to_prob` and `prob_to_temp` from `core/strategies/weather_utils.py` (`scoped_features` was already removed by APP-294). Run `grep -rn "ensemble_to_prob\|prob_to_temp" core tests` — must return nothing. Keep `numeric_feature` and the `weather_markets` re-exports.
 
 - [ ] **Step 7: Run strategy tests + purity guard + full gate**
 
